@@ -39,8 +39,14 @@ def main():
         for asteroid in asteroids:
             if asteroid.collides_with(player):
                 log_event("player_hit")
-                print("Game over!")
-                sys.exit()
+                if player.lives > 0:
+                    player.lives -= 1
+                    player.position.x = SCREEN_WIDTH / 2
+                    player.position.y = SCREEN_HEIGHT / 2
+                else:
+                    log_event("game_over")    
+                    print("Game over!")
+                    sys.exit()
             for shot in shots:
                 if shot.collides_with(asteroid):                    
                     log_event("asteroid_shot")

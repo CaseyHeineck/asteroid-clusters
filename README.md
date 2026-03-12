@@ -1,4 +1,10 @@
 # Looking to add more to the game to make it feel like a game, future objectives include:
+* ~~Add a scoring system~~
+    - Implement higher scoring for larger asteroids
+    - Have a small popup showing the amount being added to total when destructed
+* ~~Implement multiple lives and respawning~~
+    - Show on screen how many lives the player has left
+    - Implement a cooldown system so player does not die on respawn too quickly
 * Add an explosion effect for the asteroids
 * Add acceleration to the player movement
 * Make the objects wrap around the screen instead of disappearing
@@ -9,9 +15,3 @@
 * Add a shield power-up
 * Add a speed power-up
 * Add bombs that can be dropped
-## ~~Add a scoring system~~
-    * Implement higher scoring for larger asteroids
-    * Have a small popup showing the amount being added to total when destructed
-## ~~Implement multiple lives and respawning~~
-    * Show on screen how many lives the player has left
-    * Implement a cooldown system so player does not die on respawn too quickly

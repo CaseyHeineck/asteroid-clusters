@@ -1,9 +1,11 @@
 # Looking to add more to the game to make it feel like a game, future objectives include:
 * ~~Add a scoring system~~
     ** ~~Created a score class that shows in top left corner of screen, not updating correctly~~ 
-        - Implement higher scoring for larger asteroids
+        - ~~Implement higher scoring for larger asteroids~~
+            * Scoring is now handled in the display class
         - Have a small popup showing the amount being added to total when destructed
 * ~~Implement multiple lives and respawning~~
+    ** ~~respawning is now handled within the player class~~
     - Show on screen how many lives the player has left
     - Implement a cooldown system so player does not die on respawn too quickly
         - Feels like I should be close to getting this to work, respawn properly calls player method now

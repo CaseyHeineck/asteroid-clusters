@@ -11,7 +11,7 @@ class Player(CircleShape):
         self.shot_cooldown = 0
         self.lives = 3
         self.life = True
-        self.invulnerable = False
+        self.respawn_timer = 0
         
     def draw(self, screen):
         pygame.draw.polygon(screen, "white", self.triangle(), LINE_WIDTH)
@@ -33,48 +33,24 @@ class Player(CircleShape):
             shot.velocity = pygame.Vector2(0, 1).rotate(self.rotation) * PLAYER_SHOOT_SPEED
             self.shot_cooldown = PLAYER_SHOOT_COOLDOWN_SECONDS
 
-    def lose_life(self, HUD, respawn_timer, dt):
+    def respawn(self, HUD):
         log_event("player_hit")
-        if self.lives > 0:
-            HUD.update_score(LIFE_LOSS_SCORE * self.lives)
-            self.respawn(respawn_timer, dt)
-            log_event("player_respawned")
-            respawn_timer = 0
-        else:
-            HUD.update_score(GAME_OVER_SCORE)
-            log_event("game_over")
-            print(f"Score: {HUD.score}")    
-            print("Game over!")
-            sys.exit()
-
-    def respawn(self, respawn_timer, dt):
+        HUD.update_score(LIFE_LOSS_SCORE * self.lives)
         self.lives -= 1
         self.life = False
-        self.position.x = SCREEN_WIDTH / 2
-        self.position.y = SCREEN_HEIGHT / 2
-        self.is_invulnerable()
-        if self.invulnerable is True:
-            if respawn_timer < PLAYER_RESPAWN_COOLDOWN_SECONDS:
-                respawn_timer += dt
-                return
-            else:
-                self.life = True
-                self.is_invulnerable()
-            
-    def collides_with(self, other):
-        if self.invulnerable is True:
-            return False
-        return super().collides_with(other)
-    
-    def is_invulnerable(self):
-        if self.life is not True:
-            self.invulnerable = True
+        if self.lives > 0:
+            log_event("player_respawned")
+            self.position.x = SCREEN_WIDTH / 2
+            self.position.y = SCREEN_HEIGHT / 2
         else:
-            self.invulnerable = False
-
+            log_event("game_over")
+            HUD.update_score(GAME_OVER_SCORE)
+            print(f"Score: {int(HUD.score)}")    
+            print("Game over!")
+            sys.exit()
+    
     def update(self, dt):
         keys = pygame.key.get_pressed()
-
         if keys[pygame.K_a]:
             self.rotate(-dt)
         if keys[pygame.K_d]:
@@ -87,6 +63,13 @@ class Player(CircleShape):
             self.shoot()
         
         self.shot_cooldown -= dt
+
+        if self.life is not True:
+            if self.respawn_timer < PLAYER_RESPAWN_COOLDOWN_SECONDS:
+                self.respawn_timer += dt
+            else:
+                self.life = True
+                self.respawn_timer = 0
 
     def triangle(self):
         forward = pygame.Vector2(0, 1).rotate(self.rotation)

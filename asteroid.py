@@ -33,13 +33,13 @@ class Asteroid(CircleShape):
         factor = 0
         if angle > 270 and angle <= 360:
             angle = angle - 270
-            factor = 1 - (angle / 90)   
+            factor = angle / 90   
         elif angle > 180 and angle <= 270:
             angle = angle - 180
             factor = 1 - (angle / 90)
         elif angle > 90 and angle <= 180:
             angle = angle - 90
-            factor = 1 - (angle / 90)
+            factor = angle / 90
         elif angle > 0 and angle <= 90:
             factor = 1 - (angle / 90)
         else:

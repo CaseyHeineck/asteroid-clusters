@@ -1,11 +1,11 @@
 import pygame
 import sys
-from constants import *
-from player import *
 from asteroid import *
 from asteroidfield import *
-from shot import *
+from constants import *
 from display import *
+from shot import *
+from player import *
 from logger import log_state, log_event
 
 def main():
@@ -25,8 +25,7 @@ def main():
     Display.containers = (HUD, drawable, updatable)    
     asteroid_field = AsteroidField()
     player = Player((SCREEN_WIDTH / 2), (SCREEN_HEIGHT / 2))
-    respawn_timer = 0
-  
+      
     while screen:
         log_state()
         for event in pygame.event.get():
@@ -41,8 +40,9 @@ def main():
         dt = time / 1000
         updatable.update(dt)
         for asteroid in asteroids:
-            if asteroid.collides_with(player):
-                player.lose_life(HUD, respawn_timer, dt)
+            if player.life is True:       
+                if asteroid.collides_with(player):
+                    player.respawn(HUD)
             for shot in shots:
                 if shot.collides_with(asteroid):
                     shot.hits(asteroid, HUD)                    

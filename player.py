@@ -12,9 +12,14 @@ class Player(CircleShape):
         self.lives = 3
         self.life = True
         self.respawn_timer = 0
+        self.blink_timer = 0
+        self.vulnerable = True
         
     def draw(self, screen):
-        pygame.draw.polygon(screen, "white", self.triangle(), LINE_WIDTH)
+        if self.vulnerable:
+            pygame.draw.polygon(screen, "red", self.triangle(), LINE_WIDTH)
+        else:            
+            pygame.draw.polygon(screen, "white", self.triangle(), LINE_WIDTH)
 
     def rotate(self, dt):
         self.rotation += PLAYER_TURN_SPEED * dt
@@ -37,7 +42,9 @@ class Player(CircleShape):
         log_event("player_hit")
         HUD.update_score(LIFE_LOSS_SCORE * self.lives)
         self.lives -= 1
+        HUD.update_player_lives(self.lives)
         self.life = False
+        self.vulnerable = False
         if self.lives > 0:
             log_event("player_respawned")
             self.position.x = SCREEN_WIDTH / 2
@@ -65,13 +72,24 @@ class Player(CircleShape):
         self.shot_cooldown -= dt
 
         if self.life is not True:
+            if self.blink_timer < PLAYER_BLINK_TIMER:
+                self.blink_timer += dt
+            else:
+                if self.vulnerable:
+                    self.vulnerable = False
+                    self.blink_timer = 0
+                else:
+                    self.vulnerable = True
+                    self.blink_timer = 0     
             if self.respawn_timer < PLAYER_RESPAWN_COOLDOWN_SECONDS:
                 self.respawn_timer += dt
             else:
                 self.life = True
-                self.respawn_timer = 0
+                self.respawn_timer = 0 
+        else:
+            self.vulnerable = True     
 
-    def triangle(self):
+    def triangle(self):    
         forward = pygame.Vector2(0, 1).rotate(self.rotation)
         right = pygame.Vector2(0, 1).rotate(self.rotation + 90) * self.radius / 1.5
         a = self.position + forward * self.radius

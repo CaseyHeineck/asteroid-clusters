@@ -5,13 +5,13 @@
             * Scoring is now handled in the display class
     - Have a small popup showing the amount being added to total when destructed
 * ~~Implement multiple lives and respawning~~
-    - Show on screen how many lives the player has left
+    * ~~Show on screen how many lives the player has left~~
     * ~~respawning is now handled within the player class~~
     * ~~Implement a cooldown system so player does not die on respawn too quickly~~
         * ~~Feels like I should be close to getting this to work, respawn properly calls player method now~~
         * ~~player method doesn't properly flag if the player is still invulnberable around the time~~
-            * Abandoned invulnerable idea for respawn, respawn cooldown uses player update properly now
-    - Add visual effect to ship while respawn cooldown
+            * ~~Abandoned invulnerable idea for respawn, respawn cooldown uses player update properly now~~
+    * ~~Add visual effect to ship while respawn cooldown~~
 * Add an explosion effect for the asteroids
 * Add acceleration to the player movement
 * Make the objects wrap around the screen instead of disappearing

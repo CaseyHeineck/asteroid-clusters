@@ -1,7 +1,7 @@
 import pygame
 
 class Display:
-    def __init__(self, x, y, font_size=30, color=(255, 255, 255)):
+    def __init__(self, x, y, font_size=50, color=(255, 255, 255)):
         if hasattr(self, "containers"):
             super().__init__(self.containers)
         else:
@@ -10,16 +10,21 @@ class Display:
         self.font = pygame.font.Font(None, font_size)
         self.color = color
         self.x, self.y = x, y
+        self.player_lives = 3
         self.update_image()
 
     def update_image(self):
-        self.image = self.font.render(f"Score: {int(self.score)}", True, self.color)
+        self.image = self.font.render(f"Lives: {self.player_lives}    Score: {int(self.score)}", True, self.color)
         self.rect = self.image.get_rect(topleft=(self.x, self.y))
 
     def update_score(self, points):
         self.score += points
         if self.score <= 0:
             self.score = 0
+        self.update_image()
+
+    def update_player_lives(self, player_lives):
+        self.player_lives = player_lives
         self.update_image()
 
     def update(self, dt):

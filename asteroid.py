@@ -4,9 +4,9 @@ from constants import *
 from logger import log_event
 
 class Asteroid(CircleShape):
-    def __init__(self, x, y, radius):
-        super().__init__(x, y, radius)
-        self.size = self.radius / ASTEROID_MIN_RADIUS
+    def __init__(self, x, y, size):
+        super().__init__(x, y, size * ASTEROID_MIN_RADIUS)
+        self.size = size
         self.full_health = self.size
         self.health = self.full_health
         self.line_width = int(LINE_WIDTH + (self.size * 2))
@@ -45,31 +45,12 @@ class Asteroid(CircleShape):
                 return
             else:
                 log_event("asteroid_split")
-                # currently doesn't work but unsure of why
-                # it is getting into the for angle in num_angles loop
-                # but doesn't like how im trying to assign the range
-                # starting at one and stopping after it has appended its own size number to the list
-                # num_angles = []
-                # angle_num = 1
-                # if angle_num <= self.size:
-                #   num_angles.append(str(angle_num))
-                #   angle_num += 1
-                # for angle in num_angles:
-                #     range_size = 360 / len(num_angles)
-                #     new_angle = random.uniform(1 + (range_size * (int(angle) - 1)), range_size(int(angle)))    
-                #     velocity = self.velocity.rotate(new_angle)
-                #     radius = self.radius - ASTEROID_MIN_RADIUS
-                #     asteroid = Asteroid(self.position.x, self.position.y, radius)
-                #     asteroid.velocity = velocity * self.split_factor(angle) * ASTEROID_SPLIT_ACCELERATION
-                angle1 = random.uniform(1, 180)
-                angle2 = random.uniform(181, 360)
-                first = self.velocity.rotate(angle1)
-                second = self.velocity.rotate(angle2)
-                new_radius = self.radius - ASTEROID_MIN_RADIUS
-                asteroid1 = Asteroid(self.position.x, self.position.y, new_radius)
-                asteroid1.velocity = first * self.split_factor(angle1) * ASTEROID_SPLIT_ACCELERATION
-                asteroid2 = Asteroid(self.position.x, self.position.y, new_radius)
-                asteroid2.velocity = second * self.split_factor(angle2) * ASTEROID_SPLIT_ACCELERATION
+                for i in range(self.size):
+                    range_size = 360 / self.size
+                    new_angle = random.uniform(1 + (range_size * i), range_size * (i + 1))    
+                    velocity = self.velocity.rotate(new_angle)
+                    asteroid = Asteroid(self.position.x, self.position.y, (self.size - 1))
+                    asteroid.velocity = velocity * self.split_factor(new_angle) * ASTEROID_SPLIT_ACCELERATION
     
     def split_factor(self, angle):
         factor = 0

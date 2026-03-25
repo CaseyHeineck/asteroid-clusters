@@ -19,9 +19,33 @@
     * ~~Added boost and strafe functionality to player movement~~
 * Make the objects wrap around the screen instead of disappearing
 * Add a background image
-* Create different weapon types
 * Make the asteroids lumpy instead of perfectly round
 * Make the ship have a triangular hit box instead of a circular one
+* Create different weapon types
 * Add a shield power-up
-* Add a speed power-up
 * Add bombs that can be dropped
+## Shaping the future of the game:
+* Having Start Game Menu
+* Game should play much more like a avoid the obstacle type game
+    * As acceleration is added along with gravitational like forces, movement will become a huge gameplay factor
+* Implement drones for automatic mining/destroying of asteroids
+    * Want to add drops from asteroid destruction
+        * Some kind of fuel to either use or trade
+        * Some kind of ore 
+        * Experience
+    * Use a limited drone amount structure
+        * Have five different types of drones
+            * Medium range, medium RoF, medium damage, maybe called blaster
+            * Medium range, high RoF, low damage, maybe called minigun
+            * High range, low RoF, high damage, maybe called eliminator
+            * Varied medium range, varied low RoF, high damage with splash, maybe called explosive
+            * Targets player or immediate player area, varied RoF, aids player, maybe called defender
+        * Start with one drone deployed each run, and after a certain amount of levels allow the player to add more drones
+            * For example, after levels 5, 10, 15, and 20, then all drones can be deployed
+                * Levels in between or after can be used to improve and upgrade each drone itself
+                    * Potentially even player movement, or asteroid behavior
+* Map exploration per run
+    * In gameplay that is inspired by Stand Survivors
+        * Start in a random asteroid field where the player can warp around the edges of that screen
+        * After player collects certain amount of currency, can unlock a warp to a new screen
+* Having Game End Screen

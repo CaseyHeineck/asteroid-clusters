@@ -2,7 +2,7 @@ import pygame
 from constants import *
 
 class Display:
-    def __init__(self, x, y, font_size=50, color=WHITE):
+    def __init__(self, x, y, font_size=50, color=CYAN):
         if hasattr(self, "containers"):
             super().__init__(self.containers)
         else:
@@ -15,7 +15,7 @@ class Display:
         self.update_image()
 
     def update_image(self):
-        self.image = self.font.render(f"Lives: {self.player_lives}    Score: {int(self.score)}", True, self.color)
+        self.image = self.font.render(f"Lives: {self.player_lives}  Score: {int(self.score)}", True, self.color)
         self.rect = self.image.get_rect(topleft=(self.x, self.y))
 
     def update_score(self, points):

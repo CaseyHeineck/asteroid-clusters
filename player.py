@@ -14,6 +14,8 @@ class Player(CircleShape):
         self.respawn_timer = 0
         self.blink_timer = 0
         self.vulnerable = True
+        self.speed = 0
+        self.game_over = False
         
     def draw(self, screen):
         if self.vulnerable:
@@ -23,6 +25,25 @@ class Player(CircleShape):
 
     def rotate(self, dt):
         self.rotation += PLAYER_TURN_SPEED * dt
+    
+    def accelerate(self, dt):
+        self.speed += PLAYER_ACCELERATION_RATE * dt
+
+    def decelerate(self, dt):
+        if self.speed < 0:
+            self.speed += PLAYER_DECELERATION_RATE * dt
+        if self.speed > 0:
+            self.speed -= PLAYER_DECELERATION_RATE * dt
+        if self.speed == 0:
+            return
+
+    def brake(self, dt):
+        if self.speed < 0:
+            self.speed += PLAYER_BRAKE_SPEED * dt
+        if self.speed > 0:
+            self.speed -= PLAYER_BRAKE_SPEED * dt
+        if self.speed == 0:
+            return
 
     def move(self, dt):
         unit_vector = pygame.Vector2(0, 1)
@@ -58,11 +79,10 @@ class Player(CircleShape):
         else:
             log_event("game_over")
             HUD.update_score(GAME_OVER_SCORE)
-            print(f"Score: {int(HUD.score)}")
-            print("Game over!")
-            sys.exit()
+            self.game_over = True
     
     def update(self, dt):
+#       self.wrap_edges()
         keys = pygame.key.get_pressed()
         if keys[pygame.K_SPACE]:
             self.shoot()
@@ -114,7 +134,6 @@ class Player(CircleShape):
                 self.move(dt)
             if keys[pygame.K_s]:
                 self.move(-dt)
-
         
         self.shot_cooldown -= dt
 

@@ -1,4 +1,5 @@
 import pygame
+from constants import *
 
 # Base class for game objects
 class CircleShape(pygame.sprite.Sprite):
@@ -8,9 +9,9 @@ class CircleShape(pygame.sprite.Sprite):
         else:
             super().__init__()
         self.position = pygame.Vector2(x, y)
-        self.velocity = pygame.Vector2(0, 0)
         self.radius = radius
-
+        self.velocity = pygame.Vector2(0, 0)
+        
     def draw(self, screen):
         # must override
         pass
@@ -25,3 +26,5 @@ class CircleShape(pygame.sprite.Sprite):
             return False
         else:
             return True
+        
+        

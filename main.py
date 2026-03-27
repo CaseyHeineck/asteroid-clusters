@@ -168,11 +168,7 @@ def main():
             game_over_menu.update(events)
             game_over_menu.draw(screen)
       
-        pygame.display.flip()        
-            
-        # if player exp above current level exp require:
-        #     player.add_drone()
-        #     for drone in drones:  
+        pygame.display.flip()          
                
     print(f"Starting Asteroids with pygame version: {pygame.version.ver}")
     print(f"Screen width: {SCREEN_WIDTH}")

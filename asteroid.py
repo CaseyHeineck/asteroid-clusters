@@ -25,16 +25,14 @@ class Asteroid(CircleShape):
             self.position.x - (width / 2), 
             self.position.y - (self.size * 2), 
             width, 
-            HEALTH_BAR_HEIGHT + (self.size * 2)
-            )
+            HEALTH_BAR_HEIGHT + (self.size * 2))
         pygame.draw.rect(screen, BLACK, background_rect)        
         current_width = width * health_ratio
         health_rect = pygame.Rect(
             self.position.x - (width / 2), 
             self.position.y - (self.size * 2), 
             current_width, 
-            HEALTH_BAR_HEIGHT + (self.size * 2)
-            )        
+            HEALTH_BAR_HEIGHT + (self.size * 2))        
         pygame.draw.rect(screen, RED, health_rect)
         pygame.draw.rect(screen, WHITE, background_rect, LINE_WIDTH)
 
@@ -43,10 +41,16 @@ class Asteroid(CircleShape):
 
     def split(self, damage, HUD):
         self.health -= damage
-        if self.health > 0 :
+        if self.health > 0:
             return
         else:
             HUD.update_score(BASE_SCORE * self.size)
+            Explosion(self.position.x,
+                    self.position.y,
+                    radius=max(12, int(self.radius * 1.1)),
+                    color=ORANGE,
+                    duration=0.12 + (self.radius / 200),
+                    max_alpha=150)
             self.kill()
             if self.size == 1:
                 log_event("asteroid_destroyed")

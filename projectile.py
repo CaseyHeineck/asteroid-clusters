@@ -37,19 +37,8 @@ class Rocket(Projectile):
 
     def on_hit(self, asteroid, HUD):
         log_event("asteroid_hit")
-
         impact_position = self.position.copy()
-
         asteroid.split(self.damage, HUD)
-
-        for other_asteroid in self.asteroids:
-            if other_asteroid == asteroid:
-                continue
-
-            distance = impact_position.distance_to(other_asteroid.position)
-            if distance <= ROCKET_EXPLOSION_RADIUS:
-                other_asteroid.split(ROCKET_PROJECTILE_SPLASH_DAMAGE, HUD)
-
         Explosion(
             impact_position.x,
             impact_position.y,
@@ -59,10 +48,14 @@ class Rocket(Projectile):
             max_alpha=ROCKET_EXPLOSION_MAX_ALPHA
         )
 
+        for other_asteroid in self.asteroids:
+            distance = impact_position.distance_to(other_asteroid.position)
+            if distance <= ROCKET_EXPLOSION_RADIUS:
+                other_asteroid.split(ROCKET_PROJECTILE_SPLASH_DAMAGE, HUD)
+
         self.kill()
 
     def draw(self, screen):
-        # simple rocket look: body + nose
         forward = self.velocity.normalize() if self.velocity.length_squared() > 0 else pygame.Vector2(0, -1)
         angle = pygame.Vector2(0, -1).angle_to(forward)
 

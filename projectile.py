@@ -1,11 +1,11 @@
 import pygame
+import constants as C
 from circleshape import CircleShape
-from constants import *
-from explosion import Explosion
+from visualeffect import Explosion
 from logger import log_event
 
 class Projectile(CircleShape):    
-    def __init__(self, x, y, radius=PROJECTILE_RADIUS, color=PROJECTILE_COLOR, damage=PROJECTILE_DAMAGE):
+    def __init__(self, x, y, radius=C.PROJECTILE_RADIUS, color=C.PROJECTILE_COLOR, damage=C.PROJECTILE_DAMAGE):
         super().__init__(x, y, radius)
         self.color = color        
         self.damage = damage
@@ -24,48 +24,38 @@ class Projectile(CircleShape):
 
 class Kinetic(Projectile):
     def __init__(self, x, y):
-        super().__init__(x, y, KINETIC_PROJECTILE_RADIUS, KINETIC_PROJECTILE_COLOR, KINETIC_PROJECTILE_DAMAGE)
+        super().__init__(x, y, C.KINETIC_PROJECTILE_RADIUS, C.KINETIC_PROJECTILE_COLOR, C.KINETIC_PROJECTILE_DAMAGE)
 
 class Plasma(Projectile):
     def __init__(self, x, y):
-        super().__init__(x, y, PLASMA_PROJECTILE_RADIUS, PLASMA_PROJECTILE_COLOR, PLASMA_PROJECTILE_DAMAGE)
+        super().__init__(x, y, C.PLASMA_PROJECTILE_RADIUS, C.PLASMA_PROJECTILE_COLOR, C.PLASMA_PROJECTILE_DAMAGE)
 
 class Rocket(Projectile):
     def __init__(self, x, y, asteroids):
-        super().__init__(x, y, ROCKET_PROJECTILE_RADIUS, ROCKET_PROJECTILE_COLOR, ROCKET_PROJECTILE_DAMAGE)
+        super().__init__(x, y, C.ROCKET_PROJECTILE_RADIUS, C.ROCKET_PROJECTILE_COLOR, C.ROCKET_PROJECTILE_DAMAGE)
         self.asteroids = asteroids
 
     def on_hit(self, asteroid, HUD):
         log_event("asteroid_hit")
         impact_position = self.position.copy()
         asteroid.split(self.damage, HUD)
-        Explosion(
-            impact_position.x,
-            impact_position.y,
-            radius=ROCKET_EXPLOSION_RADIUS,
-            color=ROCKET_EXPLOSION_COLOR,
-            duration=ROCKET_EXPLOSION_DURATION,
-            max_alpha=ROCKET_EXPLOSION_MAX_ALPHA
-        )
-
+        Explosion(impact_position.x, impact_position.y, radius=C.ROCKET_EXPLOSION_RADIUS, 
+                color=C.ROCKET_EXPLOSION_COLOR, duration=C.ROCKET_EXPLOSION_DURATION, 
+                max_alpha=C.ROCKET_EXPLOSION_MAX_ALPHA)
         for other_asteroid in self.asteroids:
             distance = impact_position.distance_to(other_asteroid.position)
-            if distance <= ROCKET_EXPLOSION_RADIUS:
-                other_asteroid.split(ROCKET_PROJECTILE_SPLASH_DAMAGE, HUD)
-
+            if distance <= C.ROCKET_EXPLOSION_RADIUS:
+                other_asteroid.split(C.ROCKET_PROJECTILE_SPLASH_DAMAGE, HUD)
         self.kill()
 
     def draw(self, screen):
         forward = self.velocity.normalize() if self.velocity.length_squared() > 0 else pygame.Vector2(0, -1)
         angle = pygame.Vector2(0, -1).angle_to(forward)
-
         surface = pygame.Surface((12, 18), pygame.SRCALPHA)
-
         # rocket body
         pygame.draw.rect(surface, self.color, (4, 4, 4, 10))
         # rocket nose
-        pygame.draw.polygon(surface, RED, [(6, 0), (3, 4), (9, 4)])
-
+        pygame.draw.polygon(surface, C.RED, [(6, 0), (3, 4), (9, 4)])
         rotated = pygame.transform.rotate(surface, angle)
         rect = rotated.get_rect(center=(self.position.x, self.position.y))
         screen.blit(rotated, rect)

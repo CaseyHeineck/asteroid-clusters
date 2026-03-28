@@ -1,12 +1,8 @@
 import pygame
-from constants import *
+import constants as C
 
 class Display:
-    def __init__(self, x, y, font_size=50, color=CYAN):
-        if hasattr(self, "containers"):
-            super().__init__(self.containers)
-        else:
-            super().__init__()
+    def __init__(self, x, y, font_size=50, color=C.CYAN):
         self.score = 0
         self.font = pygame.font.Font(None, font_size)
         self.color = color

@@ -1,20 +1,20 @@
 import pygame
 import random
+import constants as C
 from circleshape import CircleShape
-from constants import *
-from explosion import Explosion
+from visualeffect import Explosion
 from logger import log_event
 
 class Asteroid(CircleShape):
     def __init__(self, x, y, size):
-        super().__init__(x, y, size * ASTEROID_MIN_RADIUS)
+        super().__init__(x, y, size * C.ASTEROID_MIN_RADIUS)
         self.size = size
-        self.full_health = self.size
+        self.full_health = self.size * 10
         self.health = self.full_health
-        self.line_width = int(LINE_WIDTH + (self.size * 2))
+        self.line_width = int(C.LINE_WIDTH + (self.size * 2))
 
     def draw(self, screen):
-        pygame.draw.circle(screen, WHITE, self.position, self.radius, self.line_width)
+        pygame.draw.circle(screen, C.WHITE, self.position, self.radius, self.line_width)
         if self.health < self.full_health:
             self.draw_health_bar(screen)
     
@@ -25,16 +25,16 @@ class Asteroid(CircleShape):
             self.position.x - (width / 2), 
             self.position.y - (self.size * 2), 
             width, 
-            HEALTH_BAR_HEIGHT + (self.size * 2))
-        pygame.draw.rect(screen, BLACK, background_rect)        
+            C.HEALTH_BAR_HEIGHT + (self.size * 2))
+        pygame.draw.rect(screen, C.BLACK, background_rect)        
         current_width = width * health_ratio
         health_rect = pygame.Rect(
             self.position.x - (width / 2), 
             self.position.y - (self.size * 2), 
             current_width, 
-            HEALTH_BAR_HEIGHT + (self.size * 2))        
-        pygame.draw.rect(screen, RED, health_rect)
-        pygame.draw.rect(screen, WHITE, background_rect, LINE_WIDTH)
+            C.HEALTH_BAR_HEIGHT + (self.size * 2))        
+        pygame.draw.rect(screen, C.RED, health_rect)
+        pygame.draw.rect(screen, C.WHITE, background_rect, C.LINE_WIDTH)
 
     def update(self, dt):
         self.position += self.velocity * dt
@@ -44,11 +44,11 @@ class Asteroid(CircleShape):
         if self.health > 0:
             return
         else:
-            HUD.update_score(BASE_SCORE * self.size)
+            HUD.update_score(C.BASE_SCORE * self.size)
             Explosion(self.position.x,
                     self.position.y,
                     radius=max(12, int(self.radius * 1.1)),
-                    color=ORANGE,
+                    color=C.ORANGE,
                     duration=0.12 + (self.radius / 200),
                     max_alpha=150)
             self.kill()
@@ -62,7 +62,7 @@ class Asteroid(CircleShape):
                     new_angle = random.uniform(1 + (range_size * i), range_size * (i + 1))    
                     velocity = self.velocity.rotate(new_angle)
                     asteroid = Asteroid(self.position.x, self.position.y, (self.size - 1))
-                    asteroid.velocity = velocity * self.split_factor(new_angle) * ASTEROID_SPLIT_ACCELERATION
+                    asteroid.velocity = velocity * self.split_factor(new_angle) * C.ASTEROID_SPLIT_ACCELERATION
     
     def split_factor(self, angle):
         factor = 0
@@ -79,7 +79,7 @@ class Asteroid(CircleShape):
             factor = 1 - (angle / 90)
         else:
             raise ValueError
-        if factor < MIN_ASTEROID_SPLIT_FACTOR:
-            return MIN_ASTEROID_SPLIT_FACTOR
+        if factor < C.MIN_ASTEROID_SPLIT_FACTOR:
+            return C.MIN_ASTEROID_SPLIT_FACTOR
         else:
             return factor

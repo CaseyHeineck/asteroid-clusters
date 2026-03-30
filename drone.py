@@ -6,10 +6,9 @@ from shield import Shield
 from visualeffect import LaserBeam
 
 class Drone(CircleShape):
-    def __init__(self, player, asteroids, HUD):
+    def __init__(self, player, asteroids):
         super().__init__(player.position.x, player.position.y, C.DRONE_RADIUS)
         self.asteroids = asteroids
-        self.HUD = HUD
         self.player = player        
         self.orbit_angle = C.DRONE_ORBIT_ANGLE_OFFSET
         self.orbit_radius = C.DRONE_ORBIT_RADIUS
@@ -51,9 +50,10 @@ class Drone(CircleShape):
 
     def shoot(self):
         if self.weapons_free_timer > 0 or self.target is None:
-            return
-        self.weapons_free()
+            return 0
+        score = self.weapons_free()
         self.weapons_free_timer = self.weapons_free_timer_max
+        return score or 0
 
     def draw_body(self, screen):
         pygame.draw.circle(screen, self.body_color, self.position, self.radius, self.body_line_width)
@@ -70,7 +70,7 @@ class Drone(CircleShape):
         self.weapons_free_timer = max(0, self.weapons_free_timer - dt)
         self.acquire_target()
         self.aim_at_target()
-        self.shoot()        
+        return self.shoot()        
 
     def orbit_player(self, dt):
         self.orbit_angle += self.orbit_speed * dt
@@ -81,8 +81,8 @@ class Drone(CircleShape):
         return False
     
 class ExplosiveDrone(Drone):
-    def __init__(self, player, asteroids, HUD):
-        super().__init__(player, asteroids, HUD)
+    def __init__(self, player, asteroids):
+        super().__init__(player, asteroids)
         self.body_color = C.EXPLOSIVE_DRONE_BODY_COLOR
         self.body_line_width = 0
         self.range = C.EXPLOSIVE_DRONE_WEAPONS_RANGE
@@ -106,6 +106,7 @@ class ExplosiveDrone(Drone):
         projectile = Rocket(spawn_position.x, spawn_position.y, self.asteroids)
         projectile.velocity = forward * self.projectile_speed
         self.launch_animation_timer = self.launch_animation_duration
+        return 0
 
     def update(self, dt):
         super().update(dt)
@@ -146,8 +147,8 @@ class ExplosiveDrone(Drone):
         screen.blit(rotated_platform, rotated_rect)
 
 class KineticDrone(Drone):
-    def __init__(self, player, asteroids, HUD):
-        super().__init__(player, asteroids, HUD)
+    def __init__(self, player, asteroids):
+        super().__init__(player, asteroids)
         self.body_color = C.KINETIC_DRONE_BODY_COLOR
         self.body_line_width = 0
         self.range = C.KINETIC_DRONE_WEAPONS_RANGE
@@ -167,6 +168,7 @@ class KineticDrone(Drone):
         forward = self.get_forward_vector()
         projectile = Kinetic(spawn_position.x, spawn_position.y)
         projectile.velocity = forward * self.projectile_speed
+        return 0
 
     def draw_weapons_platform(self, screen):
         surface_size = self.weapons_platform_length * 2
@@ -184,8 +186,8 @@ class KineticDrone(Drone):
         screen.blit(rotated_platform, rotated_rect)
 
 class LaserDrone(Drone):
-    def __init__(self, player, asteroids, HUD):
-        super().__init__(player, asteroids, HUD)
+    def __init__(self, player, asteroids):
+        super().__init__(player, asteroids)
         self.body_color = C.LASER_DRONE_BODY_COLOR
         self.body_line_width = 4
         self.range = C.LASER_DRONE_WEAPONS_RANGE
@@ -216,12 +218,12 @@ class LaserDrone(Drone):
 
     def weapons_free(self):
         if self.target is None:
-            return
+            return 0
         start_position = self.get_projectile_spawn_position()
         end_position = self.target.position.copy()
         LaserBeam(start_position, end_position, color=C.LASER_BEAM_COLOR,
             width=C.LASER_BEAM_WIDTH, duration=C.LASER_BEAM_DURATION)
-        self.target.split(self.damage, self.HUD)
+        return self.target.damaged(self.damage)
 
     def lerp_color(self, start_color, end_color, t):
         t = max(0, min(1, t))
@@ -261,9 +263,10 @@ class LaserDrone(Drone):
         rotated_rect = rotated_platform.get_rect(center=(self.position.x, self.position.y))
         screen.blit(rotated_platform, rotated_rect)
 
+
 class PlasmaDrone(Drone):
-    def __init__(self, player, asteroids, HUD):
-        super().__init__(player, asteroids, HUD)
+    def __init__(self, player, asteroids):
+        super().__init__(player, asteroids)
         self.body_color = C.PLASMA_DRONE_BODY_COLOR
         self.range = C.PLASMA_DRONE_WEAPONS_RANGE
         self.weapons_free_timer_max = C.PLASMA_DRONE_WEAPONS_FREE_TIMER
@@ -281,6 +284,7 @@ class PlasmaDrone(Drone):
         forward = self.get_forward_vector()
         projectile = Plasma(spawn_position.x, spawn_position.y)
         projectile.velocity = forward * self.projectile_speed
+        return 0
 
     def draw_weapons_platform(self, screen):
         surface_size = self.weapons_platform_length * 2
@@ -299,8 +303,8 @@ class PlasmaDrone(Drone):
         screen.blit(rotated_platform, rotated_rect)
 
 class SentinelDrone(Drone):
-    def __init__(self, player, asteroids, HUD):
-        super().__init__(player, asteroids, HUD)
+    def __init__(self, player, asteroids):
+        super().__init__(player, asteroids)
         self.body_color = C.SENTINEL_DRONE_BODY_COLOR
         self.body_line_width = 0
         self.player_shield = None
@@ -309,7 +313,8 @@ class SentinelDrone(Drone):
 
     def update(self, dt):
         self.shield_sentinel(dt)
-        self.orbit_player(dt)        
+        self.orbit_player(dt)
+        return 0         
 
     def shield_sentinel(self, dt):
         self.shield_create_timer = max(0, self.shield_create_timer - dt)
@@ -322,7 +327,7 @@ class SentinelDrone(Drone):
                 self.shield_create_timer = C.SENTINEL_DRONE_SHIELD_CREATE_TIMER
         else:
             self.player.shield = True
-            if not self.player_shield.alive():
+            if self.player_shield and not self.player_shield.alive():
                 self.player_shield = None
                 self.player.shield = False
         if self.player_shield:

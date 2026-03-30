@@ -2,7 +2,6 @@ import pygame
 import constants as C
 from circleshape import CircleShape
 from visualeffect import Explosion
-from logger import log_event
 
 class Projectile(CircleShape):    
     def __init__(self, x, y, radius=C.PROJECTILE_RADIUS, color=C.PROJECTILE_COLOR, damage=C.PROJECTILE_DAMAGE):
@@ -11,10 +10,10 @@ class Projectile(CircleShape):
         self.damage = damage
         self.velocity = pygame.Vector2(0, 0)
 
-    def on_hit(self, asteroid, HUD):
-        log_event("asteroid_hit")                   
-        asteroid.split(self.damage, HUD)
+    def on_hit(self, asteroid):
+        score = asteroid.damaged(self.damage)                   
         self.kill()
+        return score
 
     def draw(self, screen):
         pygame.draw.circle(screen, self.color, self.position, self.radius)
@@ -35,18 +34,25 @@ class Rocket(Projectile):
         super().__init__(x, y, C.ROCKET_PROJECTILE_RADIUS, C.ROCKET_PROJECTILE_COLOR, C.ROCKET_PROJECTILE_DAMAGE)
         self.asteroids = asteroids
 
-    def on_hit(self, asteroid, HUD):
-        log_event("asteroid_hit")
+    def on_hit(self, asteroid):
         impact_position = self.position.copy()
-        asteroid.split(self.damage, HUD)
+        total_score = 0
+        score = asteroid.damaged(self.damage)
+        if score:
+            total_score += score
         Explosion(impact_position.x, impact_position.y, radius=C.ROCKET_EXPLOSION_RADIUS, 
                 color=C.ROCKET_EXPLOSION_COLOR, duration=C.ROCKET_EXPLOSION_DURATION, 
                 max_alpha=C.ROCKET_EXPLOSION_MAX_ALPHA)
         for other_asteroid in self.asteroids:
+            if other_asteroid == asteroid:
+                continue
             distance = impact_position.distance_to(other_asteroid.position)
             if distance <= C.ROCKET_EXPLOSION_RADIUS:
-                other_asteroid.split(C.ROCKET_PROJECTILE_SPLASH_DAMAGE, HUD)
+                splash_score = other_asteroid.damaged(C.ROCKET_PROJECTILE_SPLASH_DAMAGE)
+                if splash_score:
+                    total_score += splash_score
         self.kill()
+        return total_score
 
     def draw(self, screen):
         forward = self.velocity.normalize() if self.velocity.length_squared() > 0 else pygame.Vector2(0, -1)

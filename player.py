@@ -58,11 +58,10 @@ class Player(CircleShape):
         rotated_with_speed_vector = rotated_vector * C.PLAYER_STRAFE_SPEED * dt
         self.position += rotated_with_speed_vector
 
-    def respawn(self, HUD):
+    def respawn(self):
         log_event("player_hit")
-        HUD.update_score(C.LIFE_LOSS_SCORE * self.lives)
+        score_delta = C.LIFE_LOSS_SCORE * self.lives
         self.lives -= 1
-        HUD.update_player_lives(self.lives)
         self.life = False
         self.vulnerable = False
         if self.lives > 0:
@@ -71,8 +70,9 @@ class Player(CircleShape):
             self.position.y = C.SCREEN_HEIGHT / 2
         else:
             log_event("game_over")
-            HUD.update_score(C.GAME_OVER_SCORE)
+            score_delta += C.GAME_OVER_SCORE
             self.game_over = True
+        return score_delta, self.lives
     
     def update(self, dt):
         keys = pygame.key.get_pressed()
@@ -146,8 +146,8 @@ class Player(CircleShape):
         c = self.position - forward * self.radius + right
         return [a, b, c]
 
-    def add_drone(self, drone_class, asteroids, HUD):
-        new_drone = drone_class(self, asteroids, HUD)
+    def add_drone(self, drone_class, asteroids):
+        new_drone = drone_class(self, asteroids)
         self.drones.append(new_drone)
         self.rebalance_drones()
         return new_drone

@@ -49,18 +49,18 @@ def main():
         AsteroidField.containers = (updatable,)
         Projectile.containers = (projectiles, drawable, updatable)
         Player.containers = (updatable, drawable)
-        Drone.containers = (drones, drawable, updatable)
+        Drone.containers = (drones, drawable)
         Shield.containers = (shields, drawable, updatable)
         VisualEffect.containers = (visual_effects, drawable, updatable)  
 
         asteroid_field = AsteroidField()
         HUD = Display(10, 10)
         player = Player((C.SCREEN_WIDTH / 2), (C.SCREEN_HEIGHT / 2))
-        player.add_drone(PlasmaDrone, asteroids, HUD)
-        player.add_drone(KineticDrone, asteroids, HUD)
-        player.add_drone(ExplosiveDrone, asteroids, HUD)
-        player.add_drone(LaserDrone, asteroids, HUD)
-        player.add_drone(SentinelDrone, asteroids, HUD)
+        player.add_drone(PlasmaDrone, asteroids)
+        player.add_drone(KineticDrone, asteroids)
+        player.add_drone(ExplosiveDrone, asteroids)
+        player.add_drone(LaserDrone, asteroids)
+        player.add_drone(SentinelDrone, asteroids)
 
     def on_new_game():
         nonlocal current_state, game_over_menu
@@ -150,22 +150,36 @@ def main():
         elif current_state == C.GAME_RUNNING:
             log_state()        
             updatable.update(dt)
+            for drone in drones:
+                score = drone.update(dt)
+                if score:
+                    HUD.update_score(score)
             wrap_object(player)
             for asteroid in asteroids:
                 wrap_object(asteroid)
-                if player.life:       
+                shield_blocked = False
+                for shield in shields:
+                    if asteroid.collides_with(shield):
+                        score = asteroid.damaged(shield.damage)
+                        if score:
+                            HUD.update_score(score)
+                        shield.damaged(asteroid.damage)
+                        shield_blocked = True
+                        break
+                if not shield_blocked and player.life:
                     if player.collides_with(asteroid):
-                        player.respawn(HUD)
+                        score_delta, lives = player.respawn()
+                        if score_delta:
+                            HUD.update_score(score_delta)
+                        HUD.update_player_lives(lives)
                         if player.game_over is True:
                             on_game_over()
                 for projectile in projectiles:
                     if projectile.collides_with(asteroid):
-                        projectile.on_hit(asteroid, HUD)
-                for shield in shields:
-                    if asteroid.collides_with(shield):
-                        asteroid.split(shield.damage, HUD)
-                        shield.health -= 1
-                        
+                        score = projectile.on_hit(asteroid)
+                        if score:
+                            HUD.update_score(score)
+                            
             draw_game()
 
         elif current_state == C.PAUSED:

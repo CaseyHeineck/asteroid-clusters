@@ -5,8 +5,9 @@ from logger import log_event
 
 class Player(CircleShape):
     def __init__(self, x, y):
-        super().__init__(x, y, C.PLAYER_RADIUS)
-        self.rotation = 0
+        super().__init__(x, y, C.PLAYER_RADIUS, weight=C.PLAYER_WEIGHT,
+            bounciness=C.PLAYER_BOUNCINESS, drag=C.PLAYER_DRAG,
+            rotation=0, angular_velocity=0)
         self.shot_cooldown = 0
         self.lives = 3
         self.life = True
@@ -17,46 +18,40 @@ class Player(CircleShape):
         self.game_over = False
         self.drones = []
         self.shield = False
-        
+
     def draw(self, screen):
         if self.vulnerable:
             pygame.draw.polygon(screen, C.RED, self.triangle(), C.LINE_WIDTH)
-        else:            
+        else:
             pygame.draw.polygon(screen, C.WHITE, self.triangle(), C.LINE_WIDTH)
 
     def rotate(self, dt):
         self.rotation += C.PLAYER_TURN_SPEED * dt
-    
+
     def accelerate(self, dt):
         self.speed += C.PLAYER_ACCELERATION_RATE * dt
-
-    def decelerate(self, dt):
-        if self.speed < 0:
-            self.speed += C.PLAYER_DECELERATION_RATE * dt
-        elif self.speed > 0:
-            self.speed -= C.PLAYER_DECELERATION_RATE * dt
-        elif self.speed == 0:
-            return
 
     def brake(self, dt):
         if self.speed < 0:
             self.speed += C.PLAYER_BRAKE_SPEED * dt
+            if self.speed > 0:
+                self.speed = 0
         elif self.speed > 0:
             self.speed -= C.PLAYER_BRAKE_SPEED * dt
-        elif self.speed == 0:
-            return
-
-    def move(self, dt):
-        unit_vector = pygame.Vector2(0, 1)
-        rotated_vector = unit_vector.rotate(self.rotation)
-        rotated_with_speed_vector = rotated_vector * self.speed * dt
-        self.position += rotated_with_speed_vector
+            if self.speed < 0:
+                self.speed = 0
 
     def strafe(self, dt):
         unit_vector = pygame.Vector2(0, 1)
-        rotated_vector = unit_vector.rotate((self.rotation + 90))
+        rotated_vector = unit_vector.rotate(self.rotation + 90)
         rotated_with_speed_vector = rotated_vector * C.PLAYER_STRAFE_SPEED * dt
         self.position += rotated_with_speed_vector
+
+    def move(self, dt):
+        forward = pygame.Vector2(0, 1).rotate(self.rotation)
+        self.velocity = forward * self.speed
+        self.physics_move(dt)
+        self.speed = self.velocity.length()
 
     def respawn(self):
         log_event("player_hit")
@@ -68,18 +63,20 @@ class Player(CircleShape):
             log_event("player_respawned")
             self.position.x = C.SCREEN_WIDTH / 2
             self.position.y = C.SCREEN_HEIGHT / 2
+            self.velocity.update(0, 0)
+            self.speed = 0
         else:
             log_event("game_over")
             score_delta += C.GAME_OVER_SCORE
             self.game_over = True
         return score_delta, self.lives
-    
+
     def update(self, dt):
         keys = pygame.key.get_pressed()
 
         if keys[pygame.K_SPACE]:
-            self.brake(dt)        
-        
+            self.brake(dt)
+
         if keys[pygame.K_RSHIFT] or keys[pygame.K_LSHIFT]:
             if keys[pygame.K_RCTRL] or keys[pygame.K_LCTRL]:
                 if keys[pygame.K_w]:
@@ -98,7 +95,7 @@ class Player(CircleShape):
                 if keys[pygame.K_a]:
                     self.rotate(-dt)
                 if keys[pygame.K_d]:
-                    self.rotate(dt)                    
+                    self.rotate(dt)
         elif keys[pygame.K_RCTRL] or keys[pygame.K_LCTRL]:
             if keys[pygame.K_a]:
                 self.strafe(-dt)
@@ -107,7 +104,7 @@ class Player(CircleShape):
             if keys[pygame.K_w]:
                 self.accelerate(dt)
             if keys[pygame.K_s]:
-                self.accelerate(-dt)                                                           
+                self.accelerate(-dt)
         else:
             if keys[pygame.K_a]:
                 self.rotate(-dt)
@@ -117,7 +114,7 @@ class Player(CircleShape):
                 self.accelerate(dt)
             if keys[pygame.K_s]:
                 self.accelerate(-dt)
-        
+
         if self.life is not True:
             if self.blink_timer < C.PLAYER_BLINK_TIMER:
                 self.blink_timer += dt
@@ -127,18 +124,18 @@ class Player(CircleShape):
                     self.blink_timer = 0
                 else:
                     self.vulnerable = True
-                    self.blink_timer = 0     
+                    self.blink_timer = 0
             if self.respawn_timer < C.PLAYER_RESPAWN_COOLDOWN_SECONDS:
                 self.respawn_timer += dt
             else:
                 self.life = True
-                self.respawn_timer = 0 
+                self.respawn_timer = 0
         else:
             self.vulnerable = True
-        self.move(dt)
-        self.decelerate(dt)     
 
-    def triangle(self):    
+        self.move(dt)
+
+    def triangle(self):
         forward = pygame.Vector2(0, 1).rotate(self.rotation)
         right = pygame.Vector2(0, 1).rotate(self.rotation + 90) * self.radius / 1.5
         a = self.position + forward * self.radius
@@ -174,7 +171,7 @@ class Player(CircleShape):
                 return True
         edges = [(triangle_points[0], triangle_points[1]),
                 (triangle_points[1], triangle_points[2]),
-                (triangle_points[2], triangle_points[0]),]
+                (triangle_points[2], triangle_points[0])]
         for start, end in edges:
             if self.distance_point_to_segment(circle_center, start, end) <= circle_radius:
                 return True

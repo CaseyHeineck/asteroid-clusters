@@ -5,7 +5,8 @@
             * Scoring is now handled in the display class
     - Have a small popup showing the amount being added to total when destructed
     * ~~Added health to each asteroid dependent on its size~~
-        * Shows a health bar on the asteroid when the asteroid is damaged
+        * ~~Shows a health bar on the asteroid when the asteroid is damaged~~
+            * Now scars appear on the asteroid when damaged
 * ~~Implement multiple lives and respawning~~
     * ~~Show on screen how many lives the player has left~~
     * ~~respawning is now handled within the player class~~
@@ -21,10 +22,10 @@
 * ~~Make the objects wrap around the screen instead of disappearing~~
     * Projectiles that miss still go off screen
 * Add a background image
-* Make the asteroids lumpy instead of perfectly round
-* Make the ship have a triangular hit box instead of a circular one
-* Create different weapon types
-* Add a shield power-up
+* ~~Make the asteroids lumpy instead of perfectly round~~
+* ~~Make the ship have a triangular hit box instead of a circular one~~
+* ~~Create different weapon types~~
+* ~~Add a shield power-up~~
 * Add bombs that can be dropped
 ## Shaping the future of the game:
 * ~~Having Start Game Menu~~

@@ -44,10 +44,20 @@
     * Use a limited drone amount structure
         * Have five different types of drones
             * Medium range, medium RoF, medium damage, maybe called blaster
+                * Current iteration is called PlasmaDrone
+                    * Plasma applies a burn effect, dealing damage over time on hit
             * Medium range, high RoF, low damage, maybe called minigun
+                * Current iteration is called KineticDrone
+                    * Maybe lower range than is preferable right now
             * High range, low RoF, high damage, maybe called eliminator
+                * Current iteration called LaserDrone
+                    * LaserBeam reduces child spawn values if it destroys the target by a certain threshold
             * Varied medium range, varied low RoF, high damage with splash, maybe called explosive
+                * Current iteration called ExplosiveDrone
+                    * Rocket projectile is the only explosive so far
             * Targets player or immediate player area, varied RoF, aids player, maybe called defender
+                * Current iteration is called SentinelDrone
+                    * Shield is an object that this drone can apply to the player for protection, only function so far
         * Start with one drone deployed each run, and after a certain amount of levels allow the player to add more drones
             * For example, after levels 5, 10, 15, and 20, then all drones can be deployed
                 * Levels in between or after can be used to improve and upgrade each drone itself

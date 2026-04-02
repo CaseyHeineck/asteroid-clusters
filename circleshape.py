@@ -15,6 +15,7 @@ class CircleShape(pygame.sprite.Sprite):
         self.drag = drag
         self.rotation = rotation
         self.angular_velocity = angular_velocity
+        self.gameplay_effects = []
 
     def get_forward_vector(self):
         return pygame.Vector2(0, -1).rotate(self.rotation)
@@ -40,6 +41,30 @@ class CircleShape(pygame.sprite.Sprite):
         self.apply_drag(dt)
         self.apply_rotation(dt)
         self.position += self.velocity * dt
+
+    def add_gameplay_effect(self, effect):
+        for existing_effect in self.gameplay_effects:
+            if existing_effect.can_merge_with(effect):
+                existing_effect.merge(effect)
+                return
+        effect.apply_to(self)
+        self.gameplay_effects.append(effect)
+
+    def update_gameplay_effects(self, dt):
+        total_score = 0
+        expired_effects = []
+
+        for effect in self.gameplay_effects:
+            score = effect.update(dt)
+            if score:
+                total_score += score
+            if effect.expired:
+                expired_effects.append(effect)
+
+        for effect in expired_effects:
+            self.gameplay_effects.remove(effect)
+
+        return total_score
 
     def draw(self, screen):
         pass

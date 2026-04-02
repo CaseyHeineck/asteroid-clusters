@@ -17,7 +17,7 @@ class VisualEffect(pygame.sprite.Sprite):
     def draw(self, screen):
         raise NotImplementedError("Effect subclasses must implement draw()")
 
-class Explosion(VisualEffect):
+class ExplosionVE(VisualEffect):
     def __init__(self, x, y, radius=C.EXPLOSION_RADIUS, color=C.EXPLOSION_COLOR,
             duration=C.EXPLOSION_DURATION, max_alpha=C.EXPLOSION_MAX_ALPHA, line_width=0):
         super().__init__(x, y, duration)
@@ -38,7 +38,7 @@ class Explosion(VisualEffect):
         rect = effect_surface.get_rect(center=(self.position.x, self.position.y))
         screen.blit(effect_surface, rect)
 
-class LaserBeam(VisualEffect):
+class LaserBeamVE(VisualEffect):
     def __init__(self, start_pos, end_pos, color=C.LASER_BEAM_COLOR, width=C.LASER_BEAM_WIDTH,
             duration=C.LASER_BEAM_DURATION, max_alpha=255):
         midpoint = (pygame.Vector2(start_pos) + pygame.Vector2(end_pos)) / 2

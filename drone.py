@@ -1,9 +1,8 @@
 import pygame
 import constants as C
 from circleshape import CircleShape
-from projectile import Kinetic, Plasma, Rocket
+from projectile import Kinetic, LaserBeam, Plasma, Rocket
 from shield import Shield
-from visualeffect import LaserBeam
 
 class Drone(CircleShape):
     def __init__(self, player, asteroids):
@@ -131,7 +130,6 @@ class ExplosiveDrone(Drone):
         rotated_rect = rotated_platform.get_rect(center=(self.position.x, self.position.y))
         screen.blit(rotated_platform, rotated_rect)
 
-
 class KineticDrone(Drone):
     def __init__(self, player, asteroids):
         super().__init__(player, asteroids)
@@ -207,12 +205,9 @@ class LaserDrone(Drone):
     def weapons_free(self):
         if self.target is None:
             return 0
-        start_position = self.get_projectile_spawn_position()
-        end_position = self.target.position.copy()
-        LaserBeam(start_position, end_position, color=C.LASER_BEAM_COLOR,
-            width=C.LASER_BEAM_WIDTH, duration=C.LASER_BEAM_DURATION)
-        reduce_child_size = (self.target.health + self.target.full_health) < self.damage
-        return self.target.damaged(self.damage, split_modifier = 1 if reduce_child_size else 0)
+        spawn_position = self.get_projectile_spawn_position()
+        projectile = LaserBeam(spawn_position.x, spawn_position.y, self.target, self.damage)
+        return projectile.score
 
     def lerp_color(self, start_color, end_color, t):
         t = max(0, min(1, t))

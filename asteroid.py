@@ -2,7 +2,7 @@ import pygame
 import random
 import constants as C
 from circleshape import CircleShape
-from visualeffect import Explosion
+from visualeffect import ExplosionVE
 from logger import log_event
 
 class Asteroid(CircleShape):
@@ -16,7 +16,8 @@ class Asteroid(CircleShape):
         self.damage = self.size
         self.full_health = self.size * 10
         self.health = self.full_health
-        self.split_modifier = 0
+        self.child_count_reduction = 0
+        self.child_size_reduction = 0
         self.line_width = int(C.LINE_WIDTH + (self.size * 2))
         self.outline_points = self.generate_outline_points()
         self.surface_details = self.generate_surface_details()
@@ -170,20 +171,20 @@ class Asteroid(CircleShape):
 
     def update(self, dt):
         self.physics_move(dt)
+        return self.update_gameplay_effects(dt)
 
-    def damaged(self, damage, split_modifier=0):
+    def damaged(self, damage):
         log_event("asteroid_damaged")
         self.health -= damage
-        if split_modifier > self.split_modifier:
-            self.split_modifier = split_modifier
         if self.health <= 0:
             return self.kill()
         return 0
 
     def kill(self):
         score_value = C.BASE_SCORE * self.size
-        Explosion(self.position.x, self.position.y, radius=max(12, int(self.radius * 1.1)),
-            color=C.ORANGE, duration=0.12 + (self.radius / 200), max_alpha=150)
+        ExplosionVE(self.position.x, self.position.y, radius=C.ASTEROID_EXPLOSION_RADIUS,
+            color=C.ASTEROID_EXPLOSION_COLOR, duration=C.ASTEROID_EXPLOSION_DURATION,
+            max_alpha=C.ASTEROID_EXPLOSION_MAX_ALPHA)
         did_split = False
         if self.size > 1:
             did_split = self.spawn_children()
@@ -195,8 +196,8 @@ class Asteroid(CircleShape):
         return score_value
 
     def spawn_children(self):
-        child_size = self.size - 1 - self.split_modifier
-        child_count = self.size - 1 - self.split_modifier
+        child_size = self.size - 1 - self.child_size_reduction
+        child_count = self.size - 1 - self.child_count_reduction
         if child_size < 1 or child_count < 1:
             return False
         child_radius = child_size * C.ASTEROID_MIN_RADIUS

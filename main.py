@@ -6,12 +6,13 @@ from asteroid import *
 from asteroidfield import *
 from display import *
 from drone import *
-from player import *
-from projectile import *
+from gameplayeffect import *
 from logger import *
 from menus import *
-from visualeffect import *
+from player import *
+from projectile import *
 from shield import *
+from visualeffect import *
 
 def main():
     os.environ["SDL_VIDEO_FULLSCREEN_DISPLAY"] = "1"
@@ -91,12 +92,8 @@ def main():
         score = 0
         if hasattr(HUD, "score"):
             score = HUD.score
-        game_over_menu = create_game_over_menu(
-            on_new_game,
-            on_main_menu,
-            on_exit,
-            score = score
-        )
+        game_over_menu = create_game_over_menu(on_new_game, on_main_menu,
+                                    on_exit, score = score)
         current_state = C.GAME_OVER
 
     def draw_game():
@@ -117,21 +114,20 @@ def main():
             obj.position.x += C.SCREEN_WIDTH
         elif obj.position.x > C.SCREEN_WIDTH:
             obj.position.x -= C.SCREEN_WIDTH
-
+        
         if obj.position.y < 0:
             obj.position.y += C.SCREEN_HEIGHT
         elif obj.position.y > C.SCREEN_HEIGHT:
             obj.position.y -= C.SCREEN_HEIGHT
-
+    
     main_menu = create_main_menu(on_new_game, on_exit)
     pause_menu = create_pause_menu(on_resume, on_restart, on_main_menu, on_exit)
     game_over_menu = create_game_over_menu(on_new_game, on_main_menu, on_exit, score=0)
-
+    
     while screen:
         time = clock.tick(60)
         dt = time / 1000
         events = pygame.event.get()
-
         for event in events:
             if event.type == pygame.QUIT:
                 on_exit()
@@ -141,19 +137,20 @@ def main():
                         current_state = C.PAUSED
                     elif current_state == C.PAUSED:
                         current_state = C.GAME_RUNNING
-
         if current_state == C.MAIN_MENU:
             screen.fill(C.BLACK)
             main_menu.update(events)
             main_menu.draw(screen)
-
         elif current_state == C.GAME_RUNNING:
             log_state()        
-            updatable.update(dt)
+            for obj in updatable:
+                score = obj.update(dt)
+                if score:
+                    HUD.update_score(score)
             for drone in drones:
                 score = drone.update(dt)
                 if score:
-                    HUD.update_score(score)
+                    HUD.update_score(score)        
             wrap_object(player)
             for asteroid in asteroids:
                 wrap_object(asteroid)
@@ -178,29 +175,23 @@ def main():
                     if projectile.collides_with(asteroid):
                         score = projectile.on_hit(asteroid)
                         if score:
-                            HUD.update_score(score)
-                            
+                            HUD.update_score(score)             
             draw_game()
-
         elif current_state == C.PAUSED:
             draw_game()
             draw_overlay(120)
             pause_menu.update(events)
             pause_menu.draw(screen)
-
         elif current_state == C.GAME_OVER:
             draw_game()
             draw_overlay(170)
             game_over_menu.update(events)
             game_over_menu.draw(screen)
-      
         pygame.display.flip()          
-               
+
     print(f"Starting Asteroids with pygame version: {pygame.version.ver}")
     print(f"Screen width: {C.SCREEN_WIDTH}")
     print(f"Screen height: {C.SCREEN_HEIGHT}")
 
 if __name__ == "__main__":
     main()
-
-

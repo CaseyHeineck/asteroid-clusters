@@ -7,8 +7,8 @@ from shield import Shield
 class Drone(CircleShape):
     def __init__(self, player, asteroids):
         super().__init__(player.position.x, player.position.y, C.DRONE_RADIUS,
-                weight=C.DRONE_WEIGHT, bounciness=C.DRONE_BOUNCINESS, 
-                drag=C.DRONE_DRAG, rotation=0, angular_velocity=0)
+            weight=C.DRONE_WEIGHT, bounciness=C.DRONE_BOUNCINESS, 
+            drag=C.DRONE_DRAG, rotation=0, angular_velocity=0)
         self.asteroids = asteroids
         self.player = player
         self.orbit_angle = C.DRONE_ORBIT_ANGLE_OFFSET
@@ -115,15 +115,15 @@ class ExplosiveDrone(Drone):
         center_x = surface_size // 2
         center_y = surface_size // 2
         pygame.draw.circle(platform_surface, self.launcher_color, (center_x, center_y),
-                    self.launcher_radius, 0)
+            self.launcher_radius, 0)
         open_ratio = 0
         if self.launch_animation_duration > 0:
             open_ratio = self.launch_animation_timer / self.launch_animation_duration
         door_slide = int(6 * open_ratio)
         left_door = pygame.Rect(center_x - self.door_offset - self.door_width - door_slide,
-                    center_y - self.door_length // 2, self.door_width, self.door_length)
+            center_y - self.door_length // 2, self.door_width, self.door_length)
         right_door = pygame.Rect(center_x + self.door_offset + door_slide,
-                    center_y - self.door_length // 2, self.door_width, self.door_length)
+            center_y - self.door_length // 2, self.door_width, self.door_length)
         pygame.draw.rect(platform_surface, self.launcher_color, left_door)
         pygame.draw.rect(platform_surface, self.launcher_color, right_door)
         rotated_platform = pygame.transform.rotate(platform_surface, -self.rotation)
@@ -162,10 +162,8 @@ class KineticDrone(Drone):
         front_half = self.weapons_platform_front_width / 2
         back_half = self.weapons_platform_back_width / 2
         length = self.weapons_platform_length
-        points = [(center_x - front_half, center_y - length),
-                (center_x + front_half, center_y - length),
-                (center_x + back_half, center_y + 2),
-                (center_x - back_half, center_y + 2)]
+        points = [(center_x - front_half, center_y - length), (center_x + front_half, center_y - length),
+            (center_x + back_half, center_y + 2), (center_x - back_half, center_y + 2)]
         pygame.draw.polygon(platform_surface, self.weapons_platform_color, points)
         rotated_platform = pygame.transform.rotate(platform_surface, -self.rotation)
         rotated_rect = rotated_platform.get_rect(center=(self.position.x, self.position.y))
@@ -194,7 +192,7 @@ class LaserDrone(Drone):
             return
         highest_health = max(asteroid.health for asteroid in valid_targets)
         healthiest_targets = [asteroid for asteroid in valid_targets
-                        if asteroid.health == highest_health]
+            if asteroid.health == highest_health]
         self.target = min(healthiest_targets,
             key=lambda asteroid: self.player.position.distance_to(asteroid.position))
 
@@ -221,7 +219,7 @@ class LaserDrone(Drone):
 
     def get_platform_color(self):
         charge_colors = [C.INDIGO, C.PURPLE, C.MAGENTA,
-                C.DEEP_PINK, C.RED, C.LASER_RED]
+            C.DEEP_PINK, C.RED, C.LASER_RED]
         ratio = self.get_charge_ratio()
         if ratio >= 1:
             return charge_colors[-1]
@@ -240,8 +238,8 @@ class LaserDrone(Drone):
         center_y = surface_size // 2
         emitter_center_y = center_y - (self.radius + self.weapons_platform_offset)
         points = [(center_x, emitter_center_y - self.weapons_platform_length),
-                (center_x - self.weapons_platform_width // 2, emitter_center_y),
-                (center_x + self.weapons_platform_width // 2, emitter_center_y)]
+            (center_x - self.weapons_platform_width // 2, emitter_center_y),
+            (center_x + self.weapons_platform_width // 2, emitter_center_y)]
         pygame.draw.polygon(platform_surface, platform_color, points)
         rotated_platform = pygame.transform.rotate(platform_surface, -self.rotation)
         rotated_rect = rotated_platform.get_rect(center=(self.position.x, self.position.y))
@@ -275,8 +273,8 @@ class PlasmaDrone(Drone):
         center_x = surface_size // 2
         center_y = surface_size // 2
         platform_rect = pygame.Rect(center_x - self.weapons_platform_width // 2,
-                    center_y - self.weapons_platform_length, self.weapons_platform_width,
-                    self.weapons_platform_length)
+            center_y - self.weapons_platform_length, self.weapons_platform_width,
+            self.weapons_platform_length)
         pygame.draw.rect(platform_surface, self.weapons_platform_color, platform_rect)
         rotated_platform = pygame.transform.rotate(platform_surface, -self.rotation)
         rotated_rect = rotated_platform.get_rect(center=(self.position.x, self.position.y))

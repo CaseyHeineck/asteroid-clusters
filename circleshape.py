@@ -16,6 +16,8 @@ class CircleShape(pygame.sprite.Sprite):
         self.rotation = rotation
         self.angular_velocity = angular_velocity
         self.gameplay_effects = []
+        self.outline_pulse_color = None
+        self.outline_pulse_timer = 0
 
     def get_forward_vector(self):
         return pygame.Vector2(0, -1).rotate(self.rotation)
@@ -53,18 +55,30 @@ class CircleShape(pygame.sprite.Sprite):
     def update_gameplay_effects(self, dt):
         total_score = 0
         expired_effects = []
-
         for effect in self.gameplay_effects:
             score = effect.update(dt)
             if score:
                 total_score += score
             if effect.expired:
                 expired_effects.append(effect)
-
         for effect in expired_effects:
             self.gameplay_effects.remove(effect)
-
         return total_score
+
+    def pulse_outline(self, color, duration):
+        self.outline_pulse_color = color
+        self.outline_pulse_timer = duration
+
+    def update_outline_pulse(self, dt):
+        if self.outline_pulse_timer > 0:
+            self.outline_pulse_timer = max(0, self.outline_pulse_timer - dt)
+            if self.outline_pulse_timer == 0:
+                self.outline_pulse_color = None
+
+    def get_outline_color(self, default_color):
+        if self.outline_pulse_color and self.outline_pulse_timer > 0:
+            return self.outline_pulse_color
+        return default_color
 
     def draw(self, screen):
         pass

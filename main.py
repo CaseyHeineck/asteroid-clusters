@@ -93,7 +93,7 @@ def main():
         if hasattr(HUD, "score"):
             score = HUD.score
         game_over_menu = create_game_over_menu(on_new_game, on_main_menu,
-                                    on_exit, score = score)
+            on_exit, score = score)
         current_state = C.GAME_OVER
 
     def draw_game():

@@ -1,15 +1,15 @@
 import pygame
 import constants as C
 from circleshape import CircleShape
-from gameplayeffect import PlasmaBurnGPE, OverkillGPE
-from visualeffect import ExplosionVE, LaserBeamVE
+from gameplayeffect import OverkillSTE, PlasmaBurnSTE, RocketHitAOE 
+from visualeffect import LaserBeamVE
 
 class Projectile(CircleShape):
     def __init__(self, x, y, radius=C.PROJECTILE_RADIUS, color=C.PROJECTILE_COLOR,
         damage=C.PROJECTILE_DAMAGE, weight=C.PROJECTILE_WEIGHT, bounciness=C.PROJECTILE_BOUNCINESS,
         drag=C.PROJECTILE_DRAG, rotation=0, angular_velocity=0):
         super().__init__(x, y, radius, weight=weight, bounciness=bounciness,
-                drag=drag, rotation=rotation, angular_velocity=angular_velocity)
+            drag=drag, rotation=rotation, angular_velocity=angular_velocity)
         self.color = color
         self.damage = damage
 
@@ -26,11 +26,9 @@ class Projectile(CircleShape):
 
 class Kinetic(Projectile):
     def __init__(self, x, y):
-        super().__init__(x, y, C.KINETIC_PROJECTILE_RADIUS,
-            C.KINETIC_PROJECTILE_COLOR, C.KINETIC_PROJECTILE_DAMAGE,
-            weight=C.KINETIC_PROJECTILE_WEIGHT,
-            bounciness=C.KINETIC_PROJECTILE_BOUNCINESS,
-            drag=C.KINETIC_PROJECTILE_DRAG)
+        super().__init__(x, y, C.KINETIC_PROJECTILE_RADIUS, C.KINETIC_PROJECTILE_COLOR,
+            C.KINETIC_PROJECTILE_DAMAGE, weight=C.KINETIC_PROJECTILE_WEIGHT,
+            bounciness=C.KINETIC_PROJECTILE_BOUNCINESS, drag=C.KINETIC_PROJECTILE_DRAG)
         
 class LaserBeam(Projectile):
     def __init__(self, x, y, target, damage=C.LASER_DRONE_DAMAGE):
@@ -51,7 +49,7 @@ class LaserBeam(Projectile):
         full_health = self.target.full_health
         if self.damage >= (target_health + full_health):
             if hasattr(self.target, "add_gameplay_effect"):
-                self.target.add_gameplay_effect(OverkillGPE(
+                self.target.add_gameplay_effect(OverkillSTE(
                     child_size_reduction=1, child_count_reduction=1))
         score = 0
         if hasattr(self.target, "damaged"):
@@ -68,28 +66,24 @@ class LaserBeam(Projectile):
 
 class Plasma(Projectile):
     def __init__(self, x, y):
-        super().__init__(x, y, C.PLASMA_PROJECTILE_RADIUS,
-            C.PLASMA_PROJECTILE_COLOR, C.PLASMA_PROJECTILE_DAMAGE,
-            weight=C.PLASMA_PROJECTILE_WEIGHT,
-            bounciness=C.PLASMA_PROJECTILE_BOUNCINESS,
-            drag=C.PLASMA_PROJECTILE_DRAG)
+        super().__init__(x, y, C.PLASMA_PROJECTILE_RADIUS, C.PLASMA_PROJECTILE_COLOR,
+            C.PLASMA_PROJECTILE_DAMAGE, weight=C.PLASMA_PROJECTILE_WEIGHT,
+            bounciness=C.PLASMA_PROJECTILE_BOUNCINESS, drag=C.PLASMA_PROJECTILE_DRAG)
     
     def on_hit(self, target):
         score = 0
         if hasattr(target, "damaged"):
             score += target.damaged(self.damage)
         if target.alive() and hasattr(target, "add_gameplay_effect"):
-            target.add_gameplay_effect(PlasmaBurnGPE())
+            target.add_gameplay_effect(PlasmaBurnSTE())
         self.kill()
         return score    
 
 class Rocket(Projectile):
     def __init__(self, x, y, asteroids):
-        super().__init__(x, y, C.ROCKET_PROJECTILE_RADIUS,
-            C.ROCKET_PROJECTILE_COLOR, C.ROCKET_PROJECTILE_DAMAGE,
-            weight=C.ROCKET_PROJECTILE_WEIGHT,
-            bounciness=C.ROCKET_PROJECTILE_BOUNCINESS,
-            drag=C.ROCKET_PROJECTILE_DRAG)
+        super().__init__(x, y, C.ROCKET_PROJECTILE_RADIUS, C.ROCKET_PROJECTILE_COLOR,
+            C.ROCKET_PROJECTILE_DAMAGE, weight=C.ROCKET_PROJECTILE_WEIGHT,
+            bounciness=C.ROCKET_PROJECTILE_BOUNCINESS, drag=C.ROCKET_PROJECTILE_DRAG)
         self.asteroids = asteroids
 
     def on_hit(self, asteroid):
@@ -98,17 +92,9 @@ class Rocket(Projectile):
         score = asteroid.damaged(self.damage)
         if score:
             total_score += score
-        ExplosionVE(impact_position.x, impact_position.y,
-            radius=C.ROCKET_EXPLOSION_RADIUS, color=C.ROCKET_EXPLOSION_COLOR,
-            duration=C.ROCKET_EXPLOSION_DURATION, max_alpha=C.ROCKET_EXPLOSION_MAX_ALPHA)
-        for other_asteroid in self.asteroids:
-            if other_asteroid == asteroid:
-                continue
-            distance = impact_position.distance_to(other_asteroid.position)
-            if distance <= C.ROCKET_EXPLOSION_RADIUS:
-                splash_score = other_asteroid.damaged(C.ROCKET_PROJECTILE_SPLASH_DAMAGE)
-                if splash_score:
-                    total_score += splash_score
+        rocket_hit = RocketHitAOE(impact_position=impact_position, targets=self.asteroids,
+            radius=C.ROCKET_HIT_RADIUS, damage=C.ROCKET_HIT_DAMAGE)
+        total_score += rocket_hit.apply(ignored_targets=[asteroid])
         self.kill()
         return total_score
 

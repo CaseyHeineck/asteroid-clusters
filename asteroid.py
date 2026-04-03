@@ -2,7 +2,7 @@ import pygame
 import random
 import constants as C
 from circleshape import CircleShape
-from visualeffect import ExplosionVE
+from visualeffect import AsteroidKillExplosionVE, OverkillExplosionVE
 from logger import log_event
 
 class Asteroid(CircleShape):
@@ -11,14 +11,16 @@ class Asteroid(CircleShape):
             weight=size * C.ASTEROID_WEIGHT, bounciness=C.ASTEROID_BOUNCINESS,
             drag=C.ASTEROID_DRAG, rotation=random.uniform(0, 360),
             angular_velocity=random.uniform(-C.ASTEROID_MAX_ANGULAR_VELOCITY,
-                                            C.ASTEROID_MAX_ANGULAR_VELOCITY))
+                C.ASTEROID_MAX_ANGULAR_VELOCITY))
         self.size = size
         self.damage = self.size
         self.full_health = self.size * 10
         self.health = self.full_health
         self.child_count_reduction = 0
         self.child_size_reduction = 0
+        self.overkill_triggered = False
         self.line_width = int(C.LINE_WIDTH + (self.size * 2))
+        self.outline_color = self.get_outline_color(C.WHITE)
         self.outline_points = self.generate_outline_points()
         self.surface_details = self.generate_surface_details()
         self.crack_data = self.generate_crack_data()
@@ -83,7 +85,7 @@ class Asteroid(CircleShape):
             end_angle = angle + random.uniform(-45, 45)
             end_offset = start_offset + pygame.Vector2(-crack_length, 0).rotate(end_angle)
             main_points = self.get_zigzag_points(start_offset, end_offset,
-                    segments=max(4, int(crack_length / 10)), jag_amount=8)
+                segments=max(4, int(crack_length / 10)), jag_amount=8)
             branches = []
             branch_count = random.randint(0, 2)
             for _ in range(branch_count):
@@ -102,21 +104,22 @@ class Asteroid(CircleShape):
         return cracks
 
     def draw(self, screen):
+        outline_color = self.get_outline_color(C.WHITE)
         surface_size = int((self.radius * 2) + (self.line_width * 4))
         asteroid_surface = pygame.Surface((surface_size, surface_size), pygame.SRCALPHA)
         center = surface_size // 2
         rotated_points = [pygame.Vector2(center, center) + point.rotate(self.rotation)
-                    for point in self.outline_points]
-        pygame.draw.polygon(asteroid_surface, C.WHITE,
-                [(int(p.x), int(p.y)) for p in rotated_points],
-                self.line_width)
+            for point in self.outline_points]
+        pygame.draw.polygon(asteroid_surface, outline_color,
+            [(int(p.x), int(p.y)) for p in rotated_points], self.line_width)
         for offset, detail_radius in self.surface_details:
             rotated_offset = offset.rotate(self.rotation)
             detail_position = pygame.Vector2(center, center) + rotated_offset
-            pygame.draw.circle(asteroid_surface, C.WHITE, (int(detail_position.x), int(detail_position.y)),
-                        detail_radius, C.LINE_WIDTH)
+            pygame.draw.circle(asteroid_surface, outline_color,
+                (int(detail_position.x), int(detail_position.y)),
+                detail_radius, C.LINE_WIDTH)
         if self.health < self.full_health:
-            self.draw_cracks(asteroid_surface, center)
+            self.draw_cracks(asteroid_surface, center, outline_color)
         rect = asteroid_surface.get_rect(center=(self.position.x, self.position.y))
         screen.blit(asteroid_surface, rect)
 
@@ -143,10 +146,10 @@ class Asteroid(CircleShape):
         distance = start_pos.distance_to(end_pos)
         segments = max(3, min(6, int(distance / 8)))
         points = self.get_zigzag_points(start_pos, end_pos,
-                        segments=segments, jag_amount=jag_amount)
+            segments=segments, jag_amount=jag_amount)
         pygame.draw.lines(screen, color, False, points, width)
 
-    def draw_cracks(self, surface, center):
+    def draw_cracks(self, surface, center, color):
         damage_ratio = 1 - (self.health / self.full_health)
         center_vector = pygame.Vector2(center, center)
         visible_crack_count = max(1, int(len(self.crack_data) * damage_ratio))
@@ -155,8 +158,8 @@ class Asteroid(CircleShape):
             main_points = crack["main"]
             branches = crack["branches"]
             rotated_main = [center_vector + point.rotate(self.rotation)
-                        for point in main_points]
-            pygame.draw.lines(surface, C.WHITE, False,
+                for point in main_points]
+            pygame.draw.lines(surface, color, False,
                 [(int(p.x), int(p.y)) for p in rotated_main],
                 C.LINE_WIDTH + 2)
             if damage_ratio > 0.2 and branches:
@@ -164,12 +167,13 @@ class Asteroid(CircleShape):
                 visible_branch_count = max(0, int(len(branches) * branch_ratio))
                 for branch_points in branches[:visible_branch_count]:
                     rotated_branch = [center_vector + point.rotate(self.rotation)
-                                for point in branch_points]
-                    pygame.draw.lines(surface, C.WHITE, False,
+                        for point in branch_points]
+                    pygame.draw.lines(surface, color, False,
                         [(int(p.x), int(p.y)) for p in rotated_branch],
                         C.LINE_WIDTH + 1)
 
     def update(self, dt):
+        self.update_outline_pulse(dt)
         self.physics_move(dt)
         return self.update_gameplay_effects(dt)
 
@@ -182,9 +186,10 @@ class Asteroid(CircleShape):
 
     def kill(self):
         score_value = C.BASE_SCORE * self.size
-        ExplosionVE(self.position.x, self.position.y, radius=C.ASTEROID_EXPLOSION_RADIUS,
-            color=C.ASTEROID_EXPLOSION_COLOR, duration=C.ASTEROID_EXPLOSION_DURATION,
-            max_alpha=C.ASTEROID_EXPLOSION_MAX_ALPHA)
+        explosion_radius = max(12, int(self.radius * 1.1))
+        AsteroidKillExplosionVE(self.position.x, self.position.y, explosion_radius)
+        if self.overkill_triggered:
+            OverkillExplosionVE(self.position.x, self.position.y, explosion_radius)
         did_split = False
         if self.size > 1:
             did_split = self.spawn_children()

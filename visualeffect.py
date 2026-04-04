@@ -98,32 +98,3 @@ class LaserBeamVE(VisualEffect):
         pygame.draw.line(overlay, (*self.color, alpha), self.start_pos, self.end_pos, self.width)
         screen.blit(overlay, (0, 0))
 
-# class PlasmaBurnVE(VisualEffect):
-#     def __init__(self, x, y, radius=C.PLASMA_BURN_MARK_RADIUS, color=C.PLASMA_BURN_MARK_COLOR,
-#             triangle_count=C.PLASMA_BURN_MARK_TRIANGLE_COUNT, triangle_length=C.PLASMA_BURN_MARK_TRIANGLE_LENGTH,
-#             triangle_width=C.PLASMA_BURN_MARK_TRIANGLE_WIDTH, duration=C.PLASMA_BURN_MARK_DURATION,
-#             max_alpha=C.PLASMA_BURN_MARK_MAX_ALPHA):
-#         super().__init__(x, y, duration)
-#         self.radius = radius
-#         self.color = color
-#         self.triangle_count = triangle_count
-#         self.triangle_length = triangle_length
-#         self.triangle_width = triangle_width
-#         self.max_alpha = max_alpha
-
-#     def draw(self, screen):
-#         if self.duration <= 0:
-#             return
-#         alpha_ratio = max(0, self.timer / self.duration)
-#         alpha = int(self.max_alpha * alpha_ratio)
-#         overlay = pygame.Surface((C.SCREEN_WIDTH, C.SCREEN_HEIGHT), pygame.SRCALPHA)
-#         for i in range(self.triangle_count):
-#             angle = (360 / self.triangle_count) * i
-#             forward = pygame.Vector2(0, -1).rotate(angle)
-#             right = forward.rotate(90)
-#             tip = self.position + forward * (self.radius + self.triangle_length)
-#             base_center = self.position + forward * self.radius
-#             left = base_center - right * (self.triangle_width / 2)
-#             right_point = base_center + right * (self.triangle_width / 2)
-#             pygame.draw.polygon(overlay, (*self.color, alpha), [tip, left, right_point])
-#         screen.blit(overlay, (0, 0))

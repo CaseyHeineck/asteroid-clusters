@@ -67,4 +67,4 @@
         * Start in a random asteroid field where the player can warp around the edges of that screen
         * After player collects certain amount of currency, can unlock a warp to a new screen
 * ~~Having Game End Screen~~
-    * Fix program so that if you start a new game it doesn't crash
+    * ~~Fix program so that if you start a new game it doesn't crash~~

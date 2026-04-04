@@ -23,6 +23,10 @@ class Shield(CircleShape):
         self.health = max(0, self.health - damage)
         self.hit_flash_timer = self.hit_flash_duration
 
+    def block_asteroid(self, asteroid, impact_scale=1.0):
+        self.owner.apply_collision_to_asteroid(asteroid,
+            impact_scale=impact_scale)
+
     def update(self, dt):
         self.position = self.owner.position.copy()
         if self.hit_flash_timer > 0:

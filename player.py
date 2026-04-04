@@ -8,132 +8,129 @@ class Player(CircleShape):
         super().__init__(x, y, C.PLAYER_RADIUS, weight=C.PLAYER_WEIGHT,
             bounciness=C.PLAYER_BOUNCINESS, drag=C.PLAYER_DRAG,
             rotation=0, angular_velocity=0)
-        self.shot_cooldown = 0
         self.lives = 3
-        self.life = True
-        self.respawn_timer = 0
+        self.damage_cooldown = False
+        self.damage_cooldown_timer = 0
         self.blink_timer = 0
-        self.vulnerable = True
-        self.speed = 0
+        self.can_be_damaged = True
+        self.flash_visible = False
         self.game_over = False
         self.drones = []
         self.shield = False
+        self.forward_speed = 0
+        self.perpendicular_speed = 0
+        self.strafe_speed = 0
 
-    def draw(self, screen):
-        if self.vulnerable:
-            pygame.draw.polygon(screen, C.RED, self.triangle(), C.LINE_WIDTH)
-        else:
-            pygame.draw.polygon(screen, C.WHITE, self.triangle(), C.LINE_WIDTH)
+    def approach_zero(self, value, amount):
+        if value > 0:
+            return max(0, value - amount)
+        if value < 0:
+            return min(0, value + amount)
+        return 0
 
     def rotate(self, dt):
         self.rotation += C.PLAYER_TURN_SPEED * dt
 
     def accelerate(self, dt):
-        self.speed += C.PLAYER_ACCELERATION_RATE * dt
+        self.forward_speed += C.PLAYER_ACCELERATION_RATE * dt
 
     def brake(self, dt):
-        if self.speed < 0:
-            self.speed += C.PLAYER_BRAKE_SPEED * dt
-            if self.speed > 0:
-                self.speed = 0
-        elif self.speed > 0:
-            self.speed -= C.PLAYER_BRAKE_SPEED * dt
-            if self.speed < 0:
-                self.speed = 0
+        self.forward_speed = self.approach_zero(self.forward_speed,
+            C.PLAYER_BRAKE_SPEED * dt)
+        self.perpendicular_speed = self.approach_zero(self.perpendicular_speed,
+            C.PLAYER_PERPENDICULAR_BRAKE_SPEED * dt)    
 
-    def strafe(self, dt):
-        unit_vector = pygame.Vector2(0, 1)
-        rotated_vector = unit_vector.rotate(self.rotation + 90)
-        rotated_with_speed_vector = rotated_vector * C.PLAYER_STRAFE_SPEED * dt
-        self.position += rotated_with_speed_vector
+    def strafe(self, direction, scale=1):
+        self.strafe_speed = C.PLAYER_STRAFE_SPEED * direction 
 
-    def move(self, dt):
-        forward = pygame.Vector2(0, 1).rotate(self.rotation)
-        self.velocity = forward * self.speed
-        self.physics_move(dt)
-        self.speed = self.velocity.length()
+    def update_damage_cooldown(self, dt):
+        if not self.damage_cooldown:
+            self.can_be_damaged = True
+            self.flash_visible = False
+            return
+        self.can_be_damaged = False
+        self.damage_cooldown_timer += dt
+        self.blink_timer += dt
+        if self.blink_timer >= C.PLAYER_BLINK_TIMER:
+            self.flash_visible = not self.flash_visible
+            self.blink_timer = 0
+        if self.damage_cooldown_timer >= C.PLAYER_DAMAGE_COOLDOWN_SECONDS:
+            self.damage_cooldown = False
+            self.damage_cooldown_timer = 0
+            self.blink_timer = 0
+            self.can_be_damaged = True
+            self.flash_visible = False
 
-    def respawn(self):
+    def damaged(self, damage=1):
+        if not self.can_be_damaged:
+            return 0, self.lives
         log_event("player_hit")
-        score_delta = C.LIFE_LOSS_SCORE * self.lives
-        self.lives -= 1
-        self.life = False
-        self.vulnerable = False
-        if self.lives > 0:
-            log_event("player_respawned")
-            self.position.x = C.SCREEN_WIDTH / 2
-            self.position.y = C.SCREEN_HEIGHT / 2
-            self.velocity.update(0, 0)
-            self.speed = 0
-        else:
+        self.lives -= damage
+        self.damage_cooldown = True
+        self.damage_cooldown_timer = 0
+        self.blink_timer = 0
+        self.flash_visible = False
+        self.can_be_damaged = False
+        score_delta = C.LIFE_LOSS_SCORE * (self.lives + damage)
+        if self.lives <= 0:
+            self.lives = 0
             log_event("game_over")
             score_delta += C.GAME_OVER_SCORE
             self.game_over = True
         return score_delta, self.lives
+    
+    def sync_local_speeds_from_velocity(self):
+        forward = pygame.Vector2(0, 1).rotate(self.rotation)
+        right = forward.rotate(90)
+        self.forward_speed = self.velocity.dot(forward)
+        self.perpendicular_speed = self.velocity.dot(right)
 
-    def update(self, dt):
-        keys = pygame.key.get_pressed()
+    def apply_collision_to_asteroid(self, asteroid, impact_scale=1.0):
+        normal = self.get_collision_normal(asteroid)
+        distance = self.position.distance_to(asteroid.position)
+        overlap = (self.radius + asteroid.radius) - distance
+        player_weight = max(self.weight, 0.0001)
+        asteroid_weight = max(asteroid.weight, 0.0001)
+        total_weight = player_weight + asteroid_weight
+        if overlap > 0:
+            player_shift = overlap * (asteroid_weight / total_weight)
+            asteroid_shift = overlap * (player_weight / total_weight)
+            self.position -= normal * player_shift
+            asteroid.position += normal * asteroid_shift
+        player_velocity = self.velocity.copy()
+        asteroid_velocity = asteroid.velocity.copy()
+        player_normal_speed = player_velocity.dot(normal)
+        asteroid_normal_speed = asteroid_velocity.dot(normal)
+        relative_normal_speed = player_normal_speed - asteroid_normal_speed
+        if relative_normal_speed <= 0:
+            return
+        impact_push = relative_normal_speed * impact_scale
+        asteroid_push = impact_push * C.PLAYER_COLLISION_ASTEROID_TRANSFER
+        player_slow = impact_push * C.PLAYER_COLLISION_PLAYER_DAMPING
+        asteroid.velocity += normal * asteroid_push
+        player_velocity -= normal * player_slow
+        if player_velocity.length() > C.PLAYER_MAX_SPEED:
+            player_velocity.scale_to_length(C.PLAYER_MAX_SPEED)
+        self.velocity = player_velocity
+        self.sync_local_speeds_from_velocity()
 
-        if keys[pygame.K_SPACE]:
-            self.brake(dt)
+    def move(self, dt):
+        forward = pygame.Vector2(0, 1).rotate(self.rotation)
+        right = forward.rotate(90)
+        self.apply_movement_decay(dt)
+        self.apply_rotation(dt)
+        self.velocity = (forward * self.forward_speed
+            + right * (self.perpendicular_speed + self.strafe_speed))
+        if self.velocity.length() > C.PLAYER_MAX_SPEED:
+            self.velocity.scale_to_length(C.PLAYER_MAX_SPEED)
+            self.sync_local_speeds_from_velocity()
+        self.position += self.velocity * dt
 
-        if keys[pygame.K_RSHIFT] or keys[pygame.K_LSHIFT]:
-            if keys[pygame.K_RCTRL] or keys[pygame.K_LCTRL]:
-                if keys[pygame.K_w]:
-                    self.accelerate(dt * 2)
-                if keys[pygame.K_s]:
-                    self.accelerate(-dt * 2)
-                if keys[pygame.K_a]:
-                    self.strafe(-dt * 2)
-                if keys[pygame.K_d]:
-                    self.strafe(dt * 2)
-            else:
-                if keys[pygame.K_w]:
-                    self.accelerate(dt * 2)
-                if keys[pygame.K_s]:
-                    self.accelerate(-dt * 2)
-                if keys[pygame.K_a]:
-                    self.rotate(-dt)
-                if keys[pygame.K_d]:
-                    self.rotate(dt)
-        elif keys[pygame.K_RCTRL] or keys[pygame.K_LCTRL]:
-            if keys[pygame.K_a]:
-                self.strafe(-dt)
-            if keys[pygame.K_d]:
-                self.strafe(dt)
-            if keys[pygame.K_w]:
-                self.accelerate(dt)
-            if keys[pygame.K_s]:
-                self.accelerate(-dt)
-        else:
-            if keys[pygame.K_a]:
-                self.rotate(-dt)
-            if keys[pygame.K_d]:
-                self.rotate(dt)
-            if keys[pygame.K_w]:
-                self.accelerate(dt)
-            if keys[pygame.K_s]:
-                self.accelerate(-dt)
-
-        if self.life is not True:
-            if self.blink_timer < C.PLAYER_BLINK_TIMER:
-                self.blink_timer += dt
-            else:
-                if self.vulnerable:
-                    self.vulnerable = False
-                    self.blink_timer = 0
-                else:
-                    self.vulnerable = True
-                    self.blink_timer = 0
-            if self.respawn_timer < C.PLAYER_RESPAWN_COOLDOWN_SECONDS:
-                self.respawn_timer += dt
-            else:
-                self.life = True
-                self.respawn_timer = 0
-        else:
-            self.vulnerable = True
-
-        self.move(dt)
+    def apply_movement_decay(self, dt):
+        self.forward_speed = self.approach_zero(self.forward_speed,
+            C.PLAYER_FORWARD_DECELERATION_RATE * dt)
+        self.perpendicular_speed = self.approach_zero(self.perpendicular_speed,
+            C.PLAYER_PERPENDICULAR_DECELERATION_RATE * dt)
 
     def triangle(self):
         forward = pygame.Vector2(0, 1).rotate(self.rotation)
@@ -197,3 +194,48 @@ class Player(CircleShape):
         t = max(0, min(1, t))
         closest_point = start + segment * t
         return point.distance_to(closest_point)
+    
+    def draw(self, screen):
+        if self.damage_cooldown:
+            color = C.RED if self.flash_visible else C.WHITE
+        else:
+            color = C.RED
+        pygame.draw.polygon(screen, color, self.triangle(), C.LINE_WIDTH)
+
+    def update(self, dt):
+        keys = pygame.key.get_pressed()
+
+        boosting = keys[pygame.K_RSHIFT] or keys[pygame.K_LSHIFT]
+        strafing = keys[pygame.K_RCTRL] or keys[pygame.K_LCTRL]
+        braking = keys[pygame.K_SPACE]
+
+        moving_forward = keys[pygame.K_w] or keys[pygame.K_UP]
+        moving_backward = keys[pygame.K_s] or keys[pygame.K_DOWN]
+        moving_left = keys[pygame.K_a] or keys[pygame.K_LEFT]
+        moving_right = keys[pygame.K_d] or keys[pygame.K_RIGHT]
+
+        boost_scale = 2 if boosting else 1
+
+        self.strafe_speed = 0
+
+        if braking:
+            self.brake(dt)
+
+        if moving_forward:
+            self.accelerate(dt * boost_scale)
+        if moving_backward:
+            self.accelerate(-dt * boost_scale)
+
+        if strafing:
+            if moving_left:
+                self.strafe(-1, boost_scale)
+            elif moving_right:
+                self.strafe(1, boost_scale)
+        else:
+            if moving_left:
+                self.rotate(-dt)
+            if moving_right:
+                self.rotate(dt)
+
+        self.update_damage_cooldown(dt)
+        self.move(dt)

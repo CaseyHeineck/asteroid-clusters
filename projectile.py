@@ -29,6 +29,13 @@ class Kinetic(Projectile):
         super().__init__(x, y, C.KINETIC_PROJECTILE_RADIUS, C.KINETIC_PROJECTILE_COLOR,
             C.KINETIC_PROJECTILE_DAMAGE, weight=C.KINETIC_PROJECTILE_WEIGHT,
             bounciness=C.KINETIC_PROJECTILE_BOUNCINESS, drag=C.KINETIC_PROJECTILE_DRAG)
+        self.impact_scale = C.KINETIC_PROJECTILE_COLLISION_IMPACT_SCALE
+
+    def on_hit(self, asteroid):
+        self.collide_and_impact(asteroid, impact_scale=self.impact_scale)
+        score = asteroid.damaged(self.damage)
+        self.kill()
+        return score
         
 class LaserBeam(Projectile):
     def __init__(self, x, y, target, damage=C.LASER_DRONE_DAMAGE):

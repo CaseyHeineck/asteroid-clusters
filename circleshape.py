@@ -80,6 +80,49 @@ class CircleShape(pygame.sprite.Sprite):
             return self.outline_pulse_color
         return default_color
 
+    def get_collision_normal(self, other):
+        normal = other.position - self.position
+        if normal.length_squared() == 0:
+            return pygame.Vector2(1, 0)
+        return normal.normalize()
+
+    def separate_from(self, other):
+        normal = self.get_collision_normal(other)
+        distance = self.position.distance_to(other.position)
+        overlap = (self.radius + other.radius) - distance
+        if overlap <= 0:
+            return
+        self_weight = max(self.weight, 0.0001)
+        other_weight = max(other.weight, 0.0001)
+        total_weight = self_weight + other_weight
+        self_shift = overlap * (other_weight / total_weight)
+        other_shift = overlap * (self_weight / total_weight)
+        self.position -= normal * self_shift
+        other.position += normal * other_shift
+
+    def resolve_impact(self, other, impact_scale=1.0):
+        normal = self.get_collision_normal(other)
+        relative_velocity = other.velocity - self.velocity
+        closing_speed = relative_velocity.dot(normal)
+        if closing_speed > 0:
+            return
+        bounce = min(self.bounciness, other.bounciness)
+        self_weight = max(self.weight, 0.0001)
+        other_weight = max(other.weight, 0.0001)
+        inverse_weight_sum = (1 / self_weight) + (1 / other_weight)
+        if inverse_weight_sum == 0:
+            return
+        impact_strength = -(1 + bounce) * closing_speed
+        impact_strength /= inverse_weight_sum
+        impact_strength *= impact_scale
+        impact_vector = normal * impact_strength
+        self.velocity -= impact_vector / self_weight
+        other.velocity += impact_vector / other_weight
+
+    def collide_and_impact(self, other, impact_scale=1.0):
+        self.separate_from(other)
+        self.resolve_impact(other, impact_scale=impact_scale)
+
     def draw(self, screen):
         pass
 

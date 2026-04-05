@@ -4,6 +4,7 @@ import sys
 import constants as C
 from asteroid import *
 from asteroidfield import *
+from combatstats import *
 from display import *
 from drone import *
 from logger import *
@@ -37,6 +38,7 @@ class Game:
         self.HUD = None
         self.projectiles = None
         self.player = None
+        self.combat_stats = None
 
         self.event_handler = EventHandler(self)
         self.collision_system = CollisionSystem(self)
@@ -45,7 +47,7 @@ class Game:
         self.pause_menu = create_pause_menu(self.on_resume, self.on_restart, 
             self.on_main_menu, self.exit)
         self.game_over_menu = create_game_over_menu(self.on_new_game, 
-            self.on_main_menu, self.exit, score=0)
+            self.on_main_menu, self.exit, score=0, combat_stats=None)
 
     def run(self):
         while self.screen:
@@ -136,7 +138,10 @@ class Game:
 
         self.asteroid_field = AsteroidField()
         self.HUD = Display(10, 10)
+        self.combat_stats = CombatStats()
         self.player = Player((C.SCREEN_WIDTH / 2), (C.SCREEN_HEIGHT / 2))
+        self.player.game = self
+
         self.player.add_drone(PlasmaDrone, self.asteroids)
         self.player.add_drone(KineticDrone, self.asteroids)
         self.player.add_drone(ExplosiveDrone, self.asteroids)
@@ -146,7 +151,7 @@ class Game:
     def on_new_game(self):
         self.create_game()
         self.game_over_menu = create_game_over_menu(self.on_new_game, 
-            self.on_main_menu, self.exit, score=0)
+            self.on_main_menu, self.exit, score=0, combat_stats=None)
         self.current_state = C.GAME_RUNNING
 
     def on_resume(self):
@@ -155,7 +160,7 @@ class Game:
     def on_restart(self):
         self.create_game()
         self.game_over_menu = create_game_over_menu(self.on_new_game, 
-            self.on_main_menu, self.exit, score=0)
+            self.on_main_menu, self.exit, score=0, combat_stats=None)
         self.current_state = C.GAME_RUNNING
 
     def on_main_menu(self):
@@ -164,7 +169,7 @@ class Game:
     def on_game_over(self):
         score = self.HUD.score if hasattr(self.HUD, "score") else 0
         self.game_over_menu = create_game_over_menu(self.on_new_game, 
-            self.on_main_menu, self.exit, score=score)
+            self.on_main_menu, self.exit, score=score, combat_stats=self.combat_stats)
         self.current_state = C.GAME_OVER
 
     def exit(self):

@@ -20,6 +20,9 @@ class Player(CircleShape):
         self.forward_speed = 0
         self.perpendicular_speed = 0
         self.strafe_speed = 0
+        self.collision_damage = C.PLAYER_COLLISION_DAMAGE
+        self.stat_source = C.PLAYER
+        self.game = None
 
     def approach_zero(self, value, amount):
         if value > 0:
@@ -108,6 +111,8 @@ class Player(CircleShape):
         asteroid_push = impact_push * C.PLAYER_COLLISION_ASTEROID_TRANSFER
         player_slow = impact_push * C.PLAYER_COLLISION_PLAYER_DAMPING
         asteroid.velocity += normal * asteroid_push
+        if asteroid.velocity.length() > C.ASTEROID_MAX_SPEED:
+            asteroid.velocity.scale_to_length(C.ASTEROID_MAX_SPEED)
         player_velocity -= normal * player_slow
         if player_velocity.length() > C.PLAYER_MAX_SPEED:
             player_velocity.scale_to_length(C.PLAYER_MAX_SPEED)

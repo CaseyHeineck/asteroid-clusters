@@ -12,9 +12,14 @@ class Projectile(CircleShape):
             drag=drag, rotation=rotation, angular_velocity=angular_velocity)
         self.color = color
         self.damage = damage
+        self.stat_source = None
+        self.combat_stats = None
 
     def on_hit(self, asteroid):
+        health_before = asteroid.health
         score = asteroid.damaged(self.damage)
+        self.combat_stats.record_damage_event(source=self.stat_source,
+            health_before=health_before, attempted_damage=self.damage)
         self.kill()
         return score
 
@@ -32,16 +37,25 @@ class Kinetic(Projectile):
         self.impact_scale = C.KINETIC_PROJECTILE_COLLISION_IMPACT_SCALE
 
     def on_hit(self, asteroid):
-        self.collide_and_impact(asteroid, impact_scale=self.impact_scale)
+        health_before = asteroid.health
         score = asteroid.damaged(self.damage)
+        self.combat_stats.record_damage_event(source=self.stat_source,
+            health_before=health_before, attempted_damage=self.damage)
+        normal = self.get_collision_normal(asteroid)
+        asteroid.velocity += normal * (self.velocity.length() * C.KINETIC_PROJECTILE_COLLISION_IMPACT_SCALE)
+        if asteroid.velocity.length() > C.ASTEROID_MAX_SPEED:
+            asteroid.velocity.scale_to_length(C.ASTEROID_MAX_SPEED)
         self.kill()
         return score
-        
+
 class LaserBeam(Projectile):
-    def __init__(self, x, y, target, damage=C.LASER_DRONE_DAMAGE):
+    def __init__(self, x, y, target, damage=C.LASER_DRONE_DAMAGE,
+            stat_source=None, combat_stats=None):
         super().__init__(x, y, radius=0, color=C.LASER_BEAM_COLOR, damage=damage,
             weight=0, bounciness=0, drag=0)
         self.target = target
+        self.stat_source = stat_source
+        self.combat_stats = combat_stats
         self.score = self.fire()
 
     def fire(self):
@@ -54,13 +68,15 @@ class LaserBeam(Projectile):
             width=C.LASER_BEAM_WIDTH, duration=C.LASER_BEAM_DURATION)
         target_health = self.target.health
         full_health = self.target.full_health
-        if self.damage >= (target_health + full_health):
-            if hasattr(self.target, "add_gameplay_effect"):
-                self.target.add_gameplay_effect(OverkillSTE(
-                    child_size_reduction=1, child_count_reduction=1))
-        score = 0
-        if hasattr(self.target, "damaged"):
-            score = self.target.damaged(self.damage)
+        overkill = self.damage >= (target_health + full_health)
+        if overkill:
+            self.target.add_gameplay_effect(OverkillSTE(
+                child_size_reduction=1, child_count_reduction=1))
+        score = self.target.damaged(self.damage)
+        if self.combat_stats:
+            self.combat_stats.record_damage_event(
+                source=self.stat_source, health_before=target_health,
+                attempted_damage=self.damage, overkill=overkill)
         self.kill()
         return score
 
@@ -76,15 +92,19 @@ class Plasma(Projectile):
         super().__init__(x, y, C.PLASMA_PROJECTILE_RADIUS, C.PLASMA_PROJECTILE_COLOR,
             C.PLASMA_PROJECTILE_DAMAGE, weight=C.PLASMA_PROJECTILE_WEIGHT,
             bounciness=C.PLASMA_PROJECTILE_BOUNCINESS, drag=C.PLASMA_PROJECTILE_DRAG)
-    
-    def on_hit(self, target):
-        score = 0
-        if hasattr(target, "damaged"):
-            score += target.damaged(self.damage)
-        if target.alive() and hasattr(target, "add_gameplay_effect"):
-            target.add_gameplay_effect(PlasmaBurnSTE())
+
+    def on_hit(self, asteroid):
+        health_before = asteroid.health
+        score = asteroid.damaged(self.damage)
+        if self.combat_stats:
+            self.combat_stats.record_damage_event(source=self.stat_source,
+                health_before=health_before, attempted_damage=self.damage)
+        burn = PlasmaBurnSTE()
+        burn.stat_source = self.stat_source
+        burn.combat_stats = self.combat_stats
+        asteroid.add_gameplay_effect(burn)
         self.kill()
-        return score    
+        return score
 
 class Rocket(Projectile):
     def __init__(self, x, y, asteroids):
@@ -94,17 +114,21 @@ class Rocket(Projectile):
         self.asteroids = asteroids
 
     def on_hit(self, asteroid):
-        impact_position = self.position.copy()
         total_score = 0
+        health_before = asteroid.health
         score = asteroid.damaged(self.damage)
-        if score:
-            total_score += score
-        rocket_hit = RocketHitAOE(impact_position=impact_position, targets=self.asteroids,
+        total_score += score or 0
+        if self.combat_stats:
+            self.combat_stats.record_damage_event(source=self.stat_source, 
+                health_before=health_before, attempted_damage=self.damage)
+        aoe = RocketHitAOE(impact_position=asteroid.position, targets=self.asteroids, 
             radius=C.ROCKET_HIT_RADIUS, damage=C.ROCKET_HIT_DAMAGE)
-        total_score += rocket_hit.apply(ignored_targets=[asteroid])
+        aoe.stat_source = self.stat_source
+        aoe.combat_stats = self.combat_stats
+        total_score += aoe.apply(ignored_targets=[asteroid])
         self.kill()
         return total_score
-
+    
     def draw(self, screen):
         forward = self.velocity.normalize() if self.velocity.length_squared() > 0 else pygame.Vector2(0, -1)
         angle = pygame.Vector2(0, -1).angle_to(forward)

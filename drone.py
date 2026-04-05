@@ -20,6 +20,7 @@ class Drone(CircleShape):
         self.weapons_free_timer_max = C.DRONE_WEAPONS_FREE_TIMER
         self.body_color = C.WHITE
         self.body_line_width = C.DRONE_LINE_WIDTH
+        self.stat_source = None
 
     def acquire_target(self):
         closest_so_far = float("inf")
@@ -92,6 +93,7 @@ class ExplosiveDrone(Drone):
         self.door_length = C.EXPLOSIVE_DRONE_DOOR_LENGTH
         self.launch_animation_timer = 0
         self.launch_animation_duration = C.EXPLOSIVE_DRONE_DOOR_ANIMATION_TIME
+        self.stat_source = C.EXPLOSIVE_DRONE
 
     def get_projectile_spawn_position(self):
         forward = self.get_forward_vector()
@@ -102,6 +104,8 @@ class ExplosiveDrone(Drone):
         forward = self.get_forward_vector()
         projectile = Rocket(spawn_position.x, spawn_position.y, self.asteroids)
         projectile.velocity = forward * self.projectile_speed
+        projectile.stat_source = self.stat_source
+        projectile.combat_stats = self.player.game.combat_stats
         self.launch_animation_timer = self.launch_animation_duration
         return 0
 
@@ -142,6 +146,7 @@ class KineticDrone(Drone):
         self.weapons_platform_length = C.KINETIC_DRONE_WEAPONS_PLATFORM_LENGTH
         self.weapons_platform_front_width = C.KINETIC_DRONE_WEAPONS_PLATFORM_FRONT_WIDTH
         self.weapons_platform_back_width = C.KINETIC_DRONE_WEAPONS_PLATFORM_BACK_WIDTH
+        self.stat_source = C.KINETIC_DRONE
 
     def get_projectile_spawn_position(self):
         forward = self.get_forward_vector()
@@ -152,6 +157,8 @@ class KineticDrone(Drone):
         forward = self.get_forward_vector()
         projectile = Kinetic(spawn_position.x, spawn_position.y)
         projectile.velocity = forward * self.projectile_speed
+        projectile.stat_source = self.stat_source
+        projectile.combat_stats = self.player.game.combat_stats
         return 0
 
     def draw_weapons_platform(self, screen):
@@ -180,6 +187,7 @@ class LaserDrone(Drone):
         self.weapons_platform_length = C.LASER_DRONE_WEAPONS_PLATFORM_LENGTH
         self.weapons_platform_width = C.LASER_DRONE_WEAPONS_PLATFORM_WIDTH
         self.weapons_platform_offset = C.LASER_DRONE_WEAPONS_PLATFORM_OFFSET
+        self.stat_source = C.LASER_DRONE
 
     def acquire_target(self):
         self.target = None
@@ -204,7 +212,8 @@ class LaserDrone(Drone):
         if self.target is None:
             return 0
         spawn_position = self.get_projectile_spawn_position()
-        projectile = LaserBeam(spawn_position.x, spawn_position.y, self.target, self.damage)
+        projectile = LaserBeam(spawn_position.x, spawn_position.y, self.target,
+            self.damage, stat_source=self.stat_source, combat_stats=self.player.game.combat_stats)
         return projectile.score
 
     def lerp_color(self, start_color, end_color, t):
@@ -255,6 +264,7 @@ class PlasmaDrone(Drone):
         self.weapons_platform_color = C.PLASMA_DRONE_WEAPONS_PLATFORM_COLOR
         self.weapons_platform_length = self.radius + C.PLASMA_DRONE_WEAPONS_PLATFORM_LENGTH_OFFSET
         self.weapons_platform_width = C.PLASMA_DRONE_WEAPONS_PLATFORM_WIDTH
+        self.stat_source = C.PLASMA_DRONE
 
     def get_projectile_spawn_position(self):
         forward = self.get_forward_vector()
@@ -265,6 +275,8 @@ class PlasmaDrone(Drone):
         forward = self.get_forward_vector()
         projectile = Plasma(spawn_position.x, spawn_position.y)
         projectile.velocity = forward * self.projectile_speed
+        projectile.stat_source = self.stat_source
+        projectile.combat_stats = self.player.game.combat_stats
         return 0
 
     def draw_weapons_platform(self, screen):
@@ -288,6 +300,7 @@ class SentinelDrone(Drone):
         self.player_shield = None
         self.shield_create_timer = 0
         self.shield_repair_timer = C.SENTINEL_DRONE_SHIELD_REPAIR_TIMER
+        self.stat_source = C.SENTINEL_DRONE
 
     def update(self, dt):
         self.shield_sentinel(dt)
@@ -300,7 +313,7 @@ class SentinelDrone(Drone):
         if not self.player_shield:
             self.player.shield = False
             if self.shield_create_timer == 0:
-                self.player_shield = Shield(self.player)
+                self.player_shield = Shield(owner=self.player, source=self)
                 self.player.shield = True
                 self.shield_create_timer = C.SENTINEL_DRONE_SHIELD_CREATE_TIMER
         else:
@@ -311,7 +324,13 @@ class SentinelDrone(Drone):
         if self.player_shield:
             if self.player_shield.health < C.SHIELD_MAX_HEALTH:
                 if self.shield_repair_timer == 0:
-                    self.player_shield.health += 1
+                    before = self.player_shield.health
+                    self.player_shield.health = min(C.SHIELD_MAX_HEALTH,
+                        self.player_shield.health + 1)
+                    repaired = self.player_shield.health - before
+                    if repaired > 0:
+                        self.player.game.combat_stats.add_repaired(
+                            self.stat_source, repaired)
                     self.shield_repair_timer = C.SENTINEL_DRONE_SHIELD_REPAIR_TIMER
 
     def draw_weapons_platform(self, screen):

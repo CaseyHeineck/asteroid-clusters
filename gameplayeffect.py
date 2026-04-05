@@ -93,6 +93,8 @@ class PlasmaBurnSTE(SingleTargetEffect):
         self.damage_per_tick = damage_per_tick
         self.tick_rate = tick_rate
         self.tick_timer = tick_rate
+        self.stat_source = None
+        self.combat_stats = None
 
     def merge(self, other):
         self.duration = max(self.duration, other.duration)
@@ -110,7 +112,11 @@ class PlasmaBurnSTE(SingleTargetEffect):
                 if hasattr(self.target, "pulse_outline"):
                     self.target.pulse_outline(C.PLASMA_PROJECTILE_COLOR,
                         C.PLASMA_BURN_FLASH_DURATION)
+                health_before = self.target.health
                 score = self.target.damaged(self.damage_per_tick)
+                if self.combat_stats:
+                    self.combat_stats.record_damage_event(source=self.stat_source,
+                        health_before=health_before, attempted_damage=self.damage_per_tick)
                 if score:
                     total_score += score
                     self.expired = True
@@ -123,6 +129,8 @@ class RocketHitAOE(AreaOfEffect):
             damage=C.ROCKET_HIT_DAMAGE):
         super().__init__(impact_position, targets, radius, duration=0)
         self.damage = damage
+        self.stat_source = None
+        self.combat_stats = None
 
     def apply(self, ignored_targets=None):
         total_score = 0
@@ -132,7 +140,11 @@ class RocketHitAOE(AreaOfEffect):
         valid_targets = self.get_targets_in_radius(ignored_targets)
         for target in valid_targets:
             if hasattr(target, "damaged"):
+                health_before = target.health
                 score = target.damaged(self.damage)
+                if self.combat_stats:
+                    self.combat_stats.record_damage_event(source=self.stat_source,
+                        health_before=health_before, attempted_damage=self.damage)
                 if score:
                     total_score += score
         self.expired = True

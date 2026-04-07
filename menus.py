@@ -205,6 +205,53 @@ def create_drone_choice_menu(pending_drones, level, on_add_drone, on_banish_dron
     return menu
 
 
+def create_shop_menu(player_drones, upgrade_counts, essence, on_buy, on_leave):
+    from drone import SentinelDrone
+    drone_display_names = {
+        "ExplosiveDrone": "EXPLOSIVE DRONE",
+        "KineticDrone":   "KINETIC DRONE",
+        "LaserDrone":     "LASER DRONE",
+        "PlasmaDrone":    "PLASMA DRONE",
+        "SentinelDrone":  "SENTINEL DRONE",
+    }
+    menu = pygame_menu.Menu(title="MECHANIC'S SHOP", width=C.SCREEN_WIDTH,
+        height=C.SCREEN_HEIGHT, theme=pygame_menu.themes.THEME_DARK)
+    menu.add.label(f"Essence: {essence} \u25c6")
+    menu.add.vertical_margin(10)
+
+    seen = []
+    for drone in player_drones:
+        cls = type(drone)
+        if cls not in seen:
+            seen.append(cls)
+
+    for cls in seen:
+        name = drone_display_names.get(cls.__name__, cls.__name__)
+        menu.add.label(f"\u2014 {name} \u2014")
+        upgrades = (
+            [("shield_health", "Shield Health +2"),
+             ("repair_rate",   "Repair Speed +15%")]
+            if cls is SentinelDrone
+            else [("damage",    "Damage +15%"),
+                  ("fire_rate", "Fire Rate +12%")]
+        )
+        for upgrade_type, label in upgrades:
+            count = upgrade_counts.get((cls.__name__, upgrade_type), 0)
+            price = C.SHOP_UPGRADE_BASE_PRICE + count * C.SHOP_UPGRADE_PRICE_STEP
+            btn_text = f"{label}  \u2014  {price} \u25c6"
+            if essence >= price:
+                def make_cb(c=cls, ut=upgrade_type):
+                    return lambda: on_buy(c, ut)
+                menu.add.button(btn_text, make_cb())
+            else:
+                menu.add.label(f"  {btn_text}  (need more \u25c6)")
+        menu.add.vertical_margin(6)
+
+    menu.add.vertical_margin(10)
+    menu.add.button("LEAVE SHOP", on_leave)
+    return menu
+
+
 def get_source_color(source):
     return {
         C.PLAYER: C.RED,

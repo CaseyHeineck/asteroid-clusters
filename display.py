@@ -15,6 +15,7 @@ class Display:
         self.xp_needed = int(C.EXP_LEVEL_BASE)
         self.level_up_timer = 0.0
         self.level_up_duration = 2.5
+        self.essence = 0
         self.update_image()
 
     def update_image(self):
@@ -31,6 +32,9 @@ class Display:
     def update_player_lives(self, player_lives):
         self.player_lives = player_lives
         self.update_image()
+
+    def update_essence(self, amount):
+        self.essence = amount
 
     def update_level(self, level, xp_current, xp_needed):
         if level > self.level:
@@ -57,6 +61,9 @@ class Display:
         if fill_width > 0:
             pygame.draw.rect(screen, C.NEON_GREEN, (0, bar_y, fill_width, bar_height))
         pygame.draw.rect(screen, C.LIGHT_GRAY, (0, bar_y, C.SCREEN_WIDTH, bar_height), 1)
+
+        essence_text = self.small_font.render(f"◆ {self.essence}", True, C.BRIGHT_PURPLE)
+        screen.blit(essence_text, (C.SCREEN_WIDTH - essence_text.get_width() - 12, 42))
 
         if self.level_up_timer > 0:
             fade = min(1.0, self.level_up_timer / 0.4)

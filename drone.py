@@ -94,6 +94,7 @@ class ExplosiveDrone(Drone):
         self.launch_animation_timer = 0
         self.launch_animation_duration = C.EXPLOSIVE_DRONE_DOOR_ANIMATION_TIME
         self.stat_source = C.EXPLOSIVE_DRONE
+        self.damage_multiplier = 1.0
 
     def get_projectile_spawn_position(self):
         forward = self.get_forward_vector()
@@ -103,6 +104,7 @@ class ExplosiveDrone(Drone):
         spawn_position = self.get_projectile_spawn_position()
         forward = self.get_forward_vector()
         projectile = Rocket(spawn_position.x, spawn_position.y, self.asteroids)
+        projectile.damage = int(C.ROCKET_PROJECTILE_DAMAGE * self.damage_multiplier)
         projectile.velocity = forward * self.projectile_speed
         projectile.stat_source = self.stat_source
         projectile.combat_stats = self.player.game.combat_stats
@@ -147,6 +149,7 @@ class KineticDrone(Drone):
         self.weapons_platform_front_width = C.KINETIC_DRONE_WEAPONS_PLATFORM_FRONT_WIDTH
         self.weapons_platform_back_width = C.KINETIC_DRONE_WEAPONS_PLATFORM_BACK_WIDTH
         self.stat_source = C.KINETIC_DRONE
+        self.damage_multiplier = 1.0
 
     def get_projectile_spawn_position(self):
         forward = self.get_forward_vector()
@@ -156,6 +159,7 @@ class KineticDrone(Drone):
         spawn_position = self.get_projectile_spawn_position()
         forward = self.get_forward_vector()
         projectile = Kinetic(spawn_position.x, spawn_position.y)
+        projectile.damage = int(C.KINETIC_PROJECTILE_DAMAGE * self.damage_multiplier)
         projectile.velocity = forward * self.projectile_speed
         projectile.stat_source = self.stat_source
         projectile.combat_stats = self.player.game.combat_stats
@@ -265,6 +269,7 @@ class PlasmaDrone(Drone):
         self.weapons_platform_length = self.radius + C.PLASMA_DRONE_WEAPONS_PLATFORM_LENGTH_OFFSET
         self.weapons_platform_width = C.PLASMA_DRONE_WEAPONS_PLATFORM_WIDTH
         self.stat_source = C.PLASMA_DRONE
+        self.damage_multiplier = 1.0
 
     def get_projectile_spawn_position(self):
         forward = self.get_forward_vector()
@@ -274,6 +279,7 @@ class PlasmaDrone(Drone):
         spawn_position = self.get_projectile_spawn_position()
         forward = self.get_forward_vector()
         projectile = Plasma(spawn_position.x, spawn_position.y)
+        projectile.damage = int(C.PLASMA_PROJECTILE_DAMAGE * self.damage_multiplier)
         projectile.velocity = forward * self.projectile_speed
         projectile.stat_source = self.stat_source
         projectile.combat_stats = self.player.game.combat_stats
@@ -299,7 +305,9 @@ class SentinelDrone(Drone):
         self.body_line_width = 0
         self.player_shield = None
         self.shield_create_timer = 0
-        self.shield_repair_timer = C.SENTINEL_DRONE_SHIELD_REPAIR_TIMER
+        self.shield_max_health = C.SHIELD_MAX_HEALTH
+        self.shield_repair_timer_base = C.SENTINEL_DRONE_SHIELD_REPAIR_TIMER
+        self.shield_repair_timer = self.shield_repair_timer_base
         self.stat_source = C.SENTINEL_DRONE
 
     def update(self, dt):
@@ -313,7 +321,8 @@ class SentinelDrone(Drone):
         if not self.player_shield:
             self.player.shield = False
             if self.shield_create_timer == 0:
-                self.player_shield = Shield(owner=self.player, source=self)
+                self.player_shield = Shield(owner=self.player, source=self,
+                                            max_health=self.shield_max_health)
                 self.player.shield = True
                 self.shield_create_timer = C.SENTINEL_DRONE_SHIELD_CREATE_TIMER
         else:
@@ -322,16 +331,16 @@ class SentinelDrone(Drone):
                 self.player_shield = None
                 self.player.shield = False
         if self.player_shield:
-            if self.player_shield.health < C.SHIELD_MAX_HEALTH:
+            if self.player_shield.health < self.player_shield.max_health:
                 if self.shield_repair_timer == 0:
                     before = self.player_shield.health
-                    self.player_shield.health = min(C.SHIELD_MAX_HEALTH,
+                    self.player_shield.health = min(self.player_shield.max_health,
                         self.player_shield.health + 1)
                     repaired = self.player_shield.health - before
                     if repaired > 0:
                         self.player.game.combat_stats.add_repaired(
                             self.stat_source, repaired)
-                    self.shield_repair_timer = C.SENTINEL_DRONE_SHIELD_REPAIR_TIMER
+                    self.shield_repair_timer = self.shield_repair_timer_base
 
     def draw_weapons_platform(self, screen):
         direction = self.player.position - self.position

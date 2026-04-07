@@ -20,3 +20,9 @@ class EventHandler:
                 self.game.current_state = C.PAUSED
             elif self.game.current_state == C.PAUSED:
                 self.game.current_state = C.GAME_RUNNING
+            elif self.game.current_state == C.SHOP:
+                self.game.on_shop_leave()
+
+        if event.key == pygame.K_e:
+            if self.game.current_state == C.GAME_RUNNING and self.game.map_system:
+                self.game.map_system.try_interact()

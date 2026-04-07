@@ -18,7 +18,7 @@ class Shield(CircleShape):
         self.line_width = C.SHIELD_LINE_WIDTH
         self.damage = owner.collision_damage
         self.hit_flash_timer = 0
-        self.hit_flash_duration = 0.05
+        self.hit_flash_duration = 0.14
 
     def damaged(self, damage):
         if damage <= 0:
@@ -43,21 +43,29 @@ class Shield(CircleShape):
             self.kill()
 
     def draw(self, screen):
-        shield_surface = pygame.Surface((self.radius * 2 + 8, self.radius * 2 + 8),
-            pygame.SRCALPHA)
-        center = (shield_surface.get_width() // 2, shield_surface.get_height() // 2)
+        padding = self.line_width + 6
+        surf_size = int(self.radius) * 2 + padding * 2
+        shield_surface = pygame.Surface((surf_size, surf_size), pygame.SRCALPHA)
+        center = (surf_size // 2, surf_size // 2)
         health_ratio = self.health / self.max_health if self.max_health > 0 else 0
-        fill_alpha = int(self.color_alpha * health_ratio)
-        ring_alpha = max(fill_alpha, 40)
-        fill_color = (*self.color[:3], fill_alpha)
-        ring_color = (*self.color[:3], ring_alpha)
+
+        # Consistent low-opacity fill regardless of health
+        fill_color = (*self.color[:3], self.color_alpha)
         pygame.draw.circle(shield_surface, fill_color, center, int(self.radius))
-        pygame.draw.circle(shield_surface, ring_color, center, int(self.radius),
-            self.line_width)
+
+        # Outer edge fades from fully opaque at full health to invisible at zero
+        edge_alpha = int(220 * health_ratio)
+        if edge_alpha > 0:
+            edge_color = (*self.color[:3], edge_alpha)
+            pygame.draw.circle(shield_surface, edge_color, center,
+                int(self.radius), self.line_width)
+
+        # White flash ring wrapping the entire shield on hit
         if self.hit_flash_timer > 0:
-            flash_alpha = int(255 * (self.hit_flash_timer / self.hit_flash_duration))
-            flash_color = (255, 255, 255, flash_alpha)
-            pygame.draw.circle(shield_surface, flash_color, center, int(self.radius) + 1,
-                self.line_width + 1)
+            flash_ratio = self.hit_flash_timer / self.hit_flash_duration
+            flash_alpha = int(255 * flash_ratio)
+            pygame.draw.circle(shield_surface, (255, 255, 255, flash_alpha),
+                center, int(self.radius) + 2, self.line_width + 2)
+
         rect = shield_surface.get_rect(center=(self.position.x, self.position.y))
         screen.blit(shield_surface, rect)

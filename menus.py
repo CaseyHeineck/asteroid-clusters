@@ -160,6 +160,51 @@ def build_support_chart_surface(combat_stats, width, height):
         row_y += row_gap
     return surface
 
+def create_drone_select_menu(on_select_drone):
+    from drone import ExplosiveDrone, KineticDrone, LaserDrone, PlasmaDrone, SentinelDrone
+    drone_info = [
+        (PlasmaDrone, "PLASMA DRONE", "Medium range | Plasma bolts that burn asteroids over time"),
+        (KineticDrone, "KINETIC DRONE", "Short range | Rapid-fire kinetic rounds with high impact"),
+        (ExplosiveDrone, "EXPLOSIVE DRONE", "Medium range | Rockets with area-of-effect explosion"),
+        (LaserDrone, "LASER DRONE", "Long range | Instant hitscan laser, targets highest HP"),
+        (SentinelDrone, "SENTINEL DRONE", "Support | Generates a protective shield around you"),
+    ]
+    menu = pygame_menu.Menu(title="CHOOSE YOUR STARTING DRONE", width=C.SCREEN_WIDTH,
+        height=C.SCREEN_HEIGHT, theme=pygame_menu.themes.THEME_DARK)
+    menu.add.label("Select the drone that will orbit you from the start of the game.")
+    menu.add.vertical_margin(20)
+    for drone_class, name, desc in drone_info:
+        def make_cb(cls):
+            return lambda: on_select_drone(cls)
+        menu.add.button(f"{name}  —  {desc}", make_cb(drone_class))
+    return menu
+
+
+def create_drone_choice_menu(pending_drones, level, on_add_drone, on_banish_drone):
+    from drone import ExplosiveDrone, KineticDrone, LaserDrone, PlasmaDrone, SentinelDrone
+    drone_names = {
+        PlasmaDrone: "PLASMA DRONE",
+        KineticDrone: "KINETIC DRONE",
+        ExplosiveDrone: "EXPLOSIVE DRONE",
+        LaserDrone: "LASER DRONE",
+        SentinelDrone: "SENTINEL DRONE",
+    }
+    menu = pygame_menu.Menu(title=f"LEVEL {level} — DRONE CHOICE", width=C.SCREEN_WIDTH,
+        height=C.SCREEN_HEIGHT, theme=pygame_menu.themes.THEME_DARK)
+    menu.add.label("Choose one drone to ADD to your arsenal or BANISH permanently.")
+    menu.add.vertical_margin(20)
+    for drone_class in pending_drones:
+        name = drone_names.get(drone_class, str(drone_class.__name__))
+        def make_add(cls):
+            return lambda: on_add_drone(cls)
+        def make_banish(cls):
+            return lambda: on_banish_drone(cls)
+        menu.add.button(f"ADD  {name}", make_add(drone_class))
+        menu.add.button(f"BANISH  {name}", make_banish(drone_class))
+        menu.add.vertical_margin(8)
+    return menu
+
+
 def get_source_color(source):
     return {
         C.PLAYER: C.RED,

@@ -4,7 +4,7 @@ import sys
 import constants as C
 from asteroid import *
 from asteroidfield import *
-from combatstats import *
+from endgamereport import *
 from display import *
 from drone import *
 from logger import *
@@ -13,6 +13,8 @@ from player import *
 from projectile import *
 from shield import *
 from visualeffect import *
+from experiorb import ExpOrb
+from experience import ExperienceSystem
 
 from eventhandler import EventHandler
 from collisionsystem import CollisionSystem
@@ -31,6 +33,7 @@ class Game:
         self.updatable = None
         self.drawable = None
         self.asteroids = None
+        self.exp_orbs = None
         self.asteroid_field = None
         self.drones = None
         self.shields = None
@@ -39,6 +42,9 @@ class Game:
         self.projectiles = None
         self.player = None
         self.combat_stats = None
+        self.experience = None
+        self.drone_select_menu = None
+        self.drone_choice_menu = None
 
         self.event_handler = EventHandler(self)
         self.collision_system = CollisionSystem(self)
@@ -57,8 +63,12 @@ class Game:
 
             if self.current_state == C.MAIN_MENU:
                 self.update_main_menu(events)
+            elif self.current_state == C.DRONE_SELECT:
+                self.update_drone_select(events)
             elif self.current_state == C.GAME_RUNNING:
                 self.update_game_running()
+            elif self.current_state == C.DRONE_CHOICE:
+                self.update_drone_choice(events)
             elif self.current_state == C.PAUSED:
                 self.update_paused(events)
             elif self.current_state == C.GAME_OVER:
@@ -71,6 +81,42 @@ class Game:
         self.main_menu.update(events)
         self.main_menu.draw(self.screen)
 
+    def update_drone_select(self, events):
+        self.screen.fill(C.BLACK)
+        self.drone_select_menu.update(events)
+        self.drone_select_menu.draw(self.screen)
+
+    def update_drone_choice(self, events):
+        self.draw_game()
+        self.draw_overlay(140)
+        self.drone_choice_menu.update(events)
+        self.drone_choice_menu.draw(self.screen)
+
+    def enter_drone_choice(self):
+        pending = self.experience.pending_drones
+        if not pending:
+            self.current_state = C.GAME_RUNNING
+            return
+        self.drone_choice_menu = create_drone_choice_menu(
+            pending, self.experience.level,
+            self.on_add_drone, self.on_banish_drone)
+        self.current_state = C.DRONE_CHOICE
+
+    def on_start_drone_selected(self, drone_class):
+        self.experience.add_starting_drone(drone_class)
+        self.current_state = C.GAME_RUNNING
+
+    def on_add_drone(self, drone_class):
+        self.experience.pending_drones.remove(drone_class)
+        self.experience.added_drones.append(drone_class)
+        self.player.add_drone(drone_class, self.asteroids)
+        self.experience.resolve_choice()
+
+    def on_banish_drone(self, drone_class):
+        self.experience.pending_drones.remove(drone_class)
+        self.experience.banished_drones.append(drone_class)
+        self.experience.resolve_choice()
+
     def update_game_running(self):
         log_state()
 
@@ -79,6 +125,7 @@ class Game:
             if score:
                 self.HUD.update_score(score)
 
+        self.HUD.update(self.dt)
         self.wrap_object(self.player)
         self.collision_system.handle()
         self.draw_game()
@@ -123,6 +170,7 @@ class Game:
         self.updatable = pygame.sprite.Group()
         self.drawable = pygame.sprite.Group()
         self.asteroids = pygame.sprite.Group()
+        self.exp_orbs = pygame.sprite.Group()
         self.projectiles = pygame.sprite.Group()
         self.drones = pygame.sprite.Group()
         self.shields = pygame.sprite.Group()
@@ -130,6 +178,7 @@ class Game:
 
         Asteroid.containers = (self.asteroids, self.updatable, self.drawable)
         AsteroidField.containers = (self.updatable,)
+        ExpOrb.containers = (self.exp_orbs, self.drawable, self.updatable)
         Projectile.containers = (self.projectiles, self.drawable, self.updatable)
         Player.containers = (self.updatable, self.drawable)
         Drone.containers = (self.drones, self.drawable, self.updatable)
@@ -141,27 +190,24 @@ class Game:
         self.combat_stats = CombatStats()
         self.player = Player((C.SCREEN_WIDTH / 2), (C.SCREEN_HEIGHT / 2))
         self.player.game = self
-
-        self.player.add_drone(PlasmaDrone, self.asteroids)
-        self.player.add_drone(KineticDrone, self.asteroids)
-        self.player.add_drone(ExplosiveDrone, self.asteroids)
-        self.player.add_drone(LaserDrone, self.asteroids)
-        self.player.add_drone(SentinelDrone, self.asteroids)
+        self.experience = ExperienceSystem(self)
 
     def on_new_game(self):
         self.create_game()
-        self.game_over_menu = create_game_over_menu(self.on_new_game, 
+        self.game_over_menu = create_game_over_menu(self.on_new_game,
             self.on_main_menu, self.exit, score=0, combat_stats=None)
-        self.current_state = C.GAME_RUNNING
+        self.drone_select_menu = create_drone_select_menu(self.on_start_drone_selected)
+        self.current_state = C.DRONE_SELECT
 
     def on_resume(self):
         self.current_state = C.GAME_RUNNING
 
     def on_restart(self):
         self.create_game()
-        self.game_over_menu = create_game_over_menu(self.on_new_game, 
+        self.game_over_menu = create_game_over_menu(self.on_new_game,
             self.on_main_menu, self.exit, score=0, combat_stats=None)
-        self.current_state = C.GAME_RUNNING
+        self.drone_select_menu = create_drone_select_menu(self.on_start_drone_selected)
+        self.current_state = C.DRONE_SELECT
 
     def on_main_menu(self):
         self.current_state = C.MAIN_MENU

@@ -2,6 +2,7 @@ import pygame
 import random
 import constants as C
 from circleshape import CircleShape
+from experiorb import ExpOrb
 from visualeffect import AsteroidKillExplosionVE, OverkillExplosionVE
 from logger import log_event
 
@@ -190,6 +191,9 @@ class Asteroid(CircleShape):
         AsteroidKillExplosionVE(self.position.x, self.position.y, explosion_radius)
         if self.overkill_triggered:
             OverkillExplosionVE(self.position.x, self.position.y, explosion_radius)
+        if ExpOrb.containers:
+            ExpOrb(self.position.x, self.position.y,
+                int(self.size ** C.EXP_ORB_SIZE_EXPONENT * C.EXP_ORB_VALUE_BASE))
         did_split = False
         if self.size > 1:
             did_split = self.spawn_children()

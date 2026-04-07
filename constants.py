@@ -77,7 +77,7 @@ ASTEROID_SPLIT_ACCELERATION = 2.1
 ASTEROID_SPLIT_FACTOR_MIN = 0.3
 ASTEROID_WEIGHT = 8
 
-# COMBAT_STATS---------------------------
+# END_GAME_REPORT------------------------
 PLAYER = "player"
 KINETIC_DRONE = "kinetic_drone"
 PLASMA_DRONE = "plasma_drone"
@@ -87,6 +87,8 @@ SENTINEL_DRONE = "sentinel_drone"
 PLAYER_SHIELD = "player_shield"
 
 # MENUS/GAME_STATES----------------------
+DRONE_CHOICE = "drone_choice"
+DRONE_SELECT = "drone_select"
 GAME_OVER = "game_over"
 GAME_RUNNING = "game_running"
 PAUSED = "paused"
@@ -259,3 +261,19 @@ LASER_BEAM_WIDTH = 3
 LASER_BEAM_DURATION = 0.12
 # ----PLASMA_BURN------------------------
 PLASMA_BURN_FLASH_DURATION = 0.12
+
+# EXPERIENCE_SYSTEM----------------------
+EXP_DRONE_CHOICE_INTERVAL = 5
+EXP_DRONE_EARLY_LEVEL = 2
+EXP_LEVEL_BASE = 50
+EXP_LEVEL_EXPONENT = 1.7
+# ----EXP_ORBS---------------------------
+EXP_ORB_COLOR = NEON_GREEN
+EXP_ORB_DRAG = 25
+EXP_ORB_LIFETIME = 20.0
+EXP_ORB_PICKUP_RADIUS = 90
+EXP_ORB_RADIUS = 7
+EXP_ORB_VALUE_BASE = 6
+EXP_ORB_SIZE_EXPONENT = 2.0
+
+

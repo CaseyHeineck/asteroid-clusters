@@ -1,4 +1,4 @@
-# Asteroid Cluster
+# Asteroid Clusters
 
 A top-down arcade shooter built with Python and Pygame, inspired by the classic Asteroids with roguelite progression. Each run is a short session where you choose and build a fleet of autonomous combat drones as you level up.
 
@@ -8,7 +8,7 @@ A top-down arcade shooter built with Python and Pygame, inspired by the classic 
 
 ```bash
 git clone <repo-url>
-cd asteroids-clone
+cd asteroid-clusters
 uv sync
 uv run main.py
 ```

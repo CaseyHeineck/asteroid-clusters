@@ -3,7 +3,7 @@ revision = 3
 requires-python = ">=3.13"
 
 [[package]]
-name = "asteroids-clone"
+name = "asteroid-clusters"
 version = "0.1.0"
 source = { virtual = "." }
 dependencies = [

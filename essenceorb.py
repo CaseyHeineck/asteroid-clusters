@@ -6,7 +6,6 @@ from circleshape import CircleShape
 
 class EssenceOrb(CircleShape):
     containers = []
-
     def __init__(self, x, y, value):
         super().__init__(x, y, C.ESSENCE_ORB_RADIUS, drag=C.ESSENCE_ORB_DRAG)
         self.value = value
@@ -28,11 +27,8 @@ class EssenceOrb(CircleShape):
         surf_size = glow_r * 2 + 4
         surf = pygame.Surface((surf_size, surf_size), pygame.SRCALPHA)
         center = surf_size // 2
-
         glow_alpha = int(50 + 40 * pulse)
         pygame.draw.circle(surf, (*C.ESSENCE_ORB_COLOR, glow_alpha), (center, center), glow_r)
-
-        # diamond shape instead of circle
         diamond = [
             (center, center - inner_r),
             (center + int(inner_r * 0.65), center),
@@ -40,10 +36,7 @@ class EssenceOrb(CircleShape):
             (center - int(inner_r * 0.65), center),
         ]
         pygame.draw.polygon(surf, (*C.ESSENCE_ORB_COLOR, 215), diamond)
-
-        # highlight
         pygame.draw.circle(surf, (255, 255, 255, 140),
             (center - max(1, inner_r // 4), center - max(1, inner_r // 4)),
             max(1, inner_r // 3))
-
         screen.blit(surf, surf.get_rect(center=(int(self.position.x), int(self.position.y))))

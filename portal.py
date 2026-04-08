@@ -11,7 +11,6 @@ OPPOSITE = {NORTH: SOUTH, SOUTH: NORTH, EAST: WEST, WEST: EAST}
 
 ALL_DIRECTIONS = [NORTH, SOUTH, EAST, WEST]
 
-
 class Portal:
     def __init__(self, direction, unlocked=False):
         self.direction = direction

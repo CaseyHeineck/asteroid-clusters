@@ -1,8 +1,10 @@
+import math
 import pygame
 import constants as C
 from circleshape import CircleShape
 from projectile import Kinetic, LaserBeam, Plasma, Rocket
 from shield import Shield
+from visualeffect import MuzzleFlareVE
 
 class Drone(CircleShape):
     def __init__(self, player, asteroids):
@@ -86,11 +88,6 @@ class ExplosiveDrone(Drone):
         self.range = C.EXPLOSIVE_DRONE_WEAPONS_RANGE
         self.weapons_free_timer_max = C.EXPLOSIVE_DRONE_WEAPONS_FREE_TIMER
         self.projectile_speed = C.EXPLOSIVE_DRONE_PROJECTILE_SPEED
-        self.launcher_color = C.EXPLOSIVE_DRONE_WEAPONS_PLATFORM_COLOR
-        self.launcher_radius = C.EXPLOSIVE_DRONE_LAUNCHER_RADIUS
-        self.door_offset = C.EXPLOSIVE_DRONE_DOOR_OFFSET
-        self.door_width = C.EXPLOSIVE_DRONE_DOOR_WIDTH
-        self.door_length = C.EXPLOSIVE_DRONE_DOOR_LENGTH
         self.launch_animation_timer = 0
         self.launch_animation_duration = C.EXPLOSIVE_DRONE_DOOR_ANIMATION_TIME
         self.stat_source = C.EXPLOSIVE_DRONE
@@ -116,25 +113,31 @@ class ExplosiveDrone(Drone):
         self.launch_animation_timer = max(0, self.launch_animation_timer - dt)
 
     def draw_weapons_platform(self, screen):
-        surface_size = self.radius * 3
-        platform_surface = pygame.Surface((surface_size, surface_size), pygame.SRCALPHA)
-        center_x = surface_size // 2
-        center_y = surface_size // 2
-        pygame.draw.circle(platform_surface, self.launcher_color, (center_x, center_y),
-            self.launcher_radius, 0)
-        open_ratio = 0
+        open_ratio = 0.0
         if self.launch_animation_duration > 0:
             open_ratio = self.launch_animation_timer / self.launch_animation_duration
-        door_slide = int(6 * open_ratio)
-        left_door = pygame.Rect(center_x - self.door_offset - self.door_width - door_slide,
-            center_y - self.door_length // 2, self.door_width, self.door_length)
-        right_door = pygame.Rect(center_x + self.door_offset + door_slide,
-            center_y - self.door_length // 2, self.door_width, self.door_length)
-        pygame.draw.rect(platform_surface, self.launcher_color, left_door)
-        pygame.draw.rect(platform_surface, self.launcher_color, right_door)
-        rotated_platform = pygame.transform.rotate(platform_surface, -self.rotation)
-        rotated_rect = rotated_platform.get_rect(center=(self.position.x, self.position.y))
-        screen.blit(rotated_platform, rotated_rect)
+        surf_size = int(self.radius * 6)
+        surf = pygame.Surface((surf_size, surf_size), pygame.SRCALPHA)
+        c = surf_size // 2
+        door_half_w = int(self.radius * 0.65)
+        door_h = int(self.radius * 0.62)
+        slide = int(door_half_w * open_ratio)
+        if open_ratio > 0.05:
+            silo_r = max(2, int(self.radius * 0.32))
+            alpha = min(255, int(255 * open_ratio))
+            pygame.draw.circle(surf, (20, 20, 20, alpha), (c, c), silo_r)
+        left_rect = pygame.Rect(c - door_half_w - slide, c - door_h // 2, door_half_w, door_h)
+        right_rect = pygame.Rect(c + slide, c - door_h // 2, door_half_w, door_h)
+        pygame.draw.rect(surf, C.GRAY, left_rect)
+        pygame.draw.rect(surf, C.GRAY, right_rect)
+        pygame.draw.rect(surf, C.SILVER, left_rect, 1)
+        pygame.draw.rect(surf, C.SILVER, right_rect, 1)
+        if open_ratio < 0.15:
+            fade = int(160 * (1 - open_ratio / 0.15))
+            pygame.draw.line(surf, (20, 20, 20, fade),
+                (c, c - door_h // 2), (c, c + door_h // 2), 1)
+        rotated = pygame.transform.rotate(surf, -self.rotation)
+        screen.blit(rotated, rotated.get_rect(center=(int(self.position.x), int(self.position.y))))
 
 class KineticDrone(Drone):
     def __init__(self, player, asteroids):
@@ -146,14 +149,13 @@ class KineticDrone(Drone):
         self.projectile_speed = C.KINETIC_DRONE_PROJECTILE_SPEED
         self.weapons_platform_color = C.KINETIC_DRONE_WEAPONS_PLATFORM_COLOR
         self.weapons_platform_length = C.KINETIC_DRONE_WEAPONS_PLATFORM_LENGTH
-        self.weapons_platform_front_width = C.KINETIC_DRONE_WEAPONS_PLATFORM_FRONT_WIDTH
-        self.weapons_platform_back_width = C.KINETIC_DRONE_WEAPONS_PLATFORM_BACK_WIDTH
         self.stat_source = C.KINETIC_DRONE
         self.damage_multiplier = 1.0
 
     def get_projectile_spawn_position(self):
         forward = self.get_forward_vector()
-        return self.position + forward * self.weapons_platform_length
+        muzzle_dist = int(self.radius * 0.1) + max(6, int(self.radius * 0.9))
+        return self.position + forward * muzzle_dist
 
     def weapons_free(self):
         spawn_position = self.get_projectile_spawn_position()
@@ -163,22 +165,25 @@ class KineticDrone(Drone):
         projectile.velocity = forward * self.projectile_speed
         projectile.stat_source = self.stat_source
         projectile.combat_stats = self.player.game.combat_stats
+        if MuzzleFlareVE.containers:
+            MuzzleFlareVE(spawn_position.x, spawn_position.y, size=5)
         return 0
 
     def draw_weapons_platform(self, screen):
-        surface_size = self.weapons_platform_length * 2
-        platform_surface = pygame.Surface((surface_size, surface_size), pygame.SRCALPHA)
-        center_x = surface_size // 2
-        center_y = surface_size // 2
-        front_half = self.weapons_platform_front_width / 2
-        back_half = self.weapons_platform_back_width / 2
-        length = self.weapons_platform_length
-        points = [(center_x - front_half, center_y - length), (center_x + front_half, center_y - length),
-            (center_x + back_half, center_y + 2), (center_x - back_half, center_y + 2)]
-        pygame.draw.polygon(platform_surface, self.weapons_platform_color, points)
-        rotated_platform = pygame.transform.rotate(platform_surface, -self.rotation)
-        rotated_rect = rotated_platform.get_rect(center=(self.position.x, self.position.y))
-        screen.blit(rotated_platform, rotated_rect)
+        surf_size = int(self.radius * 6)
+        surf = pygame.Surface((surf_size, surf_size), pygame.SRCALPHA)
+        c = surf_size // 2
+        muzzle_half = max(2, int(self.radius * 0.22))
+        base_half   = max(4, int(self.radius * 0.55))
+        height      = max(6, int(self.radius * 0.9))
+        top_y  = c - int(self.radius * 0.1) - height
+        base_y = c - int(self.radius * 0.1)
+        trap_pts = [(c - muzzle_half, top_y), (c + muzzle_half, top_y),
+            (c + base_half,   base_y), (c - base_half,   base_y)]
+        pygame.draw.polygon(surf, C.GRAY, trap_pts)
+        pygame.draw.polygon(surf, C.SILVER, trap_pts, 1)
+        rotated = pygame.transform.rotate(surf, -self.rotation)
+        screen.blit(rotated, rotated.get_rect(center=(int(self.position.x), int(self.position.y))))
 
 class LaserDrone(Drone):
     def __init__(self, player, asteroids):
@@ -286,23 +291,29 @@ class PlasmaDrone(Drone):
         return 0
 
     def draw_weapons_platform(self, screen):
-        surface_size = self.weapons_platform_length * 2
-        platform_surface = pygame.Surface((surface_size, surface_size), pygame.SRCALPHA)
-        center_x = surface_size // 2
-        center_y = surface_size // 2
-        platform_rect = pygame.Rect(center_x - self.weapons_platform_width // 2,
-            center_y - self.weapons_platform_length, self.weapons_platform_width,
-            self.weapons_platform_length)
-        pygame.draw.rect(platform_surface, self.weapons_platform_color, platform_rect)
-        rotated_platform = pygame.transform.rotate(platform_surface, -self.rotation)
-        rotated_rect = rotated_platform.get_rect(center=(self.position.x, self.position.y))
-        screen.blit(rotated_platform, rotated_rect)
+        surf_size = int(self.weapons_platform_length * 3)
+        surf = pygame.Surface((surf_size, surf_size), pygame.SRCALPHA)
+        c = surf_size // 2
+        bw = self.weapons_platform_width
+        bh = self.weapons_platform_length
+        barrel_rect = pygame.Rect(c - bw // 2, c - bh, bw, bh)
+        pygame.draw.rect(surf, C.SILVER, barrel_rect)
+        pygame.draw.rect(surf, C.GRAY, barrel_rect, 1)
+        muzzle_w = bw + 4
+        muzzle_h = max(4, bw // 2 + 1)
+        muzzle_rect = pygame.Rect(c - muzzle_w // 2, c - bh - muzzle_h + 2, muzzle_w, muzzle_h)
+        pygame.draw.rect(surf, C.LIGHT_GRAY, muzzle_rect)
+        pygame.draw.rect(surf, C.GRAY, muzzle_rect, 1)
+        rotated = pygame.transform.rotate(surf, -self.rotation)
+        screen.blit(rotated, rotated.get_rect(center=(int(self.position.x), int(self.position.y))))
 
 class SentinelDrone(Drone):
     def __init__(self, player, asteroids):
         super().__init__(player, asteroids)
         self.body_color = C.SENTINEL_DRONE_BODY_COLOR
         self.body_line_width = 0
+        self.radius = int(C.DRONE_RADIUS * 0.65)  # smaller body than combat drones
+        self.weapons_platform_color = C.SENTINEL_DRONE_WEAPONS_PLATFORM_COLOR
         self.player_shield = None
         self.shield_create_timer = 0
         self.shield_max_health = C.SHIELD_MAX_HEALTH
@@ -322,7 +333,7 @@ class SentinelDrone(Drone):
             self.player.shield = False
             if self.shield_create_timer == 0:
                 self.player_shield = Shield(owner=self.player, source=self,
-                                            max_health=self.shield_max_health)
+                    max_health=self.shield_max_health)
                 self.player.shield = True
                 self.shield_create_timer = C.SENTINEL_DRONE_SHIELD_CREATE_TIMER
         else:
@@ -347,11 +358,33 @@ class SentinelDrone(Drone):
         if direction.length_squared() == 0:
             return
         angle = pygame.Vector2(0, -1).angle_to(direction)
-        size = self.radius * 3
-        surf = pygame.Surface((size, size), pygame.SRCALPHA)
-        c = size // 2
-        pygame.draw.circle(surf, C.SENTINEL_DRONE_BODY_COLOR, (c, c), self.radius, 2)
-        pygame.draw.circle(surf, (0, 0, 0, 0), (c + int(self.radius * 0.4), c), self.radius, 0)
+        r = self.radius
+        n = 14
+        fang_len   = int(r * 1.5)
+        base_sep   = int(r * 0.72)
+        tip_inward = int(r * 0.55)
+        base_w     = max(2, int(r * 0.22))   
+        tip_w      = max(1, int(r * 0.07))   
+        surf_size = int(r * 8)
+        surf = pygame.Surface((surf_size, surf_size), pygame.SRCALPHA)
+        c = surf_size // 2
+        root_y = c - r
+        for side in (-1, 1):
+            root_cx = c + side * base_sep
+            tip_cx  = c + side * (base_sep - tip_inward)
+            tip_y   = root_y - fang_len
+            outer_pts = []
+            inner_pts = []
+            for i in range(n + 1):
+                t = i / n
+                y = root_y - int(t * fang_len)
+                spine_x = root_cx + (tip_cx - root_cx) * (t ** 0.7)
+                hw = base_w + (tip_w - base_w) * t
+                bow = side * hw * (1.0 + 0.9 * math.sin(t * math.pi))
+                outer_pts.append((spine_x + bow, y))
+                inner_pts.append((spine_x - bow * 0.35, y))
+            fang_poly = outer_pts + list(reversed(inner_pts))
+            pygame.draw.polygon(surf, self.weapons_platform_color, fang_poly)
+            pygame.draw.polygon(surf, C.LIGHT_GRAY, fang_poly, 1)
         rotated = pygame.transform.rotate(surf, -angle)
-        rect = rotated.get_rect(center=(self.position.x, self.position.y))
-        screen.blit(rotated, rect)
+        screen.blit(rotated, rotated.get_rect(center=(int(self.position.x), int(self.position.y))))

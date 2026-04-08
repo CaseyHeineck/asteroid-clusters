@@ -1,5 +1,5 @@
 import constants as C
-
+from drone import ExplosiveDrone, KineticDrone, LaserDrone, PlasmaDrone, SentinelDrone
 
 class ExperienceSystem:
     def __init__(self, game):
@@ -7,17 +7,13 @@ class ExperienceSystem:
         self.total_xp = 0
         self.level = 1
         self.choices_pending = 0
-
-        from drone import (ExplosiveDrone, KineticDrone, LaserDrone,
-                           PlasmaDrone, SentinelDrone)
         self.all_drone_classes = [PlasmaDrone, KineticDrone, ExplosiveDrone,
-                                  LaserDrone, SentinelDrone]
+            LaserDrone, SentinelDrone]
         self.pending_drones = list(self.all_drone_classes)
         self.added_drones = []
         self.banished_drones = []
 
     def xp_to_reach_level(self, level):
-        """Total cumulative XP needed to reach this level from level 1."""
         if level <= 1:
             return 0
         total = 0
@@ -62,4 +58,4 @@ class ExperienceSystem:
 
     def update_hud(self):
         self.game.HUD.update_level(self.level, self.xp_this_level(),
-                                   self.xp_needed_this_level())
+            self.xp_needed_this_level())

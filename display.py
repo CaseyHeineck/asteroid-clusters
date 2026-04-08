@@ -1,7 +1,6 @@
 import pygame
 import constants as C
 
-
 class Display:
     def __init__(self, x, y, font_size=50, color=C.CYAN):
         self.score = 0

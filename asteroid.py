@@ -29,11 +29,9 @@ class Asteroid(CircleShape):
 
     def generate_outline_points(self):
         points = []
-        # more points = smoother, fewer = chunkier
         point_count = max(8, self.size * 5)
         for i in range(point_count):
             angle = (360 / point_count) * i
-            # irregularity scales with size
             variation = random.uniform(-self.radius * 0.2, self.radius * 0.2)
             radius = self.radius + variation
             point = pygame.Vector2(radius, 0).rotate(angle)

@@ -237,17 +237,14 @@ class Game:
 
     def enter_new_airspace(self, arrival_pos, prev_space, new_space):
         self._save_airspace_state(prev_space)
-
         for sprite in list(self.projectiles.sprites()):
             pygame.sprite.Sprite.kill(sprite)
         for sprite in list(self.visual_effects.sprites()):
             pygame.sprite.Sprite.kill(sprite)
-
         if new_space.active_state is not None:
             self._restore_airspace_state(new_space)
         else:
             self.asteroid_field = AsteroidField()
-
         self.player.position = pygame.Vector2(arrival_pos)
         self.player.velocity *= 0.75
         self.player.forward_speed *= 0.75

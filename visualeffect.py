@@ -78,6 +78,49 @@ class RocketHitExplosionVE(BaseExplosion):
             overlay_duration=C.ROCKET_HIT_EXPLOSION_DURATION,
             overlay_max_alpha=C.ROCKET_HIT_EXPLOSION_MAX_ALPHA)
 
+class MuzzleFlareVE(VisualEffect):
+    def __init__(self, x, y, size=7):
+        super().__init__(x, y, duration=0.08)
+        self.size = size
+
+    def draw(self, screen):
+        ratio = self.timer / self.duration if self.duration > 0 else 0
+        expand = 1 - ratio
+        surf_size = int((self.size + 18) * 2)
+        surf = pygame.Surface((surf_size, surf_size), pygame.SRCALPHA)
+        c = surf_size // 2
+        outer_r = max(1, int(self.size + 10 * expand))
+        pygame.draw.circle(surf, (*C.DARK_ORANGE, int(180 * ratio)), (c, c), outer_r,
+            max(1, int(3 * ratio)))
+        mid_r = max(1, int(self.size * (0.7 + 0.5 * ratio)))
+        pygame.draw.circle(surf, (*C.ORANGE, int(220 * ratio)), (c, c), mid_r)
+        core_r = max(1, int(self.size * 0.45 * ratio))
+        pygame.draw.circle(surf, (*C.WHITE, int(255 * ratio)), (c, c), core_r)
+        screen.blit(surf, surf.get_rect(center=(int(self.position.x), int(self.position.y))))
+
+class RocketExhaustVE(VisualEffect):
+    def __init__(self, x, y, size=5):
+        super().__init__(x, y, duration=0.12)
+        self.size = size
+
+    def draw(self, screen):
+        ratio = self.timer / self.duration if self.duration > 0 else 0
+        surf_size = int((self.size + 14) * 2)
+        surf = pygame.Surface((surf_size, surf_size), pygame.SRCALPHA)
+        c = surf_size // 2
+        layers = [
+            (self.size * 1.6, C.DARK_ORANGE, 110),
+            (self.size * 1.0, C.ORANGE,      170),
+            (self.size * 0.5, C.YELLOW,       200),
+        ]
+        for r_scale, color, max_alpha in layers:
+            r = max(1, int(r_scale * ratio))
+            alpha = int(max_alpha * ratio)
+            if alpha > 0:
+                pygame.draw.circle(surf, (*color, alpha), (c, c), r)
+        screen.blit(surf, surf.get_rect(center=(int(self.position.x), int(self.position.y))))
+
+
 class LaserBeamVE(VisualEffect):
     def __init__(self, start_pos, end_pos, color=C.LASER_BEAM_COLOR, width=C.LASER_BEAM_WIDTH,
             duration=C.LASER_BEAM_DURATION, max_alpha=255):

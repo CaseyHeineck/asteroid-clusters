@@ -3,10 +3,8 @@ import pygame
 import constants as C
 from circleshape import CircleShape
 
-
 class ExpOrb(CircleShape):
     containers = []
-
     def __init__(self, x, y, value):
         super().__init__(x, y, C.EXP_ORB_RADIUS, drag=C.EXP_ORB_DRAG)
         self.value = value

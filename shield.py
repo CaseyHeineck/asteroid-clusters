@@ -48,24 +48,17 @@ class Shield(CircleShape):
         shield_surface = pygame.Surface((surf_size, surf_size), pygame.SRCALPHA)
         center = (surf_size // 2, surf_size // 2)
         health_ratio = self.health / self.max_health if self.max_health > 0 else 0
-
-        # Consistent low-opacity fill regardless of health
         fill_color = (*self.color[:3], self.color_alpha)
         pygame.draw.circle(shield_surface, fill_color, center, int(self.radius))
-
-        # Outer edge fades from fully opaque at full health to invisible at zero
         edge_alpha = int(220 * health_ratio)
         if edge_alpha > 0:
             edge_color = (*self.color[:3], edge_alpha)
             pygame.draw.circle(shield_surface, edge_color, center,
                 int(self.radius), self.line_width)
-
-        # White flash ring wrapping the entire shield on hit
         if self.hit_flash_timer > 0:
             flash_ratio = self.hit_flash_timer / self.hit_flash_duration
             flash_alpha = int(255 * flash_ratio)
             pygame.draw.circle(shield_surface, (255, 255, 255, flash_alpha),
                 center, int(self.radius) + 2, self.line_width + 2)
-
         rect = shield_surface.get_rect(center=(self.position.x, self.position.y))
         screen.blit(shield_surface, rect)

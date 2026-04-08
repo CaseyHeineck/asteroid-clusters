@@ -2,7 +2,6 @@ import pygame
 import random
 import constants as C
 
-
 class StarField:
     def __init__(self, star_count=180):
         self.offset_x = 0.0

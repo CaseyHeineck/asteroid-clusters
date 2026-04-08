@@ -2,7 +2,7 @@ import pygame
 import constants as C
 from circleshape import CircleShape
 from gameplayeffect import OverkillSTE, PlasmaBurnSTE, RocketHitAOE 
-from visualeffect import LaserBeamVE
+from visualeffect import LaserBeamVE, RocketExhaustVE
 
 class Projectile(CircleShape):
     def __init__(self, x, y, radius=C.PROJECTILE_RADIUS, color=C.PROJECTILE_COLOR,
@@ -129,12 +129,33 @@ class Rocket(Projectile):
         self.kill()
         return total_score
     
+    def update(self, dt):
+        self.physics_move(dt)
+        if self.alive() and self.velocity.length_squared() > 0 and RocketExhaustVE.containers:
+            backward = -self.velocity.normalize()
+            exhaust_pos = self.position + backward * 10
+            RocketExhaustVE(exhaust_pos.x, exhaust_pos.y)
+
     def draw(self, screen):
         forward = self.velocity.normalize() if self.velocity.length_squared() > 0 else pygame.Vector2(0, -1)
         angle = pygame.Vector2(0, -1).angle_to(forward)
-        surface = pygame.Surface((12, 18), pygame.SRCALPHA)
-        pygame.draw.rect(surface, self.color, (4, 4, 4, 10))
-        pygame.draw.polygon(surface, C.RED, [(6, 0), (3, 4), (9, 4)])
-        rotated = pygame.transform.rotate(surface, angle)
-        rect = rotated.get_rect(center=(self.position.x, self.position.y))
-        screen.blit(rotated, rect)
+        body_w, body_h = 6, 14
+        nose_h = 7
+        fin_w, fin_h = 5, 6
+        surf = pygame.Surface((body_w + fin_w * 2 + 2, nose_h + body_h + fin_h + 2), pygame.SRCALPHA)
+        cx = surf.get_width() // 2
+        pygame.draw.polygon(surf, C.SILVER, [(cx, 0), (cx - body_w // 2, nose_h), (cx + body_w // 2, nose_h)])
+        body_rect = pygame.Rect(cx - body_w // 2, nose_h, body_w, body_h)
+        pygame.draw.rect(surf, C.GRAY, body_rect)
+        pygame.draw.rect(surf, C.SILVER, body_rect, 1)
+        tail_y = nose_h + body_h
+        pygame.draw.polygon(surf, C.LIGHT_GRAY, [
+            (cx - body_w // 2, tail_y),
+            (cx - body_w // 2 - fin_w, tail_y + fin_h),
+            (cx - body_w // 2, tail_y + fin_h)])
+        pygame.draw.polygon(surf, C.LIGHT_GRAY, [
+            (cx + body_w // 2, tail_y),
+            (cx + body_w // 2 + fin_w, tail_y + fin_h),
+            (cx + body_w // 2, tail_y + fin_h)])
+        rotated = pygame.transform.rotate(surf, -angle)
+        screen.blit(rotated, rotated.get_rect(center=(int(self.position.x), int(self.position.y))))

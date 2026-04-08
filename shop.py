@@ -3,7 +3,6 @@ import random
 import pygame
 import constants as C
 
-
 class Shop:
     def __init__(self):
         inset = C.SHOP_EDGE_INSET
@@ -23,18 +22,13 @@ class Shop:
         pulse = (math.sin(self.pulse_timer * math.pi * 2) + 1) / 2
         pos = (int(self.position.x), int(self.position.y))
         size = 16
-
         surf_size = (size + 24) * 2
         surf = pygame.Surface((surf_size, surf_size), pygame.SRCALPHA)
         c = surf_size // 2
-
-        # Glow rings
         for i in range(4, 0, -1):
             r = size + 4 + i * 5
             alpha = int((12 + 10 * pulse) * (i / 4))
             pygame.draw.circle(surf, (*C.GOLD, alpha), (c, c), r)
-
-        # Diamond body
         diamond = [
             (c, c - size),
             (c + int(size * 0.65), c),
@@ -44,8 +38,6 @@ class Shop:
         body_alpha = int(210 + 45 * pulse)
         pygame.draw.polygon(surf, (*C.GOLD, body_alpha), diamond)
         pygame.draw.polygon(surf, (*C.WHITE, int(100 + 80 * pulse)), diamond, 2)
-
-        # Inner shine
         shine = [
             (c, c - size // 2),
             (c + int(size * 0.3), c),
@@ -53,7 +45,6 @@ class Shop:
             (c - int(size * 0.3), c),
         ]
         pygame.draw.polygon(surf, (*C.WHITE, int(40 + 30 * pulse)), shine)
-
         screen.blit(surf, surf.get_rect(center=pos))
 
     def draw_prompt(self, screen, player_pos):

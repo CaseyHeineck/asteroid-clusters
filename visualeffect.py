@@ -120,6 +120,39 @@ class RocketExhaustVE(VisualEffect):
                 pygame.draw.circle(surf, (*color, alpha), (c, c), r)
         screen.blit(surf, surf.get_rect(center=(int(self.position.x), int(self.position.y))))
 
+class ShipExhaustVE(VisualEffect):
+    def __init__(self, x, y, direction, length=28, width=7):
+        super().__init__(x, y, duration=0.001)
+        self.direction = pygame.Vector2(direction).normalize()
+        self.length = length
+        self.width = width
+
+    def draw(self, screen):
+        ratio = self.timer / self.duration if self.duration > 0 else 0
+        if ratio <= 0:
+            return
+        end = self.position + self.direction * self.length
+        pad = self.width + 2
+        min_x = int(min(self.position.x, end.x)) - pad
+        min_y = int(min(self.position.y, end.y)) - pad
+        max_x = int(max(self.position.x, end.x)) + pad
+        max_y = int(max(self.position.y, end.y)) + pad
+        surf = pygame.Surface((max(1, max_x - min_x), max(1, max_y - min_y)), pygame.SRCALPHA)
+        origin = pygame.Vector2(self.position.x - min_x, self.position.y - min_y)
+        steps = 9
+        for i in range(steps):
+            t = i / (steps - 1)
+            p = origin + self.direction * (self.length * t)
+            r = max(1, int(self.width * (1.0 - t * 0.88)))
+            if   t < 0.15: color, max_a = C.WHITE,       240
+            elif t < 0.40: color, max_a = C.YELLOW,      215
+            elif t < 0.70: color, max_a = C.ORANGE,      170
+            else:          color, max_a = C.DARK_ORANGE,  80
+            alpha = int(max_a * ratio)
+            if alpha > 0:
+                pygame.draw.circle(surf, (*color, alpha), (int(p.x), int(p.y)), r)
+        screen.blit(surf, (min_x, min_y))
+
 
 class LaserBeamVE(VisualEffect):
     def __init__(self, start_pos, end_pos, color=C.LASER_BEAM_COLOR, width=C.LASER_BEAM_WIDTH,

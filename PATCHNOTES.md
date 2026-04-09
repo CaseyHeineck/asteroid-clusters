@@ -5,6 +5,24 @@ Entries are never removed — only appended. Each entry is dated and summarizes 
 
 ---
 
+## 2026-04-09
+
+### Drone Banishment — Weapon Type Transference
+- Banishing a combat drone (Kinetic, Explosive, Plasma, Laser) now grants a bonus ability to a random surviving drone rather than being a pure sacrifice
+- Each drone class transfers a distinct ability: Kinetic → impact knockback, Plasma → damage-over-time burn, Explosive → area-of-effect blast, Laser → overkill size/count reduction
+- Banishing a Sentinel drone grants the player passive life regeneration instead of transferring to a drone
+- Ability transference stacks — a drone can accumulate multiple abilities from multiple banishments
+
+### Player Ship Visual Effects
+- Added ship-relative thruster exhaust effects that appear while inputs are held and disappear instantly on release — no trailing, full intensity
+- **Main engines**: twin flame torches emit from a pair of exhaust ports at the rear of the ship; boost doubles the flame size
+- **RCS thrusters**: small side jets appear at the front-corner of the ship when rotating left or right, oriented to visually push the nose in the correct direction
+- **Lateral thrusters**: larger side jets fire perpendicular to the nose when strafing
+- Braking suppresses the main engine exhaust to avoid misleading feedback during deceleration
+- Two small exhaust port squares with silver outlines are drawn on the rear hull to anchor the main engine flames
+
+---
+
 ## 2026-04-08 11:47
 
 ### Air Space Map Generation

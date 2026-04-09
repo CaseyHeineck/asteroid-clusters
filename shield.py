@@ -21,6 +21,7 @@ class Shield(CircleShape):
         self.hit_flash_duration = 0.14
 
     def damaged(self, damage):
+        log_event("shield_hit")
         if damage <= 0:
             return
         absorbed = min(self.health, damage)
@@ -29,6 +30,7 @@ class Shield(CircleShape):
         if absorbed > 0:
             self.owner.game.combat_stats.add_absorbed(C.PLAYER_SHIELD, absorbed)
         if self.health <= 0:
+            log_event("shield_destroyed")
             self.owner.shield = False
             self.kill()
 

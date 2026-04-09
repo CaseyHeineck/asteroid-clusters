@@ -61,6 +61,7 @@ ELECTRIC_BLUE = (125, 249, 255)
 NEON_PINK = (255, 20, 147)
 LASER_RED = (255, 36, 0)
 BRIGHT_PURPLE = (191, 64, 191)
+HEART_RUBY = (180, 0, 30)
 
 # ASTEROIDS------------------------------
 ASTEROID_BOUNCINESS = 1.0
@@ -116,6 +117,7 @@ PLAYER_MAX_SPEED = 450
 PLAYER_TURN_SPEED = 300
 PLAYER_WEIGHT = 1
 LIFE_LOSS_SCORE = -50
+PLAYER_LIFE_REGEN_INTERVAL = 20.0
 GAME_OVER_SCORE = -500
 
 # PROJECTILES----------------------------
@@ -274,7 +276,29 @@ SHOP_FIRE_RATE_INCREASE = 0.12
 SHOP_SHIELD_HEALTH_INCREASE = 2
 SHOP_SHIELD_REPAIR_INCREASE = 0.15
 
-# PORTAL_SYSTEM--------------------------
+# MAP_SYSTEM-----------------------------
+ROOM_SIZE = 14
+ROOM_GAP = 7
+ROOM_STEP = ROOM_SIZE + ROOM_GAP
+MARGIN = 14
+STUB_LEN = ROOM_GAP // 2 + 1
+# ----AIRSPACE_CONTROL-------------------
+POTENTIALLY_ACTIVE = "potentially_active"
+RESTRICTED = "restricted"
+# ----DIRECTIONS-------------------------
+NORTH = "north"
+SOUTH = "south"
+EAST = "east"
+WEST = "west"
+OPPOSITE = {NORTH: SOUTH, SOUTH: NORTH, EAST: WEST, WEST: EAST}
+ALL_DIRECTIONS = [NORTH, SOUTH, EAST, WEST]
+DIRECTION_DELTA = {
+    "north": (0, -1),
+    "south": (0,  1),
+    "east":  (1,  0),
+    "west":  (-1, 0),
+}
+# ----PORTAL_SYSTEM----------------------
 PORTAL_ARRIVAL_OFFSET = 130
 PORTAL_ESSENCE_COST = 25
 PORTAL_GLOW_DEPTH = 32

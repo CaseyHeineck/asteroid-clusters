@@ -2,6 +2,7 @@ import pygame
 import constants as C
 from circleshape import CircleShape
 from logger import log_event
+from visualeffect import ShipExhaustVE
 
 class Player(CircleShape):
     def __init__(self, x, y):
@@ -9,6 +10,9 @@ class Player(CircleShape):
             bounciness=C.PLAYER_BOUNCINESS, drag=C.PLAYER_DRAG,
             rotation=0, angular_velocity=0)
         self.lives = 3
+        self.max_lives = 3
+        self.life_regen = False
+        self.life_regen_timer = 0
         self.damage_cooldown = False
         self.damage_cooldown_timer = 0
         self.blink_timer = 0
@@ -200,12 +204,55 @@ class Player(CircleShape):
         closest_point = start + segment * t
         return point.distance_to(closest_point)
     
+    def _draw_exhaust_ports(self, screen, color):
+        forward = pygame.Vector2(0, 1).rotate(self.rotation)
+        right = forward.rotate(90)
+        s = 3
+        for side in (-1, 1):
+            # Front face of each port sits flush with the triangle's back edge
+            center = self.position - forward * (self.radius + s) + right * (s * side)
+            corners = [
+                center + forward * s + right * s,
+                center + forward * s - right * s,
+                center - forward * s - right * s,
+                center - forward * s + right * s,
+            ]
+            pygame.draw.polygon(screen, C.SILVER, corners, 1)
+
     def draw(self, screen):
         if self.damage_cooldown:
             color = C.RED if self.flash_visible else C.WHITE
         else:
             color = C.RED
         pygame.draw.polygon(screen, color, self.triangle(), C.LINE_WIDTH)
+        self._draw_exhaust_ports(screen, color)
+
+    def _spawn_exhaust_effects(self, moving_forward, moving_backward,
+            moving_left, moving_right, strafing, boosting, braking):
+        if not ShipExhaustVE.containers:
+            return
+        forward = pygame.Vector2(0, 1).rotate(self.rotation)
+        right = forward.rotate(90)
+        r = self.radius
+        port_s = 3
+        if moving_forward and not braking:
+            length = 42 if boosting else 25
+            width  = 11 if boosting else  7
+            for side in (-1, 1):
+                pos = self.position - forward * (r + 2 * port_s) + right * (port_s * side)
+                ShipExhaustVE(pos.x, pos.y, -forward, length, width)
+        if moving_left and not strafing:
+            pos = self.position + forward * (r * 0.65) + right * (r * 0.45)
+            ShipExhaustVE(pos.x, pos.y, right, 12, 4)
+        if moving_right and not strafing:
+            pos = self.position + forward * (r * 0.65) - right * (r * 0.45)
+            ShipExhaustVE(pos.x, pos.y, -right, 12, 4)
+        if strafing and moving_right:
+            pos = self.position + right * (r * 0.8)
+            ShipExhaustVE(pos.x, pos.y, right, 18, 5)
+        if strafing and moving_left:
+            pos = self.position - right * (r * 0.8)
+            ShipExhaustVE(pos.x, pos.y, -right, 18, 5)
 
     def update(self, dt):
         keys = pygame.key.get_pressed()
@@ -244,3 +291,13 @@ class Player(CircleShape):
 
         self.update_damage_cooldown(dt)
         self.move(dt)
+        self._spawn_exhaust_effects(
+            moving_forward, moving_backward,
+            moving_left, moving_right,
+            strafing, boosting, braking)
+
+        if self.life_regen and self.lives < self.max_lives:
+            self.life_regen_timer += dt
+            if self.life_regen_timer >= C.PLAYER_LIFE_REGEN_INTERVAL:
+                self.lives += 1
+                self.life_regen_timer = 0

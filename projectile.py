@@ -14,6 +14,8 @@ class Projectile(CircleShape):
         self.damage = damage
         self.stat_source = None
         self.combat_stats = None
+        self.extra_abilities = set()
+        self.asteroids = None
 
     def on_hit(self, asteroid):
         health_before = asteroid.health
@@ -22,6 +24,34 @@ class Projectile(CircleShape):
             health_before=health_before, attempted_damage=self.damage)
         self.kill()
         return score
+
+    def pre_hit_extras(self, asteroid, skip_abilities=None):
+        if skip_abilities is None:
+            skip_abilities = set()
+        if "overkill" in self.extra_abilities and "overkill" not in skip_abilities:
+            if self.damage >= (asteroid.health + asteroid.full_health):
+                asteroid.add_gameplay_effect(OverkillSTE(
+                    child_size_reduction=1, child_count_reduction=1))
+
+    def post_hit_extras(self, asteroid, skip_abilities=None):
+        if skip_abilities is None:
+            skip_abilities = set()
+        if "impact" in self.extra_abilities and "impact" not in skip_abilities:
+            normal = self.get_collision_normal(asteroid)
+            asteroid.velocity += normal * (self.velocity.length() * C.KINETIC_PROJECTILE_COLLISION_IMPACT_SCALE)
+            if asteroid.velocity.length() > C.ASTEROID_MAX_SPEED:
+                asteroid.velocity.scale_to_length(C.ASTEROID_MAX_SPEED)
+        if "dot" in self.extra_abilities and "dot" not in skip_abilities and asteroid.alive():
+            burn = PlasmaBurnSTE()
+            burn.stat_source = self.stat_source
+            burn.combat_stats = self.combat_stats
+            asteroid.add_gameplay_effect(burn)
+        if "aoe" in self.extra_abilities and "aoe" not in skip_abilities and self.asteroids is not None:
+            aoe = RocketHitAOE(impact_position=asteroid.position, targets=self.asteroids,
+                radius=C.ROCKET_HIT_RADIUS, damage=C.ROCKET_HIT_DAMAGE)
+            aoe.stat_source = self.stat_source
+            aoe.combat_stats = self.combat_stats
+            aoe.apply(ignored_targets=[asteroid])
 
     def draw(self, screen):
         pygame.draw.circle(screen, self.color, self.position, self.radius)
@@ -38,6 +68,7 @@ class Kinetic(Projectile):
 
     def on_hit(self, asteroid):
         health_before = asteroid.health
+        self.pre_hit_extras(asteroid)
         score = asteroid.damaged(self.damage)
         self.combat_stats.record_damage_event(source=self.stat_source,
             health_before=health_before, attempted_damage=self.damage)
@@ -45,17 +76,22 @@ class Kinetic(Projectile):
         asteroid.velocity += normal * (self.velocity.length() * C.KINETIC_PROJECTILE_COLLISION_IMPACT_SCALE)
         if asteroid.velocity.length() > C.ASTEROID_MAX_SPEED:
             asteroid.velocity.scale_to_length(C.ASTEROID_MAX_SPEED)
+        self.post_hit_extras(asteroid, skip_abilities={"impact"})
         self.kill()
         return score
 
 class LaserBeam(Projectile):
     def __init__(self, x, y, target, damage=C.LASER_DRONE_DAMAGE,
-            stat_source=None, combat_stats=None):
+            stat_source=None, combat_stats=None, extra_abilities=None, asteroids=None):
         super().__init__(x, y, radius=0, color=C.LASER_BEAM_COLOR, damage=damage,
             weight=0, bounciness=0, drag=0)
         self.target = target
         self.stat_source = stat_source
         self.combat_stats = combat_stats
+        if extra_abilities:
+            self.extra_abilities = set(extra_abilities)
+        if asteroids is not None:
+            self.asteroids = asteroids
         self.score = self.fire()
 
     def fire(self):
@@ -72,11 +108,13 @@ class LaserBeam(Projectile):
         if overkill:
             self.target.add_gameplay_effect(OverkillSTE(
                 child_size_reduction=1, child_count_reduction=1))
+        self.pre_hit_extras(self.target, skip_abilities={"overkill"})
         score = self.target.damaged(self.damage)
         if self.combat_stats:
             self.combat_stats.record_damage_event(
                 source=self.stat_source, health_before=target_health,
                 attempted_damage=self.damage, overkill=overkill)
+        self.post_hit_extras(self.target)
         self.kill()
         return score
 
@@ -95,6 +133,7 @@ class Plasma(Projectile):
 
     def on_hit(self, asteroid):
         health_before = asteroid.health
+        self.pre_hit_extras(asteroid)
         score = asteroid.damaged(self.damage)
         if self.combat_stats:
             self.combat_stats.record_damage_event(source=self.stat_source,
@@ -103,6 +142,7 @@ class Plasma(Projectile):
         burn.stat_source = self.stat_source
         burn.combat_stats = self.combat_stats
         asteroid.add_gameplay_effect(burn)
+        self.post_hit_extras(asteroid, skip_abilities={"dot"})
         self.kill()
         return score
 
@@ -116,16 +156,18 @@ class Rocket(Projectile):
     def on_hit(self, asteroid):
         total_score = 0
         health_before = asteroid.health
+        self.pre_hit_extras(asteroid)
         score = asteroid.damaged(self.damage)
         total_score += score or 0
         if self.combat_stats:
-            self.combat_stats.record_damage_event(source=self.stat_source, 
+            self.combat_stats.record_damage_event(source=self.stat_source,
                 health_before=health_before, attempted_damage=self.damage)
-        aoe = RocketHitAOE(impact_position=asteroid.position, targets=self.asteroids, 
+        aoe = RocketHitAOE(impact_position=asteroid.position, targets=self.asteroids,
             radius=C.ROCKET_HIT_RADIUS, damage=C.ROCKET_HIT_DAMAGE)
         aoe.stat_source = self.stat_source
         aoe.combat_stats = self.combat_stats
         total_score += aoe.apply(ignored_targets=[asteroid])
+        self.post_hit_extras(asteroid, skip_abilities={"aoe"})
         self.kill()
         return total_score
     

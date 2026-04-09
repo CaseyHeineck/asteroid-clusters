@@ -1,19 +1,20 @@
 import os
+import random
 import pygame
 import sys
 import constants as C
-from asteroid import *
-from asteroidfield import *
+from asteroid import Asteroid
+from asteroidfield import AsteroidField
 from collisionsystem import CollisionSystem
-from endgamereport import *
+from endgamereport import CombatStats
 from eventhandler import EventHandler
-from display import *
-from drone import *
+from display import Display
+from drone import Drone, ExplosiveDrone, KineticDrone, LaserDrone, PlasmaDrone, SentinelDrone
 from logger import *
 from menus import *
-from player import *
-from projectile import *
-from shield import *
+from player import Player
+from projectile import Projectile
+from shield import Shield
 from starfield import StarField
 from visualeffect import *
 from experiorb import ExpOrb
@@ -127,7 +128,24 @@ class Game:
     def on_banish_drone(self, drone_class):
         self.experience.pending_drones.remove(drone_class)
         self.experience.banished_drones.append(drone_class)
+        self._apply_banish_ability(drone_class)
         self.experience.resolve_choice()
+
+    def _apply_banish_ability(self, drone_class):
+        if drone_class is SentinelDrone:
+            self.player.life_regen = True
+            return
+        ability_map = {
+            KineticDrone: "impact",
+            PlasmaDrone: "dot",
+            ExplosiveDrone: "aoe",
+            LaserDrone: "overkill",
+        }
+        ability = ability_map.get(drone_class)
+        if not ability or not self.player.drones:
+            return
+        target_drone = random.choice(self.player.drones)
+        target_drone.extra_abilities.add(ability)
 
     def update_game_running(self):
         log_state()
@@ -138,6 +156,9 @@ class Game:
                 self.HUD.update_score(score)
 
         self.HUD.update(self.dt)
+        self.HUD.update_player_lives(self.player.lives)
+        self.HUD.update_life_regen_state(
+            self.player.life_regen, self.player.life_regen_timer, self.player.max_lives)
         self.wrap_object(self.player)
         self.collision_system.handle()
         self.starfield.update(self.player.velocity, self.dt)

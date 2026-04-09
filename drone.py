@@ -18,6 +18,7 @@ class Drone(CircleShape):
         self.orbit_speed = C.DRONE_ORBIT_SPEED
         self.target = None
         self.range = float("inf")
+        self.extra_abilities = set()
         self.weapons_free_timer = 0
         self.weapons_free_timer_max = C.DRONE_WEAPONS_FREE_TIMER
         self.body_color = C.WHITE
@@ -105,6 +106,7 @@ class ExplosiveDrone(Drone):
         projectile.velocity = forward * self.projectile_speed
         projectile.stat_source = self.stat_source
         projectile.combat_stats = self.player.game.combat_stats
+        projectile.extra_abilities = set(self.extra_abilities)
         self.launch_animation_timer = self.launch_animation_duration
         return 0
 
@@ -165,6 +167,8 @@ class KineticDrone(Drone):
         projectile.velocity = forward * self.projectile_speed
         projectile.stat_source = self.stat_source
         projectile.combat_stats = self.player.game.combat_stats
+        projectile.extra_abilities = set(self.extra_abilities)
+        projectile.asteroids = self.asteroids
         if MuzzleFlareVE.containers:
             MuzzleFlareVE(spawn_position.x, spawn_position.y, size=5)
         return 0
@@ -222,7 +226,8 @@ class LaserDrone(Drone):
             return 0
         spawn_position = self.get_projectile_spawn_position()
         projectile = LaserBeam(spawn_position.x, spawn_position.y, self.target,
-            self.damage, stat_source=self.stat_source, combat_stats=self.player.game.combat_stats)
+            self.damage, stat_source=self.stat_source, combat_stats=self.player.game.combat_stats,
+            extra_abilities=self.extra_abilities, asteroids=self.asteroids)
         return projectile.score
 
     def lerp_color(self, start_color, end_color, t):
@@ -288,6 +293,8 @@ class PlasmaDrone(Drone):
         projectile.velocity = forward * self.projectile_speed
         projectile.stat_source = self.stat_source
         projectile.combat_stats = self.player.game.combat_stats
+        projectile.extra_abilities = set(self.extra_abilities)
+        projectile.asteroids = self.asteroids
         return 0
 
     def draw_weapons_platform(self, screen):

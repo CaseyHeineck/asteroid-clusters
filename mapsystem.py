@@ -1,14 +1,6 @@
 import pygame
 import constants as C
-from portal import OPPOSITE
 from airspace import AirSpace
-
-DIRECTION_DELTA = {
-    "north": (0, -1),
-    "south": (0, 1),
-    "east":  (1, 0),
-    "west":  (-1, 0),
-}
 
 class MapSystem:
     def __init__(self, game):
@@ -68,23 +60,23 @@ class MapSystem:
         return False
 
     def _unlock_back_portal(self, direction):
-        dx, dy = DIRECTION_DELTA[direction]
+        dx, dy = C.DIRECTION_DELTA[direction]
         adj_pos = (self.current_pos[0] + dx, self.current_pos[1] + dy)
         if adj_pos in self.grid:
-            back = self.grid[adj_pos].portals.get(OPPOSITE[direction])
+            back = self.grid[adj_pos].portals.get(C.OPPOSITE[direction])
             if back:
                 back.unlocked = True
 
     def _transit(self, direction):
-        dx, dy = DIRECTION_DELTA[direction]
+        dx, dy = C.DIRECTION_DELTA[direction]
         new_pos = (self.current_pos[0] + dx, self.current_pos[1] + dy)
         if new_pos not in self.grid:
-            self.grid[new_pos] = AirSpace(new_pos[0], new_pos[1], back_direction=OPPOSITE[direction],
+            self.grid[new_pos] = AirSpace(new_pos[0], new_pos[1], back_direction=C.OPPOSITE[direction],
                 grid=self.grid, cell_states=self.cell_states, active_portal_count=self.count_locked_portals())
         prev_space = self.grid[self.current_pos]
         self.current_pos = new_pos
         new_space = self.grid[new_pos]
-        back_portal = new_space.portals.get(OPPOSITE[direction])
+        back_portal = new_space.portals.get(C.OPPOSITE[direction])
         if back_portal:
             arrival = back_portal.arrival_position()
         else:

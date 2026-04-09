@@ -2,15 +2,6 @@ import math
 import pygame
 import constants as C
 
-NORTH = "north"
-SOUTH = "south"
-EAST = "east"
-WEST = "west"
-
-OPPOSITE = {NORTH: SOUTH, SOUTH: NORTH, EAST: WEST, WEST: EAST}
-
-ALL_DIRECTIONS = [NORTH, SOUTH, EAST, WEST]
-
 class Portal:
     def __init__(self, direction, unlocked=False):
         self.direction = direction
@@ -22,25 +13,25 @@ class Portal:
 
     def _edge_position(self):
         cx, cy = C.SCREEN_WIDTH / 2, C.SCREEN_HEIGHT / 2
-        if self.direction == NORTH:
+        if self.direction == C.NORTH:
             return pygame.Vector2(cx, 0)
-        if self.direction == SOUTH:
+        if self.direction == C.SOUTH:
             return pygame.Vector2(cx, C.SCREEN_HEIGHT)
-        if self.direction == EAST:
+        if self.direction == C.EAST:
             return pygame.Vector2(C.SCREEN_WIDTH, cy)
-        if self.direction == WEST:
+        if self.direction == C.WEST:
             return pygame.Vector2(0, cy)
 
     def arrival_position(self):
         offset = C.PORTAL_ARRIVAL_OFFSET
         cx, cy = C.SCREEN_WIDTH / 2, C.SCREEN_HEIGHT / 2
-        if self.direction == NORTH:
+        if self.direction == C.NORTH:
             return pygame.Vector2(cx, offset)
-        if self.direction == SOUTH:
+        if self.direction == C.SOUTH:
             return pygame.Vector2(cx, C.SCREEN_HEIGHT - offset)
-        if self.direction == EAST:
+        if self.direction == C.EAST:
             return pygame.Vector2(C.SCREEN_WIDTH - offset, cy)
-        if self.direction == WEST:
+        if self.direction == C.WEST:
             return pygame.Vector2(offset, cy)
 
     def is_near(self, player_pos):
@@ -51,7 +42,7 @@ class Portal:
 
     def draw(self, screen):
         pulse = (math.sin(self.pulse_timer * math.pi * 2) + 1) / 2
-        horizontal = self.direction in (NORTH, SOUTH)
+        horizontal = self.direction in (C.NORTH, C.SOUTH)
 
         if self.unlocked:
             core_color = C.AQUA
@@ -105,11 +96,11 @@ class Portal:
         surf = self._prompt_font.render(text, True, color)
         px, py = int(self.position.x), int(self.position.y)
         padding = 14
-        if self.direction == NORTH:
+        if self.direction == C.NORTH:
             pos = (px - surf.get_width() // 2, py + padding)
-        elif self.direction == SOUTH:
+        elif self.direction == C.SOUTH:
             pos = (px - surf.get_width() // 2, py - surf.get_height() - padding)
-        elif self.direction == EAST:
+        elif self.direction == C.EAST:
             pos = (px - surf.get_width() - padding, py - surf.get_height() // 2)
         else:
             pos = (px + padding, py - surf.get_height() // 2)

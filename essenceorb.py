@@ -3,7 +3,6 @@ import pygame
 import constants as C
 from circleshape import CircleShape
 
-
 class EssenceOrb(CircleShape):
     containers = []
     def __init__(self, x, y, value):

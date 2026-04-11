@@ -8,6 +8,7 @@ class CollisionSystem:
         self.handle_asteroid_collisions()
         self.handle_exp_orb_pickups()
         self.handle_essence_orb_pickups()
+        self.handle_elemental_essence_orb_pickups()
 
     def handle_asteroid_collisions(self):
         for asteroid in self.game.asteroids:
@@ -70,4 +71,14 @@ class CollisionSystem:
                       if player_pos.distance_to(orb.position) <= C.ESSENCE_ORB_PICKUP_RADIUS]
         for orb in to_collect:
             self.game.essence.add(orb.value)
+            orb.kill()
+
+    def handle_elemental_essence_orb_pickups(self):
+        if not self.game.elemental_essence_orbs:
+            return
+        player_pos = self.game.player.position
+        to_collect = [orb for orb in list(self.game.elemental_essence_orbs)
+                      if player_pos.distance_to(orb.position) <= C.ESSENCE_ORB_PICKUP_RADIUS]
+        for orb in to_collect:
+            self.game.essence.add_elemental(orb.value)
             orb.kill()

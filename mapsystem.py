@@ -8,7 +8,9 @@ class MapSystem:
         self.current_pos = (0, 0)
         self.grid = {}
         self.cell_states = {}
-        self.grid[(0, 0)] = AirSpace(0, 0, grid=self.grid, cell_states=self.cell_states)
+        self.wizard_element_counts = game.wizard_element_counts
+        self.grid[(0, 0)] = AirSpace(0, 0, grid=self.grid, cell_states=self.cell_states,
+            wizard_element_counts=self.wizard_element_counts)
 
     def current_space(self):
         return self.grid[self.current_pos]
@@ -55,7 +57,7 @@ class MapSystem:
             return True
         shop = self.current_space().shop
         if shop and shop.is_near(player_pos):
-            self.game.open_shop()
+            self.game.open_shop(shop)
             return True
         return False
 
@@ -72,7 +74,8 @@ class MapSystem:
         new_pos = (self.current_pos[0] + dx, self.current_pos[1] + dy)
         if new_pos not in self.grid:
             self.grid[new_pos] = AirSpace(new_pos[0], new_pos[1], back_direction=C.OPPOSITE[direction],
-                grid=self.grid, cell_states=self.cell_states, active_portal_count=self.count_locked_portals())
+                grid=self.grid, cell_states=self.cell_states, active_portal_count=self.count_locked_portals(),
+                wizard_element_counts=self.wizard_element_counts)
         prev_space = self.grid[self.current_pos]
         self.current_pos = new_pos
         new_space = self.grid[new_pos]

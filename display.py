@@ -19,6 +19,7 @@ class Display:
         self.level_up_timer = 0.0
         self.level_up_duration = 2.5
         self.essence = 0
+        self.elemental_essence = 0
         self.update_image()
 
     def update_image(self):
@@ -41,6 +42,9 @@ class Display:
 
     def update_essence(self, amount):
         self.essence = amount
+
+    def update_elemental_essence(self, amount):
+        self.elemental_essence = amount
 
     def update_level(self, level, xp_current, xp_needed):
         if level > self.level:
@@ -108,6 +112,8 @@ class Display:
         pygame.draw.rect(screen, C.LIGHT_GRAY, (0, bar_y, C.SCREEN_WIDTH, bar_height), 1)
         essence_text = self.small_font.render(f"◆ {self.essence}", True, C.BRIGHT_PURPLE)
         screen.blit(essence_text, (C.SCREEN_WIDTH - essence_text.get_width() - 12, 42))
+        elem_text = self.small_font.render(f"✦ {self.elemental_essence}", True, C.SOLAR_GLOW)
+        screen.blit(elem_text, (C.SCREEN_WIDTH - elem_text.get_width() - 12, 72))
         if self.level_up_timer > 0:
             fade = min(1.0, self.level_up_timer / 0.4)
             alpha = int(255 * fade)

@@ -4,8 +4,10 @@ import constants as C
 from circleshape import CircleShape
 from experiorb import ExpOrb
 from essenceorb import EssenceOrb
+from elementalessenceorb import ElementalEssenceOrb
 from visualeffect import AsteroidKillExplosionVE, OverkillExplosionVE
 from logger import log_event
+from element import draw_elemental_glow, get_element_primary_color
 
 class Asteroid(CircleShape):
     def __init__(self, x, y, size):
@@ -18,6 +20,7 @@ class Asteroid(CircleShape):
         self.damage = self.size
         self.full_health = self.size * 10
         self.health = self.full_health
+        self.element = None
         self.child_count_reduction = 0
         self.child_size_reduction = 0
         self.overkill_triggered = False
@@ -104,7 +107,10 @@ class Asteroid(CircleShape):
         return cracks
 
     def draw(self, screen):
-        outline_color = self.get_outline_color(C.WHITE)
+        if self.element is not None:
+            draw_elemental_glow(screen, self.position, self.radius, self.element)
+        base_color = get_element_primary_color(self.element) if self.element else C.WHITE
+        outline_color = self.get_outline_color(base_color)
         surface_size = int((self.radius * 2) + (self.line_width * 4))
         asteroid_surface = pygame.Surface((surface_size, surface_size), pygame.SRCALPHA)
         center = surface_size // 2
@@ -202,6 +208,13 @@ class Asteroid(CircleShape):
             offset = pygame.Vector2(dist, 0).rotate(angle)
             EssenceOrb(self.position.x + offset.x, self.position.y + offset.y,
                 int(self.size ** C.ESSENCE_ORB_SIZE_EXPONENT * C.ESSENCE_ORB_VALUE_BASE))
+        if self.element is not None and ElementalEssenceOrb.containers:
+            angle = random.uniform(0, 360)
+            dist = random.uniform(0, self.radius)
+            offset = pygame.Vector2(dist, 0).rotate(angle)
+            drop_amount = max(1, self.size * C.ELEMENTAL_ESSENCE_DROP_BASE)
+            ElementalEssenceOrb(self.position.x + offset.x, self.position.y + offset.y,
+                drop_amount, self.element)
         did_split = False
         if self.size > 1:
             did_split = self.spawn_children()
@@ -218,6 +231,7 @@ class Asteroid(CircleShape):
         if child_size < 1 or child_count < 1:
             return False
         child_radius = child_size * C.ASTEROID_MIN_RADIUS
+        children = []
         for i in range(child_count):
             range_size = 360 / child_count
             new_angle = random.uniform(1 + (range_size * i), range_size * (i + 1))
@@ -232,6 +246,15 @@ class Asteroid(CircleShape):
             spawn_position = self.position + direction * spawn_distance
             asteroid = Asteroid(spawn_position.x, spawn_position.y, child_size)
             asteroid.velocity = velocity * self.split_factor(new_angle) * C.ASTEROID_SPLIT_ACCELERATION
+            children.append(asteroid)
+        if self.element is not None and children:
+            elemental_mask = [random.random() < C.ASTEROID_CHILD_ELEMENTAL_CHANCE
+                              for _ in children]
+            if not any(elemental_mask):
+                elemental_mask[random.randrange(len(children))] = True
+            for child, is_elemental in zip(children, elemental_mask):
+                if is_elemental:
+                    child.element = self.element
         return True
 
     def split_factor(self, angle):

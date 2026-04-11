@@ -2,15 +2,37 @@ import math
 import random
 import pygame
 import constants as C
+from element import ALL_ELEMENTS
 
 class Shop:
-    def __init__(self):
+    def __init__(self, wizard_element_counts=None):
         inset = C.SHOP_EDGE_INSET
         x = random.uniform(inset, C.SCREEN_WIDTH - inset)
         y = random.uniform(inset, C.SCREEN_HEIGHT - inset)
         self.position = pygame.Vector2(x, y)
         self.pulse_timer = 0.0
         self._prompt_font = None
+        self.wizards = self._generate_wizards(wizard_element_counts or {})
+        if wizard_element_counts is not None:
+            for elem in self.wizards:
+                wizard_element_counts[elem] = wizard_element_counts.get(elem, 0) + 1
+
+    def _generate_wizards(self, global_counts):
+        count = random.choices([1, 2, 3, 4, 5], weights=C.WIZARD_COUNT_WEIGHTS)[0]
+        max_count = max(global_counts.values(), default=0) if global_counts else 0
+        base_weights = [max_count - global_counts.get(e, 0) + 1 for e in ALL_ELEMENTS]
+        chosen = []
+        remaining = list(ALL_ELEMENTS)
+        remaining_weights = list(base_weights)
+        for _ in range(min(count, len(remaining))):
+            if not remaining:
+                break
+            elem = random.choices(remaining, weights=remaining_weights)[0]
+            idx = remaining.index(elem)
+            chosen.append(elem)
+            remaining.pop(idx)
+            remaining_weights.pop(idx)
+        return chosen
 
     def is_near(self, player_pos):
         return player_pos.distance_to(self.position) <= C.SHOP_INTERACTION_RADIUS

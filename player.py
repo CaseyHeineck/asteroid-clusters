@@ -131,8 +131,10 @@ class Player(CircleShape):
         self.velocity = (forward * self.forward_speed
             + right * (self.perpendicular_speed + self.strafe_speed))
         if self.velocity.length() > C.PLAYER_MAX_SPEED:
+            scale = C.PLAYER_MAX_SPEED / self.velocity.length()
+            self.forward_speed *= scale
+            self.perpendicular_speed *= scale
             self.velocity.scale_to_length(C.PLAYER_MAX_SPEED)
-            self.sync_local_speeds_from_velocity()
         self.position += self.velocity * dt
 
     def apply_movement_decay(self, dt):
@@ -269,6 +271,8 @@ class Player(CircleShape):
         boost_scale = 2 if boosting else 1
 
         self.strafe_speed = 0
+        if not (strafing and (moving_left or moving_right)):
+            self.perpendicular_speed = 0
 
         if braking:
             self.brake(dt)

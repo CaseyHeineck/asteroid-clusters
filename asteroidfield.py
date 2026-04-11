@@ -2,6 +2,7 @@ import pygame
 import random
 import constants as C
 from asteroid import Asteroid
+from element import ALL_ELEMENTS
 
 class AsteroidField(pygame.sprite.Sprite):
     edges = [
@@ -34,6 +35,8 @@ class AsteroidField(pygame.sprite.Sprite):
     def spawn(self, radius, position, velocity):
         asteroid = Asteroid(position.x, position.y, radius)
         asteroid.velocity = velocity
+        if random.random() < C.ASTEROID_ELEMENTAL_SPAWN_CHANCE:
+            asteroid.element = random.choice(ALL_ELEMENTS)
 
     def update(self, dt):
         self.spawn_timer += dt

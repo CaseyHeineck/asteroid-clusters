@@ -1,6 +1,7 @@
 import pygame
 import pygame_menu
 import constants as C
+from element import ELEMENT_COLORS, get_element_name
 
 def create_main_menu(on_new_game, on_exit):
     menu = pygame_menu.Menu(title="ASTEROID CLUSTER****S", width=C.SCREEN_WIDTH,
@@ -205,7 +206,8 @@ def create_drone_choice_menu(pending_drones, level, on_add_drone, on_banish_dron
     return menu
 
 
-def create_shop_menu(player_drones, upgrade_counts, essence, on_buy, on_leave):
+def create_shop_menu(player_drones, upgrade_counts, essence, on_buy, on_leave,
+        wizards=None, elemental_amount=0, on_infuse=None):
     from drone import SentinelDrone
     drone_display_names = {
         "ExplosiveDrone": "EXPLOSIVE DRONE",
@@ -218,6 +220,31 @@ def create_shop_menu(player_drones, upgrade_counts, essence, on_buy, on_leave):
         height=C.SCREEN_HEIGHT, theme=pygame_menu.themes.THEME_DARK)
     menu.add.label(f"Essence: {essence} \u25c6")
     menu.add.vertical_margin(10)
+
+    if wizards:
+        menu.add.label("\u2014 SPACE WIZARDS \u2014")
+        menu.add.label(f"  Elemental Essence: {elemental_amount} \u25c6")
+        menu.add.vertical_margin(4)
+        for element in wizards:
+            elem_name = get_element_name(element)
+            menu.add.label(f"  {elem_name} Wizard")
+            for drone in player_drones:
+                drone_name = drone_display_names.get(type(drone).__name__, type(drone).__name__)
+                if drone.element == element:
+                    menu.add.label(f"    {drone_name}  \u2014  already {elem_name}")
+                    continue
+                overwrite = drone.element is not None
+                cost = C.WIZARD_OVERWRITE_COST if overwrite else C.WIZARD_INFUSE_COST
+                current = f" [{get_element_name(drone.element)}]" if overwrite else ""
+                action = "Overwrite" if overwrite else "Infuse"
+                btn_text = f"  {action} {drone_name}{current} \u2192 {elem_name}  \u2014  {cost} Elemental Essence"
+                if elemental_amount >= cost:
+                    def make_infuse(d=drone, e=element):
+                        return lambda: on_infuse(d, e)
+                    menu.add.button(btn_text, make_infuse())
+                else:
+                    menu.add.label(f"  {btn_text}  (need more Elemental Essence)")
+        menu.add.vertical_margin(10)
 
     seen = []
     for drone in player_drones:
@@ -246,11 +273,9 @@ def create_shop_menu(player_drones, upgrade_counts, essence, on_buy, on_leave):
             else:
                 menu.add.label(f"  {btn_text}  (need more \u25c6)")
         menu.add.vertical_margin(6)
-
     menu.add.vertical_margin(10)
     menu.add.button("LEAVE SHOP", on_leave)
     return menu
-
 
 def get_source_color(source):
     return {

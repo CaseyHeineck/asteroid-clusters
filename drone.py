@@ -5,6 +5,7 @@ from circleshape import CircleShape
 from projectile import Kinetic, LaserBeam, Plasma, Rocket
 from shield import Shield
 from visualeffect import MuzzleFlareVE
+from element import draw_elemental_glow
 
 class Drone(CircleShape):
     def __init__(self, player, asteroids):
@@ -18,6 +19,7 @@ class Drone(CircleShape):
         self.orbit_speed = C.DRONE_ORBIT_SPEED
         self.target = None
         self.range = float("inf")
+        self.element = None
         self.extra_abilities = set()
         self.weapons_free_timer = 0
         self.weapons_free_timer_max = C.DRONE_WEAPONS_FREE_TIMER
@@ -57,6 +59,8 @@ class Drone(CircleShape):
         return score or 0
 
     def draw_body(self, screen):
+        if self.element is not None:
+            draw_elemental_glow(screen, self.position, self.radius, self.element)
         pygame.draw.circle(screen, self.body_color, self.position, self.radius, self.body_line_width)
 
     def draw_weapons_platform(self, screen):
@@ -107,6 +111,7 @@ class ExplosiveDrone(Drone):
         projectile.stat_source = self.stat_source
         projectile.combat_stats = self.player.game.combat_stats
         projectile.extra_abilities = set(self.extra_abilities)
+        projectile.element = self.element
         self.launch_animation_timer = self.launch_animation_duration
         return 0
 
@@ -169,6 +174,7 @@ class KineticDrone(Drone):
         projectile.combat_stats = self.player.game.combat_stats
         projectile.extra_abilities = set(self.extra_abilities)
         projectile.asteroids = self.asteroids
+        projectile.element = self.element
         if MuzzleFlareVE.containers:
             MuzzleFlareVE(spawn_position.x, spawn_position.y, size=5)
         return 0
@@ -227,7 +233,8 @@ class LaserDrone(Drone):
         spawn_position = self.get_projectile_spawn_position()
         projectile = LaserBeam(spawn_position.x, spawn_position.y, self.target,
             self.damage, stat_source=self.stat_source, combat_stats=self.player.game.combat_stats,
-            extra_abilities=self.extra_abilities, asteroids=self.asteroids)
+            extra_abilities=self.extra_abilities, asteroids=self.asteroids,
+            element=self.element)
         return projectile.score
 
     def lerp_color(self, start_color, end_color, t):
@@ -295,6 +302,7 @@ class PlasmaDrone(Drone):
         projectile.combat_stats = self.player.game.combat_stats
         projectile.extra_abilities = set(self.extra_abilities)
         projectile.asteroids = self.asteroids
+        projectile.element = self.element
         return 0
 
     def draw_weapons_platform(self, screen):

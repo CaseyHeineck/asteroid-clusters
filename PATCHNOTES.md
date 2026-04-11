@@ -5,6 +5,46 @@ Entries are never removed — only appended. Each entry is dated and summarizes 
 
 ---
 
+## 2026-04-11
+
+### Elemental System
+- Added five elements: **Solar**, **Cryo**, **Flux**, **Ion**, and **Void**, each with a distinct color identity and visual style
+- Elements follow a pentagon advantage table — each element deals 2× damage against two others and 0.5× against two others:
+  - Solar → strong vs. Cryo, Void | weak vs. Flux, Ion
+  - Cryo → strong vs. Flux, Ion | weak vs. Void, Solar
+  - Flux → strong vs. Void, Solar | weak vs. Ion, Cryo
+  - Ion → strong vs. Solar, Flux | weak vs. Cryo, Void
+  - Void → strong vs. Ion, Cryo | weak vs. Solar, Flux
+- Any object that can be elemental holds exactly one element at a time
+
+### Elemental Asteroids
+- 20% of field-spawned asteroids are randomly assigned one of the five elements
+- Elemental asteroids render with a pulsing colored glow halo and element-tinted outline
+- Elemental asteroids that split pass their element to children: 65% chance per child, with at least one child guaranteed to inherit the element
+- Non-elemental asteroids can never gain an element later
+- Elemental asteroids drop **elemental essence** on death in addition to regular drops; larger asteroids drop proportionally more
+
+### Elemental Essence (New Resource)
+- Elemental essence is a single shared currency dropped only by elemental asteroids
+- Displayed on the HUD below regular essence as `✦ N` in gold
+- Used exclusively to pay for wizard infusions at the Mechanic's Shop
+
+### Space Wizards & Drone Infusion
+- Each Mechanic's Shop spawns with 1–5 space wizards (heavily weighted toward 1, decreasing probability for each additional wizard)
+- Multiple wizards in a shop are always different element types
+- Wizard element distribution is balanced globally across the whole map — elements already well-represented in existing shops are less likely to appear in new ones
+- A wizard can infuse any of the player's drones with their element for **20 elemental essence** (blank drone) or **35 elemental essence** (overwriting an existing element)
+- Infused drones glow with their element's colors
+- Infused drones pass their element to every projectile they fire; projectiles render in the element's primary color
+- Elemental damage multipliers apply at the moment a projectile hits an asteroid
+
+### Strafe Movement Fix
+- Releasing the strafe key now immediately kills all lateral speed — no more drifting sideways after a brief strafe tap
+- When strafe is active, lateral speed is driven entirely by live input and drops to zero the frame input is released
+- Fixed a secondary issue where hitting the max speed cap during a strafe would bake strafe velocity into the persistent perpendicular speed component, causing it to linger after releasing the strafe key
+
+---
+
 ## 2026-04-09
 
 ### Drone Banishment — Weapon Type Transference

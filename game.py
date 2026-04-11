@@ -19,10 +19,12 @@ from starfield import StarField
 from visualeffect import *
 from experiorb import ExpOrb
 from essenceorb import EssenceOrb
+from elementalessenceorb import ElementalEssenceOrb
 from experience import ExperienceSystem
 from essence import EssenceSystem
 from mapsystem import MapSystem
 from minimap import MiniMap
+from element import ALL_ELEMENTS
 
 class Game:
     def __init__(self):
@@ -39,6 +41,8 @@ class Game:
         self.drawable = None
         self.asteroids = None
         self.exp_orbs = None
+        self.essence_orbs = None
+        self.elemental_essence_orbs = None
         self.asteroid_field = None
         self.drones = None
         self.shields = None
@@ -50,15 +54,16 @@ class Game:
         self.experience = None
         self.essence = None
         self.map_system = None
-        self.mini_map = MiniMap()
         self.shop_menu = None
-        self.upgrade_counts = {}
         self.drone_select_menu = None
         self.drone_choice_menu = None
+        self.upgrade_counts = {}
+        self.wizard_element_counts = {e: 0 for e in ALL_ELEMENTS}
 
-        self.starfield = StarField()
-        self.event_handler = EventHandler(self)
         self.collision_system = CollisionSystem(self)
+        self.event_handler = EventHandler(self)
+        self.mini_map = MiniMap()
+        self.starfield = StarField()
 
         self.main_menu = create_main_menu(self.on_new_game, self.exit)
         self.pause_menu = create_pause_menu(self.on_resume, self.on_restart, 
@@ -211,6 +216,7 @@ class Game:
         self.asteroids = pygame.sprite.Group()
         self.exp_orbs = pygame.sprite.Group()
         self.essence_orbs = pygame.sprite.Group()
+        self.elemental_essence_orbs = pygame.sprite.Group()
         self.projectiles = pygame.sprite.Group()
         self.drones = pygame.sprite.Group()
         self.shields = pygame.sprite.Group()
@@ -226,6 +232,7 @@ class Game:
         Shield.containers = (self.shields, self.drawable, self.updatable)
         VisualEffect.containers = (self.visual_effects, self.drawable, self.updatable)
 
+        ElementalEssenceOrb.containers = (self.elemental_essence_orbs, self.drawable, self.updatable)
         self.asteroid_field = AsteroidField()
         self.HUD = Display(10, 10)
         self.combat_stats = CombatStats()
@@ -234,6 +241,7 @@ class Game:
         self.experience = ExperienceSystem(self)
         self.essence = EssenceSystem(self)
         self.upgrade_counts = {}
+        self.wizard_element_counts = {e: 0 for e in ALL_ELEMENTS}
         self.map_system = MapSystem(self)
 
     def on_new_game(self):
@@ -273,10 +281,11 @@ class Game:
 
     def _save_airspace_state(self, space):
         space.active_state = {
-            "asteroids":     list(self.asteroids.sprites()),
-            "exp_orbs":      list(self.exp_orbs.sprites()),
-            "essence_orbs":  list(self.essence_orbs.sprites()),
-            "asteroid_field": self.asteroid_field,
+            "asteroids":              list(self.asteroids.sprites()),
+            "exp_orbs":               list(self.exp_orbs.sprites()),
+            "essence_orbs":           list(self.essence_orbs.sprites()),
+            "elemental_essence_orbs": list(self.elemental_essence_orbs.sprites()),
+            "asteroid_field":         self.asteroid_field,
         }
         for sprite in space.active_state["asteroids"]:
             sprite.remove(self.asteroids, self.updatable, self.drawable)
@@ -284,6 +293,8 @@ class Game:
             sprite.remove(self.exp_orbs, self.updatable, self.drawable)
         for sprite in space.active_state["essence_orbs"]:
             sprite.remove(self.essence_orbs, self.updatable, self.drawable)
+        for sprite in space.active_state["elemental_essence_orbs"]:
+            sprite.remove(self.elemental_essence_orbs, self.updatable, self.drawable)
         self.asteroid_field.remove(self.updatable)
 
     def _restore_airspace_state(self, space):
@@ -294,14 +305,20 @@ class Game:
             sprite.add(self.exp_orbs, self.updatable, self.drawable)
         for sprite in state["essence_orbs"]:
             sprite.add(self.essence_orbs, self.updatable, self.drawable)
+        for sprite in state.get("elemental_essence_orbs", []):
+            sprite.add(self.elemental_essence_orbs, self.updatable, self.drawable)
         self.asteroid_field = state["asteroid_field"]
         self.asteroid_field.add(self.updatable)
         space.active_state = None
 
-    def open_shop(self):
+    def open_shop(self, shop):
+        self._current_shop = shop
         self.shop_menu = create_shop_menu(
             self.player.drones, self.upgrade_counts,
-            self.essence.amount, self.on_shop_buy, self.on_shop_leave)
+            self.essence.amount, self.on_shop_buy, self.on_shop_leave,
+            wizards=shop.wizards,
+            elemental_amount=self.essence.elemental_amount,
+            on_infuse=self.on_shop_infuse)
         self.current_state = C.SHOP
 
     def on_shop_leave(self):
@@ -309,9 +326,22 @@ class Game:
 
     def on_shop_buy(self, drone_class, upgrade_type):
         self.apply_upgrade(drone_class, upgrade_type)
+        self._rebuild_shop_menu()
+
+    def on_shop_infuse(self, drone, element):
+        cost = C.WIZARD_OVERWRITE_COST if drone.element is not None else C.WIZARD_INFUSE_COST
+        if not self.essence.spend_elemental(cost):
+            return
+        drone.element = element
+        self._rebuild_shop_menu()
+
+    def _rebuild_shop_menu(self):
         self.shop_menu = create_shop_menu(
             self.player.drones, self.upgrade_counts,
-            self.essence.amount, self.on_shop_buy, self.on_shop_leave)
+            self.essence.amount, self.on_shop_buy, self.on_shop_leave,
+            wizards=self._current_shop.wizards,
+            elemental_amount=self.essence.elemental_amount,
+            on_infuse=self.on_shop_infuse)
 
     def apply_upgrade(self, drone_class, upgrade_type):
         from drone import LaserDrone, SentinelDrone

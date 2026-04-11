@@ -4,12 +4,14 @@ from portal import Portal
 from shop import Shop
 
 class AirSpace:
-    def __init__(self, gx, gy, back_direction=None, grid=None, cell_states=None, active_portal_count=0):
+    def __init__(self, gx, gy, back_direction=None, grid=None, cell_states=None,
+                 active_portal_count=0, wizard_element_counts=None):
         self.gx = gx
         self.gy = gy
         self.portals = {}
-        self.active_state = None  
-        self.shop = Shop() if random.random() < C.SHOP_SPAWN_CHANCE else None
+        self.active_state = None
+        self.shop = (Shop(wizard_element_counts) if random.random() < C.SHOP_SPAWN_CHANCE
+                     else None)
         grid = grid or {}
         cell_states = cell_states if cell_states is not None else {}
         self._generate_portals(back_direction, grid, cell_states, active_portal_count)

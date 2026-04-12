@@ -5,6 +5,23 @@ Entries are never removed — only appended. Each entry is dated and summarizes 
 
 ---
 
+## 2026-04-11 (2)
+
+### Sorcerous Sundries — Mancer Shop Overhaul
+- Renamed the Mechanic's Shop to **Sorcerous Sundries** to match the space wizard theme; proximity prompt updated accordingly
+- The single monolithic shop menu has been replaced with a multi-level mancer roster system
+- Every shop now contains a guaranteed **Technomancer** (handles drone stat upgrades) plus 0–5 **Elementalmancers** (handle elemental infusion), each appearing as a separate entry with a colored orb sprite
+  - Probability distribution for elementalmancer count: 0 (~20%), 1 (~40%), 2 (~22%), 3 (~10%), 4 (~5%), 5 (~3%)
+- Selecting a mancer enters their dedicated submenu; **BACK TO SHOP** or **ESC** returns to the roster
+- The selection cursor now holds its position within a mancer's menu after making a purchase — no more snapping back to the top on every upgrade
+- Fixed crash: pressing the back button mid-frame no longer causes a `KeyError` when the shop mode changes between `update()` and `draw()`
+
+### Elemental Asteroid Visuals
+- Elemental asteroids no longer render a circular glow halo; the pulsing ring overlay has been removed
+- Element identity is now conveyed entirely through the asteroid's irregular polygon outline, which is tinted in the element's primary color
+
+---
+
 ## 2026-04-11
 
 ### Elemental System

@@ -18,7 +18,7 @@ class Shop:
                 wizard_element_counts[elem] = wizard_element_counts.get(elem, 0) + 1
 
     def _generate_wizards(self, global_counts):
-        count = random.choices([1, 2, 3, 4, 5], weights=C.WIZARD_COUNT_WEIGHTS)[0]
+        count = random.choices([0, 1, 2, 3, 4, 5], weights=C.WIZARD_COUNT_WEIGHTS)[0]
         max_count = max(global_counts.values(), default=0) if global_counts else 0
         base_weights = [max_count - global_counts.get(e, 0) + 1 for e in ALL_ELEMENTS]
         chosen = []
@@ -51,21 +51,17 @@ class Shop:
             r = size + 4 + i * 5
             alpha = int((12 + 10 * pulse) * (i / 4))
             pygame.draw.circle(surf, (*C.GOLD, alpha), (c, c), r)
-        diamond = [
-            (c, c - size),
+        diamond = [(c, c - size),
             (c + int(size * 0.65), c),
             (c, c + size),
-            (c - int(size * 0.65), c),
-        ]
+            (c - int(size * 0.65), c)]
         body_alpha = int(210 + 45 * pulse)
         pygame.draw.polygon(surf, (*C.GOLD, body_alpha), diamond)
         pygame.draw.polygon(surf, (*C.WHITE, int(100 + 80 * pulse)), diamond, 2)
-        shine = [
-            (c, c - size // 2),
+        shine = [(c, c - size // 2),
             (c + int(size * 0.3), c),
             (c, c + size // 4),
-            (c - int(size * 0.3), c),
-        ]
+            (c - int(size * 0.3), c)]
         pygame.draw.polygon(surf, (*C.WHITE, int(40 + 30 * pulse)), shine)
         screen.blit(surf, surf.get_rect(center=pos))
 
@@ -74,6 +70,6 @@ class Shop:
             return
         if self._prompt_font is None:
             self._prompt_font = pygame.font.Font(None, 28)
-        text = self._prompt_font.render("[ E ]  MECHANIC'S SHOP", True, C.GOLD)
+        text = self._prompt_font.render("[ E ]  SORCEROUS SUNDRIES", True, C.GOLD)
         px, py = int(self.position.x), int(self.position.y)
         screen.blit(text, (px - text.get_width() // 2, py - 38))

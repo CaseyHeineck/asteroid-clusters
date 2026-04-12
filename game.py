@@ -54,7 +54,10 @@ class Game:
         self.experience = None
         self.essence = None
         self.map_system = None
-        self.shop_menu = None
+        self.shop_hub_menu = None
+        self.technomancer_menu = None
+        self.elem_mancer_menus = {}
+        self.shop_mode = "hub"
         self.drone_select_menu = None
         self.drone_choice_menu = None
         self.upgrade_counts = {}
@@ -242,6 +245,10 @@ class Game:
         self.essence = EssenceSystem(self)
         self.upgrade_counts = {}
         self.wizard_element_counts = {e: 0 for e in ALL_ELEMENTS}
+        self.shop_mode = "hub"
+        self.shop_hub_menu = None
+        self.technomancer_menu = None
+        self.elem_mancer_menus = {}
         self.map_system = MapSystem(self)
 
     def on_new_game(self):
@@ -313,35 +320,78 @@ class Game:
 
     def open_shop(self, shop):
         self._current_shop = shop
-        self.shop_menu = create_shop_menu(
-            self.player.drones, self.upgrade_counts,
-            self.essence.amount, self.on_shop_buy, self.on_shop_leave,
-            wizards=shop.wizards,
-            elemental_amount=self.essence.elemental_amount,
-            on_infuse=self.on_shop_infuse)
+        self.shop_mode = "hub"
+        self._build_all_shop_menus()
         self.current_state = C.SHOP
+
+    def _build_all_shop_menus(self):
+        shop = self._current_shop
+        self.shop_hub_menu = create_mancer_hub_menu(
+            self.essence.amount, self.essence.elemental_amount,
+            shop.wizards,
+            self.on_enter_technomancer,
+            self.on_enter_elementalmancer,
+            self.on_shop_leave)
+        self.technomancer_menu = create_technomancer_menu(
+            self.player.drones, self.upgrade_counts,
+            self.essence.amount, self.on_shop_buy, self.on_mancer_back)
+        self.elem_mancer_menus = {}
+        for element in shop.wizards:
+            self.elem_mancer_menus[element] = create_elementalmancer_menu(
+                element, self.player.drones,
+                self.essence.elemental_amount,
+                self.on_shop_infuse, self.on_mancer_back)
+
+    def _rebuild_hub_menu(self):
+        shop = self._current_shop
+        self.shop_hub_menu = create_mancer_hub_menu(
+            self.essence.amount, self.essence.elemental_amount,
+            shop.wizards,
+            self.on_enter_technomancer,
+            self.on_enter_elementalmancer,
+            self.on_shop_leave)
+
+    def _restore_menu_cursor(self, menu, idx):
+        if idx <= 0:
+            return
+        try:
+            menu._select(idx)
+        except Exception:
+            pass
+
+    def on_enter_technomancer(self):
+        self.shop_mode = "technomancer"
+
+    def on_enter_elementalmancer(self, element):
+        self.shop_mode = element
+
+    def on_mancer_back(self):
+        self.shop_mode = "hub"
+        self._rebuild_hub_menu()
 
     def on_shop_leave(self):
         self.current_state = C.GAME_RUNNING
 
     def on_shop_buy(self, drone_class, upgrade_type):
+        cursor_idx = getattr(self.technomancer_menu, '_index', 0)
         self.apply_upgrade(drone_class, upgrade_type)
-        self._rebuild_shop_menu()
+        self.technomancer_menu = create_technomancer_menu(
+            self.player.drones, self.upgrade_counts,
+            self.essence.amount, self.on_shop_buy, self.on_mancer_back)
+        self._restore_menu_cursor(self.technomancer_menu, cursor_idx)
 
     def on_shop_infuse(self, drone, element):
         cost = C.WIZARD_OVERWRITE_COST if drone.element is not None else C.WIZARD_INFUSE_COST
         if not self.essence.spend_elemental(cost):
             return
         drone.element = element
-        self._rebuild_shop_menu()
-
-    def _rebuild_shop_menu(self):
-        self.shop_menu = create_shop_menu(
-            self.player.drones, self.upgrade_counts,
-            self.essence.amount, self.on_shop_buy, self.on_shop_leave,
-            wizards=self._current_shop.wizards,
-            elemental_amount=self.essence.elemental_amount,
-            on_infuse=self.on_shop_infuse)
+        elem_menu = self.elem_mancer_menus.get(element)
+        cursor_idx = getattr(elem_menu, '_index', 0) if elem_menu else 0
+        self.elem_mancer_menus[element] = create_elementalmancer_menu(
+            element, self.player.drones,
+            self.essence.elemental_amount,
+            self.on_shop_infuse, self.on_mancer_back)
+        self._restore_menu_cursor(self.elem_mancer_menus[element], cursor_idx)
 
     def apply_upgrade(self, drone_class, upgrade_type):
         from drone import LaserDrone, SentinelDrone
@@ -372,8 +422,14 @@ class Game:
     def update_shop(self, events):
         self.draw_game()
         self.draw_overlay(140)
-        self.shop_menu.update(events)
-        self.shop_menu.draw(self.screen)
+        if self.shop_mode == "technomancer":
+            menu = self.technomancer_menu
+        elif self.shop_mode in self.elem_mancer_menus:
+            menu = self.elem_mancer_menus[self.shop_mode]
+        else:
+            menu = self.shop_hub_menu
+        menu.update(events)
+        menu.draw(self.screen)
 
     def on_game_over(self):
         score = self.HUD.score if hasattr(self.HUD, "score") else 0

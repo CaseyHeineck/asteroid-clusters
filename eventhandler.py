@@ -21,7 +21,10 @@ class EventHandler:
             elif self.game.current_state == C.PAUSED:
                 self.game.current_state = C.GAME_RUNNING
             elif self.game.current_state == C.SHOP:
-                self.game.on_shop_leave()
+                if self.game.shop_mode == "hub":
+                    self.game.on_shop_leave()
+                else:
+                    self.game.on_mancer_back()
 
         if event.key == pygame.K_e:
             if self.game.current_state == C.GAME_RUNNING and self.game.map_system:

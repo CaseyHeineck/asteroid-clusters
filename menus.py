@@ -1,7 +1,6 @@
 import pygame
 import pygame_menu
 import constants as C
-from element import ELEMENT_COLORS, get_element_name
 
 def create_main_menu(on_new_game, on_exit):
     menu = pygame_menu.Menu(title="ASTEROID CLUSTER****S", width=C.SCREEN_WIDTH,
@@ -53,14 +52,12 @@ def build_offense_chart_surface(combat_stats, width, height):
     small_font = pygame.font.SysFont(None, 20)
     title = title_font.render("OFFENSE", True, C.WHITE)
     surface.blit(title, (16, 12))
-    source_rows = [
-        (C.PLAYER, "Player"),
+    source_rows = [(C.PLAYER, "Player"),
         (C.KINETIC_DRONE, "Kinetic Drone"),
         (C.PLASMA_DRONE, "Plasma Drone"),
         (C.LASER_DRONE, "Laser Drone"),
         (C.EXPLOSIVE_DRONE, "Explosive Drone"),
-        (C.SENTINEL_DRONE, "Sentinel Drone"),
-    ]
+        (C.SENTINEL_DRONE, "Sentinel Drone")]
     rows = []
     for source, label in source_rows:
         damage = combat_stats.damage_dealt.get(source, 0)
@@ -163,13 +160,11 @@ def build_support_chart_surface(combat_stats, width, height):
 
 def create_drone_select_menu(on_select_drone):
     from drone import ExplosiveDrone, KineticDrone, LaserDrone, PlasmaDrone, SentinelDrone
-    drone_info = [
-        (PlasmaDrone, "PLASMA DRONE", "Medium range | Plasma bolts that burn asteroids over time"),
+    drone_info = [(PlasmaDrone, "PLASMA DRONE", "Medium range | Plasma bolts that burn asteroids over time"),
         (KineticDrone, "KINETIC DRONE", "Short range | Rapid-fire kinetic rounds with high impact"),
         (ExplosiveDrone, "EXPLOSIVE DRONE", "Medium range | Rockets with area-of-effect explosion"),
         (LaserDrone, "LASER DRONE", "Long range | Instant hitscan laser, targets highest HP"),
-        (SentinelDrone, "SENTINEL DRONE", "Support | Generates a protective shield around you"),
-    ]
+        (SentinelDrone, "SENTINEL DRONE", "Support | Generates a protective shield around you")]
     menu = pygame_menu.Menu(title="CHOOSE YOUR STARTING DRONE", width=C.SCREEN_WIDTH,
         height=C.SCREEN_HEIGHT, theme=pygame_menu.themes.THEME_DARK)
     menu.add.label("Select the drone that will orbit you from the start of the game.")
@@ -179,7 +174,6 @@ def create_drone_select_menu(on_select_drone):
             return lambda: on_select_drone(cls)
         menu.add.button(f"{name}  —  {desc}", make_cb(drone_class))
     return menu
-
 
 def create_drone_choice_menu(pending_drones, level, on_add_drone, on_banish_drone):
     from drone import ExplosiveDrone, KineticDrone, LaserDrone, PlasmaDrone, SentinelDrone
@@ -205,9 +199,45 @@ def create_drone_choice_menu(pending_drones, level, on_add_drone, on_banish_dron
         menu.add.vertical_margin(8)
     return menu
 
+def _draw_mancer_sprite(color, size=72):
+    surf = pygame.Surface((size, size), pygame.SRCALPHA)
+    cx, cy = size // 2, size // 2
+    r = size // 2 - 2
+    for i in range(4, 0, -1):
+        pygame.draw.circle(surf, (*color, 18 * i), (cx, cy), r + i * 3)
+    pygame.draw.circle(surf, (*color, 210), (cx, cy), r)
+    shadow = tuple(max(0, c - 80) for c in color)
+    pygame.draw.circle(surf, (*shadow, 255), (cx, cy), r - 9)
+    pygame.draw.line(surf, (*color, 230), (cx, cy - r + 14), (cx, cy + r - 14), 2)
+    pygame.draw.line(surf, (*color, 180), (cx - r + 14, cy), (cx + r - 14, cy), 2)
+    pygame.draw.circle(surf, (255, 255, 255, 190), (cx, cy), 5)
+    pygame.draw.circle(surf, (*color, 255), (cx, cy), 3)
+    return surf
 
-def create_shop_menu(player_drones, upgrade_counts, essence, on_buy, on_leave,
-        wizards=None, elemental_amount=0, on_infuse=None):
+def create_mancer_hub_menu(essence, elemental_amount, wizards,
+        on_enter_technomancer, on_enter_elementalmancer, on_leave):
+    from element import get_element_name, ELEMENT_COLORS
+    menu = pygame_menu.Menu(title="SORCEROUS SUNDRIES", width=C.SCREEN_WIDTH,
+        height=C.SCREEN_HEIGHT, theme=pygame_menu.themes.THEME_DARK)
+    menu.add.label(f"Essence: {essence} \u25c6   |   Elemental Essence: {elemental_amount} \u25c6")
+    menu.add.vertical_margin(16)
+    tech_sprite = _draw_mancer_sprite(C.SILVER, 72)
+    menu.add.surface(tech_sprite, selectable=False)
+    menu.add.button("TECHNOMANCER  \u2014  Drone Upgrades", on_enter_technomancer)
+    menu.add.vertical_margin(16)
+    for element in wizards:
+        elem_name = get_element_name(element)
+        elem_color = ELEMENT_COLORS[element]["primary"]
+        elem_sprite = _draw_mancer_sprite(elem_color, 72)
+        menu.add.surface(elem_sprite, selectable=False)
+        def make_enter_elem(e=element):
+            return lambda: on_enter_elementalmancer(e)
+        menu.add.button(f"{elem_name.upper()}MANCER  \u2014  Elemental Infusion", make_enter_elem())
+        menu.add.vertical_margin(16)
+    menu.add.button("LEAVE SHOP", on_leave)
+    return menu
+
+def create_technomancer_menu(player_drones, upgrade_counts, essence, on_buy, on_back):
     from drone import SentinelDrone
     drone_display_names = {
         "ExplosiveDrone": "EXPLOSIVE DRONE",
@@ -216,52 +246,23 @@ def create_shop_menu(player_drones, upgrade_counts, essence, on_buy, on_leave,
         "PlasmaDrone":    "PLASMA DRONE",
         "SentinelDrone":  "SENTINEL DRONE",
     }
-    menu = pygame_menu.Menu(title="MECHANIC'S SHOP", width=C.SCREEN_WIDTH,
+    menu = pygame_menu.Menu(title="TECHNOMANCER", width=C.SCREEN_WIDTH,
         height=C.SCREEN_HEIGHT, theme=pygame_menu.themes.THEME_DARK)
     menu.add.label(f"Essence: {essence} \u25c6")
     menu.add.vertical_margin(10)
-
-    if wizards:
-        menu.add.label("\u2014 SPACE WIZARDS \u2014")
-        menu.add.label(f"  Elemental Essence: {elemental_amount} \u25c6")
-        menu.add.vertical_margin(4)
-        for element in wizards:
-            elem_name = get_element_name(element)
-            menu.add.label(f"  {elem_name} Wizard")
-            for drone in player_drones:
-                drone_name = drone_display_names.get(type(drone).__name__, type(drone).__name__)
-                if drone.element == element:
-                    menu.add.label(f"    {drone_name}  \u2014  already {elem_name}")
-                    continue
-                overwrite = drone.element is not None
-                cost = C.WIZARD_OVERWRITE_COST if overwrite else C.WIZARD_INFUSE_COST
-                current = f" [{get_element_name(drone.element)}]" if overwrite else ""
-                action = "Overwrite" if overwrite else "Infuse"
-                btn_text = f"  {action} {drone_name}{current} \u2192 {elem_name}  \u2014  {cost} Elemental Essence"
-                if elemental_amount >= cost:
-                    def make_infuse(d=drone, e=element):
-                        return lambda: on_infuse(d, e)
-                    menu.add.button(btn_text, make_infuse())
-                else:
-                    menu.add.label(f"  {btn_text}  (need more Elemental Essence)")
-        menu.add.vertical_margin(10)
-
     seen = []
     for drone in player_drones:
         cls = type(drone)
         if cls not in seen:
             seen.append(cls)
-
     for cls in seen:
         name = drone_display_names.get(cls.__name__, cls.__name__)
         menu.add.label(f"\u2014 {name} \u2014")
-        upgrades = (
-            [("shield_health", "Shield Health +2"),
-             ("repair_rate",   "Repair Speed +15%")]
+        upgrades = ([("shield_health", "Shield Health +2"),
+            ("repair_rate",   "Repair Speed +15%")]
             if cls is SentinelDrone
             else [("damage",    "Damage +15%"),
-                  ("fire_rate", "Fire Rate +12%")]
-        )
+                ("fire_rate", "Fire Rate +12%")])
         for upgrade_type, label in upgrades:
             count = upgrade_counts.get((cls.__name__, upgrade_type), 0)
             price = C.SHOP_UPGRADE_BASE_PRICE + count * C.SHOP_UPGRADE_PRICE_STEP
@@ -274,7 +275,42 @@ def create_shop_menu(player_drones, upgrade_counts, essence, on_buy, on_leave,
                 menu.add.label(f"  {btn_text}  (need more \u25c6)")
         menu.add.vertical_margin(6)
     menu.add.vertical_margin(10)
-    menu.add.button("LEAVE SHOP", on_leave)
+    menu.add.button("BACK TO SHOP", on_back)
+    return menu
+
+def create_elementalmancer_menu(element, player_drones, elemental_amount, on_infuse, on_back):
+    from element import get_element_name
+    drone_display_names = {
+        "ExplosiveDrone": "EXPLOSIVE DRONE",
+        "KineticDrone":   "KINETIC DRONE",
+        "LaserDrone":     "LASER DRONE",
+        "PlasmaDrone":    "PLASMA DRONE",
+        "SentinelDrone":  "SENTINEL DRONE",
+    }
+    elem_name = get_element_name(element)
+    menu = pygame_menu.Menu(title=f"{elem_name.upper()}MANCER", width=C.SCREEN_WIDTH,
+        height=C.SCREEN_HEIGHT, theme=pygame_menu.themes.THEME_DARK)
+    menu.add.label(f"Elemental Essence: {elemental_amount} \u25c6")
+    menu.add.vertical_margin(10)
+    for drone in player_drones:
+        drone_name = drone_display_names.get(type(drone).__name__, type(drone).__name__)
+        if drone.element == element:
+            menu.add.label(f"  {drone_name}  \u2014  already {elem_name}")
+            continue
+        overwrite = drone.element is not None
+        cost = C.WIZARD_OVERWRITE_COST if overwrite else C.WIZARD_INFUSE_COST
+        current = f" [{get_element_name(drone.element)}]" if overwrite else ""
+        action = "Overwrite" if overwrite else "Infuse"
+        btn_text = f"{action} {drone_name}{current} \u2192 {elem_name}  \u2014  {cost} Elemental \u25c6"
+        if elemental_amount >= cost:
+            def make_infuse(d=drone, e=element):
+                return lambda: on_infuse(d, e)
+            menu.add.button(btn_text, make_infuse())
+        else:
+            menu.add.label(f"  {btn_text}  (need more Elemental \u25c6)")
+        menu.add.vertical_margin(4)
+    menu.add.vertical_margin(10)
+    menu.add.button("BACK TO SHOP", on_back)
     return menu
 
 def get_source_color(source):

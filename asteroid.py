@@ -7,7 +7,7 @@ from essenceorb import EssenceOrb
 from elementalessenceorb import ElementalEssenceOrb
 from visualeffect import AsteroidKillExplosionVE, OverkillExplosionVE
 from logger import log_event
-from element import draw_elemental_glow, get_element_primary_color
+from element import get_element_primary_color
 
 class Asteroid(CircleShape):
     def __init__(self, x, y, size):
@@ -107,8 +107,6 @@ class Asteroid(CircleShape):
         return cracks
 
     def draw(self, screen):
-        if self.element is not None:
-            draw_elemental_glow(screen, self.position, self.radius, self.element)
         base_color = get_element_primary_color(self.element) if self.element else C.WHITE
         outline_color = self.get_outline_color(base_color)
         surface_size = int((self.radius * 2) + (self.line_width * 4))

@@ -250,10 +250,10 @@ class Player(CircleShape):
             pos = self.position + forward * (r * 0.65) - right * (r * 0.45)
             ShipExhaustVE(pos.x, pos.y, -right, 12, 4)
         if strafing and moving_right:
-            pos = self.position + right * (r * 0.8)
+            pos = self.position - right * (r * 0.8)
             ShipExhaustVE(pos.x, pos.y, right, 18, 5)
         if strafing and moving_left:
-            pos = self.position - right * (r * 0.8)
+            pos = self.position + right * (r * 0.8)
             ShipExhaustVE(pos.x, pos.y, -right, 18, 5)
 
     def update(self, dt):

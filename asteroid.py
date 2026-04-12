@@ -1,3 +1,4 @@
+import math
 import pygame
 import random
 import constants as C
@@ -7,7 +8,7 @@ from essenceorb import EssenceOrb
 from elementalessenceorb import ElementalEssenceOrb
 from visualeffect import AsteroidKillExplosionVE, OverkillExplosionVE
 from logger import log_event
-from element import get_element_primary_color
+from element import ELEMENT_COLORS
 
 class Asteroid(CircleShape):
     def __init__(self, x, y, size):
@@ -107,21 +108,26 @@ class Asteroid(CircleShape):
         return cracks
 
     def draw(self, screen):
-        base_color = get_element_primary_color(self.element) if self.element else C.WHITE
+        if self.element is not None:
+            t = pygame.time.get_ticks() / 1000.0
+            pulse = 0.3 + ((math.sin(t * 0.9) + 1) / 2) * 0.7
+            primary = ELEMENT_COLORS[self.element]["primary"]
+            base_color = tuple(int(C.WHITE[i] + (primary[i] - C.WHITE[i]) * pulse) for i in range(3))
+        else:
+            base_color = C.WHITE
         outline_color = self.get_outline_color(base_color)
         surface_size = int((self.radius * 2) + (self.line_width * 4))
         asteroid_surface = pygame.Surface((surface_size, surface_size), pygame.SRCALPHA)
         center = surface_size // 2
         rotated_points = [pygame.Vector2(center, center) + point.rotate(self.rotation)
             for point in self.outline_points]
-        pygame.draw.polygon(asteroid_surface, outline_color,
-            [(int(p.x), int(p.y)) for p in rotated_points], self.line_width)
+        int_points = [(int(p.x), int(p.y)) for p in rotated_points]
+        pygame.draw.polygon(asteroid_surface, outline_color, int_points, self.line_width)
         for offset, detail_radius in self.surface_details:
             rotated_offset = offset.rotate(self.rotation)
             detail_position = pygame.Vector2(center, center) + rotated_offset
             pygame.draw.circle(asteroid_surface, outline_color,
-                (int(detail_position.x), int(detail_position.y)),
-                detail_radius, C.LINE_WIDTH)
+                (int(detail_position.x), int(detail_position.y)), detail_radius, C.LINE_WIDTH)
         if self.health < self.full_health:
             self.draw_cracks(asteroid_surface, center, outline_color)
         rect = asteroid_surface.get_rect(center=(self.position.x, self.position.y))

@@ -140,13 +140,20 @@ class Game:
         self.experience.resolve_choice()
 
     def _apply_banish_ability(self, drone_class):
+        drone_type_names = {
+            KineticDrone: "Kinetic",
+            PlasmaDrone: "Plasma",
+            ExplosiveDrone: "Explosive",
+            LaserDrone: "Laser",
+        }
         if drone_class is SentinelDrone:
             self.player.life_regen = True
+            self.HUD.show_banish_notify("Player gains life regen")
             return
         ability_map = {
             KineticDrone: "impact",
-            PlasmaDrone: "dot",
-            ExplosiveDrone: "aoe",
+            PlasmaDrone: "burn",
+            ExplosiveDrone: "explosion",
             LaserDrone: "overkill",
         }
         ability = ability_map.get(drone_class)
@@ -154,6 +161,8 @@ class Game:
             return
         target_drone = random.choice(self.player.drones)
         target_drone.extra_abilities.add(ability)
+        target_name = drone_type_names.get(type(target_drone), type(target_drone).__name__)
+        self.HUD.show_banish_notify(f"{target_name} gains {ability}")
 
     def update_game_running(self):
         log_state()

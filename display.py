@@ -18,6 +18,9 @@ class Display:
         self.xp_needed = int(C.EXP_LEVEL_BASE)
         self.level_up_timer = 0.0
         self.level_up_duration = 2.5
+        self.banish_notify_timer = 0.0
+        self.banish_notify_duration = 3.0
+        self.banish_notify_text = ""
         self.essence = 0
         self.elemental_essence = 0
         self.update_image()
@@ -53,9 +56,15 @@ class Display:
         self.xp_current = xp_current
         self.xp_needed = max(1, xp_needed)
 
+    def show_banish_notify(self, text):
+        self.banish_notify_text = text
+        self.banish_notify_timer = self.banish_notify_duration
+
     def update(self, dt):
         if self.level_up_timer > 0:
             self.level_up_timer = max(0.0, self.level_up_timer - dt)
+        if self.banish_notify_timer > 0:
+            self.banish_notify_timer = max(0.0, self.banish_notify_timer - dt)
 
     def _heart_points(self, cx, cy, size, n=60):
         scale = size / 17.0
@@ -123,3 +132,12 @@ class Display:
             cx = (C.SCREEN_WIDTH - levelup_surf.get_width()) // 2
             cy = C.SCREEN_HEIGHT // 3
             screen.blit(levelup_surf, (cx, cy))
+        if self.banish_notify_timer > 0:
+            fade = min(1.0, self.banish_notify_timer / 0.4)
+            alpha = int(255 * fade)
+            notify_font = pygame.font.Font(None, 72)
+            notify_surf = notify_font.render(self.banish_notify_text, True, C.GOLD)
+            notify_surf.set_alpha(alpha)
+            cx = (C.SCREEN_WIDTH - notify_surf.get_width()) // 2
+            cy = C.SCREEN_HEIGHT // 3 + 90
+            screen.blit(notify_surf, (cx, cy))

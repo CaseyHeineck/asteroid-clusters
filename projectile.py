@@ -50,12 +50,12 @@ class Projectile(CircleShape):
             asteroid.velocity += normal * (self.velocity.length() * C.KINETIC_PROJECTILE_COLLISION_IMPACT_SCALE)
             if asteroid.velocity.length() > C.ASTEROID_MAX_SPEED:
                 asteroid.velocity.scale_to_length(C.ASTEROID_MAX_SPEED)
-        if "dot" in self.extra_abilities and "dot" not in skip_abilities and asteroid.alive():
+        if "burn" in self.extra_abilities and "burn" not in skip_abilities and asteroid.alive():
             burn = PlasmaBurnSTE()
             burn.stat_source = self.stat_source
             burn.combat_stats = self.combat_stats
             asteroid.add_gameplay_effect(burn)
-        if "aoe" in self.extra_abilities and "aoe" not in skip_abilities and self.asteroids is not None:
+        if "explosion" in self.extra_abilities and "explosion" not in skip_abilities and self.asteroids is not None:
             aoe = RocketHitAOE(impact_position=asteroid.position, targets=self.asteroids,
                 radius=C.ROCKET_HIT_RADIUS, damage=C.ROCKET_HIT_DAMAGE)
             aoe.stat_source = self.stat_source
@@ -158,7 +158,7 @@ class Plasma(Projectile):
         burn.stat_source = self.stat_source
         burn.combat_stats = self.combat_stats
         asteroid.add_gameplay_effect(burn)
-        self.post_hit_extras(asteroid, skip_abilities={"dot"})
+        self.post_hit_extras(asteroid, skip_abilities={"burn"})
         self.kill()
         return score
 
@@ -184,7 +184,7 @@ class Rocket(Projectile):
         aoe.stat_source = self.stat_source
         aoe.combat_stats = self.combat_stats
         total_score += aoe.apply(ignored_targets=[asteroid])
-        self.post_hit_extras(asteroid, skip_abilities={"aoe"})
+        self.post_hit_extras(asteroid, skip_abilities={"explosion"})
         self.kill()
         return total_score
     

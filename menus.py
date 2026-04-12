@@ -237,6 +237,20 @@ def create_mancer_hub_menu(essence, elemental_amount, wizards,
     menu.add.button("LEAVE SHOP", on_leave)
     return menu
 
+def _drone_keywords(drone):
+    base_keywords = {
+        "KineticDrone":   "impact",
+        "PlasmaDrone":    "burn",
+        "ExplosiveDrone": "explosion",
+        "LaserDrone":     "overkill",
+    }
+    base = base_keywords.get(type(drone).__name__)
+    extras = sorted(drone.extra_abilities)
+    all_kw = ([base] if base else []) + [kw for kw in extras if kw != base]
+    if not all_kw:
+        return ""
+    return "  [" + ", ".join(kw.upper() for kw in all_kw) + "]"
+
 def create_technomancer_menu(player_drones, upgrade_counts, essence, on_buy, on_back):
     from drone import SentinelDrone
     drone_display_names = {
@@ -251,13 +265,16 @@ def create_technomancer_menu(player_drones, upgrade_counts, essence, on_buy, on_
     menu.add.label(f"Essence: {essence} \u25c6")
     menu.add.vertical_margin(10)
     seen = []
+    cls_to_drone = {}
     for drone in player_drones:
         cls = type(drone)
         if cls not in seen:
             seen.append(cls)
+            cls_to_drone[cls] = drone
     for cls in seen:
         name = drone_display_names.get(cls.__name__, cls.__name__)
-        menu.add.label(f"\u2014 {name} \u2014")
+        kw = _drone_keywords(cls_to_drone[cls])
+        menu.add.label(f"\u2014 {name}{kw} \u2014")
         upgrades = ([("shield_health", "Shield Health +2"),
             ("repair_rate",   "Repair Speed +15%")]
             if cls is SentinelDrone
@@ -294,14 +311,15 @@ def create_elementalmancer_menu(element, player_drones, elemental_amount, on_inf
     menu.add.vertical_margin(10)
     for drone in player_drones:
         drone_name = drone_display_names.get(type(drone).__name__, type(drone).__name__)
+        kw = _drone_keywords(drone)
         if drone.element == element:
-            menu.add.label(f"  {drone_name}  \u2014  already {elem_name}")
+            menu.add.label(f"  {drone_name}{kw}  \u2014  already {elem_name}")
             continue
         overwrite = drone.element is not None
         cost = C.WIZARD_OVERWRITE_COST if overwrite else C.WIZARD_INFUSE_COST
         current = f" [{get_element_name(drone.element)}]" if overwrite else ""
         action = "Overwrite" if overwrite else "Infuse"
-        btn_text = f"{action} {drone_name}{current} \u2192 {elem_name}  \u2014  {cost} Elemental \u25c6"
+        btn_text = f"{action} {drone_name}{kw}{current} \u2192 {elem_name}  \u2014  {cost} Elemental \u25c6"
         if elemental_amount >= cost:
             def make_infuse(d=drone, e=element):
                 return lambda: on_infuse(d, e)

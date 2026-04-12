@@ -5,6 +5,33 @@ Entries are never removed — only appended. Each entry is dated and summarizes 
 
 ---
 
+## 2026-04-12
+
+### Banishment Feedback
+- After banishing a drone, the screen now displays a notification in the same style as the level-up flash — centered on screen, gold text, fades out over 3 seconds
+- Message format: **"{Drone} gains {keyword}"** (e.g. "Plasma gains burn") or **"Player gains life regen"** when the Sentinel is banished
+
+### Shop — Drone Keyword Tags
+- Drone entries in both the Technomancer and Elementalmancer menus now display the drone's projectile keyword(s) in brackets next to the drone name
+- Base keywords by type: Kinetic → **IMPACT**, Plasma → **BURN**, Explosive → **EXPLOSION**, Laser → **OVERKILL**
+- Extra abilities gained through banishment are appended to the tag (e.g. `[IMPACT, BURN]`)
+- Multiple keywords are comma-separated
+
+### Ability Keyword Canonicalization
+- Internal ability identifiers renamed to match their in-game keywords: `"dot"` → `"burn"`, `"aoe"` → `"explosion"`
+- All checks in projectile hit logic and banishment maps updated to use the new names — no behavior change, terminology is now consistent throughout
+
+### Elemental Asteroid Visuals (Revised)
+- Removed the previous element-colored outline approach
+- Elemental asteroids now render with a **white outline that pulses toward the element's primary color** — the outline smoothly cycles between near-white and full element color at ~0.9 Hz
+- The pulse never bottoms out at pure white — a minimum blend of 30% element color is always present, so elemental asteroids are always distinguishable from non-elemental ones
+- Cracks, craters, and the hit-flash all share the same color so the whole asteroid reads consistently
+
+### Strafe Exhaust Fix
+- Lateral thruster exhaust effects now emit from the correct side of the ship: strafing right fires from the left thruster, strafing left fires from the right thruster
+
+---
+
 ## 2026-04-11 (2)
 
 ### Sorcerous Sundries — Mancer Shop Overhaul

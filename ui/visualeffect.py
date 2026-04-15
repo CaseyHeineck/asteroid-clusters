@@ -1,5 +1,5 @@
 import pygame
-import constants as C
+from core import constants as C
 
 class VisualEffect(pygame.sprite.Sprite):
     def __init__(self, x, y, duration=0):

@@ -1,6 +1,6 @@
 import pygame
 import pygame_menu
-import constants as C
+from core import constants as C
 
 def create_main_menu(on_new_game, on_exit):
     menu = pygame_menu.Menu(title="ASTEROID CLUSTER****S", width=C.SCREEN_WIDTH,
@@ -159,7 +159,7 @@ def build_support_chart_surface(combat_stats, width, height):
     return surface
 
 def create_drone_select_menu(on_select_drone):
-    from drone import ExplosiveDrone, KineticDrone, LaserDrone, PlasmaDrone, SentinelDrone
+    from entities.drone import ExplosiveDrone, KineticDrone, LaserDrone, PlasmaDrone, SentinelDrone
     drone_info = [(PlasmaDrone, "PLASMA DRONE", "Medium range | Plasma bolts that burn asteroids over time"),
         (KineticDrone, "KINETIC DRONE", "Short range | Rapid-fire kinetic rounds with high impact"),
         (ExplosiveDrone, "EXPLOSIVE DRONE", "Medium range | Rockets with area-of-effect explosion"),
@@ -176,7 +176,7 @@ def create_drone_select_menu(on_select_drone):
     return menu
 
 def create_drone_choice_menu(pending_drones, level, on_add_drone, on_banish_drone):
-    from drone import ExplosiveDrone, KineticDrone, LaserDrone, PlasmaDrone, SentinelDrone
+    from entities.drone import ExplosiveDrone, KineticDrone, LaserDrone, PlasmaDrone, SentinelDrone
     drone_names = {
         PlasmaDrone: "PLASMA DRONE",
         KineticDrone: "KINETIC DRONE",
@@ -216,7 +216,7 @@ def _draw_mancer_sprite(color, size=72):
 
 def create_mancer_hub_menu(essence, elemental_amount, wizards,
         on_enter_technomancer, on_enter_elementalmancer, on_leave):
-    from element import get_element_name, ELEMENT_COLORS
+    from core.element import get_element_name, ELEMENT_COLORS
     menu = pygame_menu.Menu(title="SORCEROUS SUNDRIES", width=C.SCREEN_WIDTH,
         height=C.SCREEN_HEIGHT, theme=pygame_menu.themes.THEME_DARK)
     menu.add.label(f"Essence: {essence} \u25c6   |   Elemental Essence: {elemental_amount} \u25c6")
@@ -252,7 +252,7 @@ def _drone_keywords(drone):
     return "  [" + ", ".join(kw.upper() for kw in all_kw) + "]"
 
 def create_technomancer_menu(player_drones, upgrade_counts, essence, on_buy, on_back):
-    from drone import SentinelDrone
+    from entities.drone import SentinelDrone
     drone_display_names = {
         "ExplosiveDrone": "EXPLOSIVE DRONE",
         "KineticDrone":   "KINETIC DRONE",
@@ -296,7 +296,7 @@ def create_technomancer_menu(player_drones, upgrade_counts, essence, on_buy, on_
     return menu
 
 def create_elementalmancer_menu(element, player_drones, elemental_amount, on_infuse, on_back):
-    from element import get_element_name
+    from core.element import get_element_name
     drone_display_names = {
         "ExplosiveDrone": "EXPLOSIVE DRONE",
         "KineticDrone":   "KINETIC DRONE",

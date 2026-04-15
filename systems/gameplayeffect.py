@@ -1,6 +1,6 @@
 import pygame
-import constants as C
-from visualeffect import RocketHitExplosionVE
+from core import constants as C
+from ui.visualeffect import RocketHitExplosionVE
 
 class GameplayEffect:
     def __init__(self, duration=0):

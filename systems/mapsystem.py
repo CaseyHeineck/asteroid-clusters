@@ -1,6 +1,6 @@
 import pygame
-import constants as C
-from airspace import AirSpace
+from core import constants as C
+from systems.airspace import AirSpace
 
 class MapSystem:
     def __init__(self, game):

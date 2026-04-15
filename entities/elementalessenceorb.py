@@ -1,13 +1,15 @@
 import math
 import pygame
-import constants as C
-from circleshape import CircleShape
+from core import constants as C
+from core.circleshape import CircleShape
+from core.element import ELEMENT_COLORS
 
-class EssenceOrb(CircleShape):
+class ElementalEssenceOrb(CircleShape):
     containers = []
-    def __init__(self, x, y, value):
+    def __init__(self, x, y, value, element):
         super().__init__(x, y, C.ESSENCE_ORB_RADIUS, drag=C.ESSENCE_ORB_DRAG)
         self.value = value
+        self.element = element
         self.lifetime = C.ESSENCE_ORB_LIFETIME
         self.pulse_timer = 0.0
 
@@ -20,6 +22,9 @@ class EssenceOrb(CircleShape):
         return 0
 
     def draw(self, screen):
+        colors = ELEMENT_COLORS[self.element]
+        primary = colors["primary"]
+        glow = colors["glow"]
         pulse = (math.sin(self.pulse_timer * math.pi * 2) + 1) / 2
         inner_r = max(2, int(C.ESSENCE_ORB_RADIUS * (0.55 + 0.35 * pulse)))
         glow_r = max(4, int(C.ESSENCE_ORB_RADIUS * (1.5 + 0.6 * pulse)))
@@ -27,14 +32,12 @@ class EssenceOrb(CircleShape):
         surf = pygame.Surface((surf_size, surf_size), pygame.SRCALPHA)
         center = surf_size // 2
         glow_alpha = int(50 + 40 * pulse)
-        pygame.draw.circle(surf, (*C.ESSENCE_ORB_COLOR, glow_alpha), (center, center), glow_r)
-        diamond = [
-            (center, center - inner_r),
+        pygame.draw.circle(surf, (*glow, glow_alpha), (center, center), glow_r)
+        diamond = [(center, center - inner_r),
             (center + int(inner_r * 0.65), center),
             (center, center + inner_r),
-            (center - int(inner_r * 0.65), center),
-        ]
-        pygame.draw.polygon(surf, (*C.ESSENCE_ORB_COLOR, 215), diamond)
+            (center - int(inner_r * 0.65), center)]
+        pygame.draw.polygon(surf, (*primary, 215), diamond)
         pygame.draw.circle(surf, (255, 255, 255, 140),
             (center - max(1, inner_r // 4), center - max(1, inner_r // 4)),
             max(1, inner_r // 3))

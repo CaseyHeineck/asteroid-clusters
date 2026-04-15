@@ -1,6 +1,6 @@
 import pygame
 import sys
-import constants as C
+from core import constants as C
 
 class EventHandler:
     def __init__(self, game):

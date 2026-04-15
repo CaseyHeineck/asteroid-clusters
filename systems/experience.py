@@ -1,5 +1,5 @@
-import constants as C
-from drone import ExplosiveDrone, KineticDrone, LaserDrone, PlasmaDrone, SentinelDrone
+from core import constants as C
+from entities.drone import ExplosiveDrone, KineticDrone, LaserDrone, PlasmaDrone, SentinelDrone
 
 class ExperienceSystem:
     def __init__(self, game):

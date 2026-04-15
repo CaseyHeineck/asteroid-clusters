@@ -1,6 +1,6 @@
 import math
 import pygame
-import constants as C
+from core import constants as C
 from enum import Enum
 
 class Element(Enum):

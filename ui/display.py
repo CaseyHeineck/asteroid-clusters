@@ -1,6 +1,6 @@
 import math
 import pygame
-import constants as C
+from core import constants as C
 
 class Display:
     def __init__(self, x, y, font_size=50, color=C.CYAN):

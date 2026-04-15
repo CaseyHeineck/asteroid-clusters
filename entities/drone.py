@@ -1,11 +1,11 @@
 import math
 import pygame
-import constants as C
-from circleshape import CircleShape
-from projectile import Kinetic, LaserBeam, Plasma, Rocket
-from shield import Shield
-from visualeffect import MuzzleFlareVE
-from element import draw_elemental_glow
+from core import constants as C
+from core.circleshape import CircleShape
+from entities.projectile import Kinetic, LaserBeam, Plasma, Rocket
+from entities.shield import Shield
+from ui.visualeffect import MuzzleFlareVE
+from core.element import draw_elemental_glow
 
 class Drone(CircleShape):
     def __init__(self, player, asteroids):

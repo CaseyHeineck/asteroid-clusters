@@ -1,9 +1,9 @@
 import pygame
-import constants as C
-from circleshape import CircleShape
-from gameplayeffect import OverkillSTE, PlasmaBurnSTE, RocketHitAOE
-from visualeffect import LaserBeamVE, RocketExhaustVE
-from element import get_damage_multiplier, get_element_primary_color
+from core import constants as C
+from core.circleshape import CircleShape
+from systems.gameplayeffect import OverkillSTE, PlasmaBurnSTE, RocketHitAOE
+from ui.visualeffect import LaserBeamVE, RocketExhaustVE
+from core.element import get_damage_multiplier, get_element_primary_color
 
 
 def _elemental_damage(base_damage, attacker_element, target):

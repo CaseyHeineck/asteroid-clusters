@@ -1,6 +1,6 @@
 import math
 import pygame
-import constants as C
+from core import constants as C
 
 class Portal:
     def __init__(self, direction, unlocked=False):

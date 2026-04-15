@@ -1,8 +1,8 @@
 import math
 import random
 import pygame
-import constants as C
-from element import ALL_ELEMENTS
+from core import constants as C
+from core.element import ALL_ELEMENTS
 
 class Shop:
     def __init__(self, wizard_element_counts=None):

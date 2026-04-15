@@ -1,7 +1,7 @@
 import random
-import constants as C
-from portal import Portal
-from shop import Shop
+from core import constants as C
+from entities.portal import Portal
+from ui.shop import Shop
 
 class AirSpace:
     def __init__(self, gx, gy, back_direction=None, grid=None, cell_states=None,

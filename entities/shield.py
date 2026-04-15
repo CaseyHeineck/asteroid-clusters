@@ -1,7 +1,7 @@
 import pygame
-import constants as C
-from circleshape import CircleShape
-from logger import log_event
+from core import constants as C
+from core.circleshape import CircleShape
+from core.logger import log_event
 
 class Shield(CircleShape):
     def __init__(self, owner, source, radius_offset=10, max_health=C.SHIELD_MAX_HEALTH):

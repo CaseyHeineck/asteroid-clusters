@@ -2,29 +2,29 @@ import os
 import random
 import pygame
 import sys
-import constants as C
-from asteroid import Asteroid
-from asteroidfield import AsteroidField
-from collisionsystem import CollisionSystem
-from endgamereport import CombatStats
-from eventhandler import EventHandler
-from display import Display
-from drone import Drone, ExplosiveDrone, KineticDrone, LaserDrone, PlasmaDrone, SentinelDrone
-from logger import *
-from menus import *
-from player import Player
-from projectile import Projectile
-from shield import Shield
-from starfield import StarField
-from visualeffect import *
-from experiorb import ExpOrb
-from essenceorb import EssenceOrb
-from elementalessenceorb import ElementalEssenceOrb
-from experience import ExperienceSystem
-from essence import EssenceSystem
-from mapsystem import MapSystem
-from minimap import MiniMap
-from element import ALL_ELEMENTS
+from core import constants as C
+from core.element import ALL_ELEMENTS
+from core.logger import *
+from entities.asteroid import Asteroid
+from entities.asteroidfield import AsteroidField
+from entities.drone import Drone, ExplosiveDrone, KineticDrone, LaserDrone, PlasmaDrone, SentinelDrone
+from entities.experiorb import ExpOrb
+from entities.essenceorb import EssenceOrb
+from entities.elementalessenceorb import ElementalEssenceOrb
+from entities.player import Player
+from entities.projectile import Projectile
+from entities.shield import Shield
+from systems.collisionsystem import CollisionSystem
+from systems.eventhandler import EventHandler
+from systems.experience import ExperienceSystem
+from systems.essence import EssenceSystem
+from systems.mapsystem import MapSystem
+from ui.endgamereport import CombatStats
+from ui.display import Display
+from ui.minimap import MiniMap
+from ui.menus import *
+from ui.starfield import StarField
+from ui.visualeffect import *
 
 class Game:
     def __init__(self):
@@ -403,7 +403,7 @@ class Game:
         self._restore_menu_cursor(self.elem_mancer_menus[element], cursor_idx)
 
     def apply_upgrade(self, drone_class, upgrade_type):
-        from drone import LaserDrone, SentinelDrone
+        from entities.drone import LaserDrone, SentinelDrone
         cls_name = drone_class.__name__
         key = (cls_name, upgrade_type)
         count = self.upgrade_counts.get(key, 0)

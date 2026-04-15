@@ -1,7 +1,7 @@
 import math
 import pygame
-import constants as C
-from circleshape import CircleShape
+from core import constants as C
+from core.circleshape import CircleShape
 
 class ExpOrb(CircleShape):
     containers = []

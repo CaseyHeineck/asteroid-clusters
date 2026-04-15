@@ -1,5 +1,5 @@
 import pygame
-import constants as C
+from core import constants as C
 
 class MiniMap:
     def draw(self, screen, map_system):

@@ -1,14 +1,14 @@
 import math
 import pygame
 import random
-import constants as C
-from circleshape import CircleShape
-from experiorb import ExpOrb
-from essenceorb import EssenceOrb
-from elementalessenceorb import ElementalEssenceOrb
-from visualeffect import AsteroidKillExplosionVE, OverkillExplosionVE
-from logger import log_event
-from element import ELEMENT_COLORS
+from core import constants as C
+from core.circleshape import CircleShape
+from entities.experiorb import ExpOrb
+from entities.essenceorb import EssenceOrb
+from entities.elementalessenceorb import ElementalEssenceOrb
+from ui.visualeffect import AsteroidKillExplosionVE, OverkillExplosionVE
+from core.logger import log_event
+from core.element import ELEMENT_COLORS
 
 class Asteroid(CircleShape):
     def __init__(self, x, y, size):

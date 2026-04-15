@@ -1,4 +1,4 @@
-import constants as C
+from core import constants as C
 
 class CollisionSystem:
     def __init__(self, game):

@@ -1,8 +1,8 @@
 import pygame
-import constants as C
-from circleshape import CircleShape
-from logger import log_event
-from visualeffect import ShipExhaustVE
+from core import constants as C
+from core.circleshape import CircleShape
+from core.logger import log_event
+from ui.visualeffect import ShipExhaustVE
 
 class Player(CircleShape):
     def __init__(self, x, y):

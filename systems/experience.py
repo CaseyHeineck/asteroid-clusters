@@ -16,6 +16,7 @@ class ExperienceSystem:
     def xp_to_reach_level(self, level):
         if level <= 1:
             return 0
+        level = min(level, C.EXP_LEVEL_CAP + 1)
         total = 0
         for l in range(1, level):
             total += int(C.EXP_LEVEL_BASE * (l ** C.EXP_LEVEL_EXPONENT))
@@ -25,6 +26,8 @@ class ExperienceSystem:
         return self.total_xp - self.xp_to_reach_level(self.level)
 
     def xp_needed_this_level(self):
+        if self.level >= C.EXP_LEVEL_CAP:
+            return 0
         return self.xp_to_reach_level(self.level + 1) - self.xp_to_reach_level(self.level)
 
     def add_starting_drone(self, drone_class):
@@ -38,9 +41,11 @@ class ExperienceSystem:
         return level >= C.EXP_DRONE_CHOICE_INTERVAL and level % C.EXP_DRONE_CHOICE_INTERVAL == 0
 
     def add_xp(self, amount):
+        if self.level >= C.EXP_LEVEL_CAP:
+            return
         old_level = self.level
         self.total_xp += amount
-        while self.total_xp >= self.xp_to_reach_level(self.level + 1):
+        while self.level < C.EXP_LEVEL_CAP and self.total_xp >= self.xp_to_reach_level(self.level + 1):
             self.level += 1
         for l in range(old_level + 1, self.level + 1):
             if self.is_drone_choice_level(l) and self.pending_drones:

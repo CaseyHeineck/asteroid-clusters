@@ -1,0 +1,228 @@
+import pytest
+import pygame
+from entities.player import Player
+from core import constants as C
+
+# --- approach_zero ---
+def test_approach_zero_decrements_positive_value():
+    p = Player(0, 0)
+    assert p.approach_zero(10, 3) == 7
+
+def test_approach_zero_positive_does_not_go_below_zero():
+    p = Player(0, 0)
+    assert p.approach_zero(2, 10) == 0
+
+def test_approach_zero_increments_negative_value():
+    p = Player(0, 0)
+    assert p.approach_zero(-10, 3) == -7
+
+def test_approach_zero_negative_does_not_go_above_zero():
+    p = Player(0, 0)
+    assert p.approach_zero(-2, 10) == 0
+
+def test_approach_zero_returns_zero_when_already_zero():
+    p = Player(0, 0)
+    assert p.approach_zero(0, 5) == 0
+
+# --- rotate ---
+def test_rotate_increments_rotation():
+    p = Player(0, 0)
+    p.rotation = 0
+    p.rotate(1.0)
+    assert p.rotation == pytest.approx(C.PLAYER_TURN_SPEED, abs=0.01)
+
+def test_rotate_negative_dt_decrements_rotation():
+    p = Player(0, 0)
+    p.rotation = 0
+    p.rotate(-1.0)
+    assert p.rotation == pytest.approx(-C.PLAYER_TURN_SPEED, abs=0.01)
+
+# --- accelerate ---
+def test_accelerate_increases_forward_speed():
+    p = Player(0, 0)
+    p.accelerate(1.0)
+    assert p.forward_speed == pytest.approx(C.PLAYER_ACCELERATION_RATE, abs=0.01)
+
+def test_accelerate_negative_decreases_forward_speed():
+    p = Player(0, 0)
+    p.accelerate(-1.0)
+    assert p.forward_speed == pytest.approx(-C.PLAYER_ACCELERATION_RATE, abs=0.01)
+
+# --- strafe ---
+def test_strafe_sets_speed_for_right():
+    p = Player(0, 0)
+    p.strafe(1)
+    assert p.strafe_speed == C.PLAYER_STRAFE_SPEED
+
+def test_strafe_sets_speed_for_left():
+    p = Player(0, 0)
+    p.strafe(-1)
+    assert p.strafe_speed == -C.PLAYER_STRAFE_SPEED
+
+# --- apply_movement_decay ---
+def test_apply_movement_decay_reduces_forward_speed():
+    p = Player(0, 0)
+    p.forward_speed = 100
+    p.apply_movement_decay(1.0)
+    assert p.forward_speed < 100
+
+def test_apply_movement_decay_does_not_make_speed_negative():
+    p = Player(0, 0)
+    p.forward_speed = 1
+    p.apply_movement_decay(10.0)
+    assert p.forward_speed == 0
+
+# --- update_damage_cooldown ---
+def test_damage_cooldown_off_allows_damage():
+    p = Player(0, 0)
+    p.damage_cooldown = False
+    p.update_damage_cooldown(0.1)
+    assert p.can_be_damaged
+
+def test_damage_cooldown_on_blocks_damage():
+    p = Player(0, 0)
+    p.damage_cooldown = True
+    p.update_damage_cooldown(0.1)
+    assert not p.can_be_damaged
+
+def test_damage_cooldown_expires_after_full_duration():
+    p = Player(0, 0)
+    p.damage_cooldown = True
+    p.update_damage_cooldown(C.PLAYER_DAMAGE_COOLDOWN_SECONDS)
+    assert not p.damage_cooldown
+    assert p.can_be_damaged
+
+def test_damage_cooldown_toggles_flash_visible():
+    p = Player(0, 0)
+    p.damage_cooldown = True
+    p.flash_visible = False
+    p.update_damage_cooldown(C.PLAYER_BLINK_TIMER)
+    assert p.flash_visible
+
+# --- damaged ---
+def test_damaged_returns_zero_when_invincible():
+    p = Player(0, 0)
+    p.can_be_damaged = False
+    score_delta, lives = p.damaged()
+    assert score_delta == 0
+    assert lives == p.lives
+
+def test_damaged_reduces_lives():
+    p = Player(0, 0)
+    p.can_be_damaged = True
+    _, lives = p.damaged()
+    assert lives == 2
+
+def test_damaged_starts_cooldown():
+    p = Player(0, 0)
+    p.can_be_damaged = True
+    p.damaged()
+    assert p.damage_cooldown
+
+def test_damaged_returns_negative_score_delta():
+    p = Player(0, 0)
+    p.can_be_damaged = True
+    score_delta, _ = p.damaged()
+    assert score_delta < 0
+
+def test_damaged_sets_game_over_when_lives_depleted():
+    p = Player(0, 0)
+    p.can_be_damaged = True
+    p.lives = 1
+    _, lives = p.damaged()
+    assert lives == 0
+    assert p.game_over
+
+def test_damaged_lives_never_go_below_zero():
+    p = Player(0, 0)
+    p.can_be_damaged = True
+    p.lives = 1
+    _, lives = p.damaged(damage=5)
+    assert lives == 0
+
+# --- point_in_triangle ---
+def test_point_inside_triangle_returns_true():
+    p = Player(0, 0)
+    a = pygame.Vector2(0, -10)
+    b = pygame.Vector2(-10, 10)
+    c = pygame.Vector2(10, 10)
+    assert p.point_in_triangle(pygame.Vector2(0, 5), [a, b, c])
+
+def test_point_outside_triangle_returns_false():
+    p = Player(0, 0)
+    a = pygame.Vector2(0, -10)
+    b = pygame.Vector2(-10, 10)
+    c = pygame.Vector2(10, 10)
+    assert not p.point_in_triangle(pygame.Vector2(0, -20), [a, b, c])
+
+def test_centroid_is_inside_triangle():
+    p = Player(0, 0)
+    a = pygame.Vector2(0, 0)
+    b = pygame.Vector2(30, 0)
+    c = pygame.Vector2(15, 30)
+    centroid = pygame.Vector2(15, 10)
+    assert p.point_in_triangle(centroid, [a, b, c])
+
+# --- distance_point_to_segment ---
+def test_distance_to_segment_perpendicular():
+    p = Player(0, 0)
+    start = pygame.Vector2(0, 0)
+    end = pygame.Vector2(10, 0)
+    point = pygame.Vector2(5, 3)
+    assert p.distance_point_to_segment(point, start, end) == pytest.approx(3.0, abs=0.001)
+
+def test_distance_to_segment_before_start_uses_start_point():
+    p = Player(0, 0)
+    start = pygame.Vector2(0, 0)
+    end = pygame.Vector2(10, 0)
+    point = pygame.Vector2(-3, 4)  # behind start, 5 away
+    assert p.distance_point_to_segment(point, start, end) == pytest.approx(5.0, abs=0.001)
+
+def test_distance_to_segment_beyond_end_uses_end_point():
+    p = Player(0, 0)
+    start = pygame.Vector2(0, 0)
+    end = pygame.Vector2(10, 0)
+    point = pygame.Vector2(13, 4)  # past end, 5 away from (10,0)
+    assert p.distance_point_to_segment(point, start, end) == pytest.approx(5.0, abs=0.001)
+
+def test_distance_to_zero_length_segment_is_distance_to_point():
+    p = Player(0, 0)
+    start = pygame.Vector2(0, 0)
+    end = pygame.Vector2(0, 0)
+    point = pygame.Vector2(3, 4)
+    assert p.distance_point_to_segment(point, start, end) == pytest.approx(5.0, abs=0.001)
+
+# --- rebalance_drones ---
+class FakeDrone:
+    def __init__(self, orbit_angle=0):
+        self.orbit_angle = orbit_angle
+
+def test_rebalance_drones_no_op_when_empty():
+    p = Player(0, 0)
+    p.drones = []
+    p.rebalance_drones()  # should not raise
+
+def test_rebalance_single_drone_preserves_angle():
+    p = Player(0, 0)
+    drone = FakeDrone(orbit_angle=45)
+    p.drones = [drone]
+    p.rebalance_drones()
+    assert drone.orbit_angle == 45
+
+def test_rebalance_two_drones_are_180_degrees_apart():
+    p = Player(0, 0)
+    d1 = FakeDrone(orbit_angle=0)
+    d2 = FakeDrone(orbit_angle=0)
+    p.drones = [d1, d2]
+    p.rebalance_drones()
+    assert abs(d2.orbit_angle - d1.orbit_angle) == pytest.approx(180, abs=0.001)
+
+def test_rebalance_three_drones_are_120_degrees_apart():
+    p = Player(0, 0)
+    d1 = FakeDrone(orbit_angle=0)
+    d2 = FakeDrone(orbit_angle=0)
+    d3 = FakeDrone(orbit_angle=0)
+    p.drones = [d1, d2, d3]
+    p.rebalance_drones()
+    assert d2.orbit_angle - d1.orbit_angle == pytest.approx(120, abs=0.001)
+    assert d3.orbit_angle - d1.orbit_angle == pytest.approx(240, abs=0.001)

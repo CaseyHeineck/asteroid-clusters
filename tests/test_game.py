@@ -1,0 +1,213 @@
+import pytest
+import pygame
+from types import SimpleNamespace
+from unittest.mock import MagicMock, patch
+from game import Game
+from core import constants as C
+from entities.drone import KineticDrone, PlasmaDrone, ExplosiveDrone, LaserDrone, SentinelDrone
+
+
+def make_game_stub():
+    g = Game.__new__(Game)
+    g.current_state = C.MAIN_MENU
+    g.player = MagicMock()
+    g.player.drones = []
+    g.HUD = MagicMock()
+    g.experience = MagicMock()
+    g.essence = MagicMock()
+    g.upgrade_counts = {}
+    g.shop_mode = "hub"
+    g.map_system = None
+    g._current_shop = MagicMock()
+    return g
+
+
+class FakePlayer:
+    def __init__(self):
+        self.position = pygame.Vector2(0, 0)
+
+
+# --- wrap_object ---
+def test_wrap_object_past_right_edge_wraps_left():
+    g = make_game_stub()
+    obj = SimpleNamespace(position=pygame.Vector2(C.SCREEN_WIDTH + 1, 100))
+    g.wrap_object(obj)
+    assert obj.position.x == pytest.approx(1.0)
+
+def test_wrap_object_past_left_edge_wraps_right():
+    g = make_game_stub()
+    obj = SimpleNamespace(position=pygame.Vector2(-1, 100))
+    g.wrap_object(obj)
+    assert obj.position.x == pytest.approx(C.SCREEN_WIDTH - 1)
+
+def test_wrap_object_past_bottom_edge_wraps_top():
+    g = make_game_stub()
+    obj = SimpleNamespace(position=pygame.Vector2(100, C.SCREEN_HEIGHT + 1))
+    g.wrap_object(obj)
+    assert obj.position.y == pytest.approx(1.0)
+
+def test_wrap_object_past_top_edge_wraps_bottom():
+    g = make_game_stub()
+    obj = SimpleNamespace(position=pygame.Vector2(100, -1))
+    g.wrap_object(obj)
+    assert obj.position.y == pytest.approx(C.SCREEN_HEIGHT - 1)
+
+def test_wrap_object_within_bounds_is_unchanged():
+    g = make_game_stub()
+    obj = SimpleNamespace(position=pygame.Vector2(100, 200))
+    g.wrap_object(obj)
+    assert obj.position.x == pytest.approx(100.0)
+    assert obj.position.y == pytest.approx(200.0)
+
+
+# --- state transitions ---
+def test_on_resume_sets_state_to_game_running():
+    g = make_game_stub()
+    g.current_state = C.PAUSED
+    g.on_resume()
+    assert g.current_state == C.GAME_RUNNING
+
+def test_on_main_menu_sets_state_to_main_menu():
+    g = make_game_stub()
+    g.current_state = C.GAME_RUNNING
+    g.on_main_menu()
+    assert g.current_state == C.MAIN_MENU
+
+def test_on_shop_leave_sets_state_to_game_running():
+    g = make_game_stub()
+    g.current_state = C.SHOP
+    g.on_shop_leave()
+    assert g.current_state == C.GAME_RUNNING
+
+def test_on_enter_technomancer_sets_shop_mode():
+    g = make_game_stub()
+    g.on_enter_technomancer()
+    assert g.shop_mode == "technomancer"
+
+def test_on_enter_elementalmancer_sets_shop_mode_to_element():
+    from core.element import Element
+    g = make_game_stub()
+    g.on_enter_elementalmancer(Element.CRYO)
+    assert g.shop_mode == Element.CRYO
+
+def test_on_mancer_back_resets_shop_mode_to_hub():
+    g = make_game_stub()
+    g.shop_mode = "technomancer"
+    g._rebuild_hub_menu = MagicMock()
+    g.on_mancer_back()
+    assert g.shop_mode == "hub"
+
+
+# --- enter_drone_choice ---
+def test_enter_drone_choice_with_empty_pending_sets_game_running():
+    g = make_game_stub()
+    g.experience.pending_drones = []
+    g.current_state = C.DRONE_CHOICE
+    g.enter_drone_choice()
+    assert g.current_state == C.GAME_RUNNING
+
+
+# --- _apply_banish_ability ---
+def test_banish_sentinel_enables_player_life_regen():
+    g = make_game_stub()
+    g.player.life_regen = False
+    g._apply_banish_ability(SentinelDrone)
+    assert g.player.life_regen is True
+
+def test_banish_sentinel_notifies_hud():
+    g = make_game_stub()
+    g.player.life_regen = False
+    g._apply_banish_ability(SentinelDrone)
+    g.HUD.show_banish_notify.assert_called_once()
+
+def test_banish_kinetic_adds_impact_ability_to_drone():
+    g = make_game_stub()
+    fake_drone = MagicMock()
+    fake_drone.extra_abilities = set()
+    g.player.drones = [fake_drone]
+    g._apply_banish_ability(KineticDrone)
+    assert "impact" in fake_drone.extra_abilities
+
+def test_banish_plasma_adds_burn_ability_to_drone():
+    g = make_game_stub()
+    fake_drone = MagicMock()
+    fake_drone.extra_abilities = set()
+    g.player.drones = [fake_drone]
+    g._apply_banish_ability(PlasmaDrone)
+    assert "burn" in fake_drone.extra_abilities
+
+def test_banish_explosive_adds_explosion_ability_to_drone():
+    g = make_game_stub()
+    fake_drone = MagicMock()
+    fake_drone.extra_abilities = set()
+    g.player.drones = [fake_drone]
+    g._apply_banish_ability(ExplosiveDrone)
+    assert "explosion" in fake_drone.extra_abilities
+
+def test_banish_laser_adds_overkill_ability_to_drone():
+    g = make_game_stub()
+    fake_drone = MagicMock()
+    fake_drone.extra_abilities = set()
+    g.player.drones = [fake_drone]
+    g._apply_banish_ability(LaserDrone)
+    assert "overkill" in fake_drone.extra_abilities
+
+def test_banish_ability_is_no_op_when_player_has_no_drones():
+    g = make_game_stub()
+    g.player.drones = []
+    g._apply_banish_ability(KineticDrone)
+    g.HUD.show_banish_notify.assert_not_called()
+
+
+# --- apply_upgrade ---
+def test_apply_upgrade_does_nothing_when_essence_insufficient():
+    g = make_game_stub()
+    g.essence.spend.return_value = False
+    g.apply_upgrade(KineticDrone, "damage")
+    assert g.upgrade_counts == {}
+
+def test_apply_upgrade_increments_upgrade_count():
+    g = make_game_stub()
+    g.essence.spend.return_value = True
+    drone = KineticDrone(FakePlayer(), [])
+    g.player.drones = [drone]
+    g.apply_upgrade(KineticDrone, "damage")
+    assert g.upgrade_counts.get(("KineticDrone", "damage"), 0) == 1
+
+def test_apply_upgrade_price_escalates_with_count():
+    g = make_game_stub()
+    g.essence.spend.return_value = True
+    g.upgrade_counts[("KineticDrone", "damage")] = 3
+    drone = KineticDrone(FakePlayer(), [])
+    g.player.drones = [drone]
+    g.apply_upgrade(KineticDrone, "damage")
+    expected_price = C.SHOP_UPGRADE_BASE_PRICE + 3 * C.SHOP_UPGRADE_PRICE_STEP
+    g.essence.spend.assert_called_with(expected_price)
+
+def test_apply_upgrade_damage_increases_kinetic_damage_multiplier():
+    g = make_game_stub()
+    g.essence.spend.return_value = True
+    drone = KineticDrone(FakePlayer(), [])
+    original = drone.damage_multiplier
+    g.player.drones = [drone]
+    g.apply_upgrade(KineticDrone, "damage")
+    assert drone.damage_multiplier > original
+
+def test_apply_upgrade_fire_rate_reduces_timer_max():
+    g = make_game_stub()
+    g.essence.spend.return_value = True
+    drone = KineticDrone(FakePlayer(), [])
+    original = drone.weapons_free_timer_max
+    g.player.drones = [drone]
+    g.apply_upgrade(KineticDrone, "fire_rate")
+    assert drone.weapons_free_timer_max < original
+
+def test_apply_upgrade_only_affects_matching_drone_class():
+    g = make_game_stub()
+    g.essence.spend.return_value = True
+    kinetic = KineticDrone(FakePlayer(), [])
+    plasma = PlasmaDrone(FakePlayer(), [])
+    original_plasma_mult = plasma.damage_multiplier
+    g.player.drones = [kinetic, plasma]
+    g.apply_upgrade(KineticDrone, "damage")
+    assert plasma.damage_multiplier == original_plasma_mult

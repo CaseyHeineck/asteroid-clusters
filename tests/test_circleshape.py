@@ -61,6 +61,12 @@ def test_apply_drag_no_op_when_zero_drag():
     shape.apply_drag(1.0)
     assert shape.velocity.length() == 50
 
+def test_apply_drag_no_op_when_velocity_is_zero():
+    shape = CircleShape(0, 0, 10, drag=50)
+    shape.velocity = pygame.Vector2(0, 0)
+    shape.apply_drag(1.0)
+    assert shape.velocity.length() == 0
+
 # --- apply_rotation ---
 def test_apply_rotation_increments_rotation():
     shape = CircleShape(0, 0, 10, angular_velocity=90)
@@ -182,3 +188,20 @@ def test_update_gameplay_effects_keeps_active_effect():
     shape.gameplay_effects.append(effect)
     shape.update_gameplay_effects(1.0)
     assert effect in shape.gameplay_effects
+
+# --- get_forward_vector ---
+def test_get_forward_vector_at_zero_rotation_points_up():
+    shape = CircleShape(0, 0, 10)
+    fwd = shape.get_forward_vector()
+    assert fwd.x == pytest.approx(0, abs=0.001)
+    assert fwd.y == pytest.approx(-1, abs=0.001)
+
+def test_get_forward_vector_at_90_rotation_points_right():
+    shape = CircleShape(0, 0, 10, rotation=90)
+    fwd = shape.get_forward_vector()
+    assert fwd.x == pytest.approx(1, abs=0.001)
+    assert fwd.y == pytest.approx(0, abs=0.001)
+
+def test_get_forward_vector_is_unit_length():
+    shape = CircleShape(0, 0, 10, rotation=45)
+    assert shape.get_forward_vector().length() == pytest.approx(1.0, abs=0.001)

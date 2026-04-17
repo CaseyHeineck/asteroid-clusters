@@ -78,3 +78,46 @@ def test_update_tracks_owner_position():
     owner.position = pygame.Vector2(100, 200)
     shield.update(0.016)
     assert shield.position == owner.position
+
+# --- damaged: add_absorbed ---
+class TrackingCombatStats:
+    def __init__(self):
+        self.absorbed_calls = []
+    def add_absorbed(self, source, amount):
+        self.absorbed_calls.append((source, amount))
+
+class TrackingGame:
+    def __init__(self):
+        self.combat_stats = TrackingCombatStats()
+
+class TrackingOwner(FakeOwner):
+    def __init__(self):
+        super().__init__()
+        self.game = TrackingGame()
+
+def test_damaged_calls_add_absorbed_with_correct_amount():
+    owner = TrackingOwner()
+    shield = Shield(owner, FakeSource(), max_health=10)
+    shield.damaged(4)
+    assert (C.PLAYER_SHIELD, 4) in owner.game.combat_stats.absorbed_calls
+
+def test_damaged_zero_damage_does_not_call_add_absorbed():
+    owner = TrackingOwner()
+    shield = Shield(owner, FakeSource(), max_health=10)
+    shield.damaged(0)
+    assert owner.game.combat_stats.absorbed_calls == []
+
+# --- block_asteroid ---
+class TrackingOwnerForBlock(FakeOwner):
+    def __init__(self):
+        super().__init__()
+        self.block_calls = []
+    def apply_collision_to_asteroid(self, asteroid, impact_scale):
+        self.block_calls.append((asteroid, impact_scale))
+
+def test_block_asteroid_delegates_to_owner():
+    owner = TrackingOwnerForBlock()
+    shield = Shield(owner, FakeSource())
+    fake_asteroid = object()
+    shield.block_asteroid(fake_asteroid, impact_scale=0.5)
+    assert (fake_asteroid, 0.5) in owner.block_calls

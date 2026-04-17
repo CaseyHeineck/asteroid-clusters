@@ -281,3 +281,68 @@ def test_on_shop_infuse_sets_drone_element_on_success():
     with patch("game.create_elementalmancer_menu", return_value=MagicMock()):
         g.on_shop_infuse(drone, Element.SOLAR)
     assert drone.element == Element.SOLAR
+
+# --- on_game_over ---
+def test_on_game_over_sets_state_to_game_over():
+    g = make_game_stub()
+    g.combat_stats = MagicMock()
+    with patch("game.create_game_over_menu", return_value=MagicMock()):
+        g.on_game_over()
+    assert g.current_state == C.GAME_OVER
+
+def test_on_game_over_rebuilds_game_over_menu():
+    g = make_game_stub()
+    g.combat_stats = MagicMock()
+    with patch("game.create_game_over_menu", return_value=MagicMock()) as mock_create:
+        g.on_game_over()
+    mock_create.assert_called_once()
+
+# --- on_add_drone ---
+def test_on_add_drone_removes_drone_class_from_pending():
+    g = make_game_stub()
+    g.asteroids = []
+    g.experience.pending_drones = [KineticDrone]
+    g.experience.added_drones = []
+    g.on_add_drone(KineticDrone)
+    assert KineticDrone not in g.experience.pending_drones
+
+def test_on_add_drone_appends_drone_class_to_added():
+    g = make_game_stub()
+    g.asteroids = []
+    g.experience.pending_drones = [KineticDrone]
+    g.experience.added_drones = []
+    g.on_add_drone(KineticDrone)
+    assert KineticDrone in g.experience.added_drones
+
+def test_on_add_drone_calls_player_add_drone_with_correct_args():
+    g = make_game_stub()
+    g.asteroids = []
+    g.experience.pending_drones = [KineticDrone]
+    g.experience.added_drones = []
+    g.on_add_drone(KineticDrone)
+    g.player.add_drone.assert_called_with(KineticDrone, [])
+
+# --- on_banish_drone ---
+def test_on_banish_drone_removes_drone_class_from_pending():
+    g = make_game_stub()
+    g.experience.pending_drones = [KineticDrone]
+    g.experience.banished_drones = []
+    g._apply_banish_ability = MagicMock()
+    g.on_banish_drone(KineticDrone)
+    assert KineticDrone not in g.experience.pending_drones
+
+def test_on_banish_drone_appends_drone_class_to_banished():
+    g = make_game_stub()
+    g.experience.pending_drones = [KineticDrone]
+    g.experience.banished_drones = []
+    g._apply_banish_ability = MagicMock()
+    g.on_banish_drone(KineticDrone)
+    assert KineticDrone in g.experience.banished_drones
+
+def test_on_banish_drone_calls_apply_banish_ability():
+    g = make_game_stub()
+    g.experience.pending_drones = [KineticDrone]
+    g.experience.banished_drones = []
+    g._apply_banish_ability = MagicMock()
+    g.on_banish_drone(KineticDrone)
+    g._apply_banish_ability.assert_called_with(KineticDrone)

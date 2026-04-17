@@ -8,6 +8,7 @@ class FakeGame:
     HUD = FakeHUD()
     def __init__(self):
         self.entered_drone_choice = False
+        self.current_state = None
     def enter_drone_choice(self):
         self.entered_drone_choice = True
 
@@ -128,3 +129,84 @@ def test_add_xp_no_choice_pending_when_no_pending_drones():
     exp.pending_drones = []
     exp.add_xp(exp.xp_to_reach_level(C.EXP_DRONE_EARLY_LEVEL))
     assert exp.choices_pending == 0
+
+# --- resolve_choice ---
+def test_resolve_choice_decrements_choices_pending():
+    exp = ExperienceSystem(FakeGame())
+    exp.choices_pending = 2
+    exp.pending_drones = []
+    exp.resolve_choice()
+    assert exp.choices_pending == 1
+
+def test_resolve_choice_choices_pending_cannot_go_below_zero():
+    exp = ExperienceSystem(FakeGame())
+    exp.choices_pending = 0
+    exp.pending_drones = []
+    exp.resolve_choice()
+    assert exp.choices_pending == 0
+
+def test_resolve_choice_sets_game_running_when_no_more_choices():
+    game = FakeGame()
+    exp = ExperienceSystem(game)
+    exp.choices_pending = 1
+    exp.pending_drones = []
+    exp.resolve_choice()
+    assert game.current_state == C.GAME_RUNNING
+
+def test_resolve_choice_sets_game_running_when_choices_remain_but_no_pending_drones():
+    game = FakeGame()
+    exp = ExperienceSystem(game)
+    exp.choices_pending = 2
+    exp.pending_drones = []
+    exp.resolve_choice()
+    assert game.current_state == C.GAME_RUNNING
+
+def test_resolve_choice_calls_enter_drone_choice_when_more_choices_and_pending_drones():
+    game = FakeGame()
+    exp = ExperienceSystem(game)
+    exp.choices_pending = 2
+    exp.pending_drones = ["pending"]
+    exp.resolve_choice()
+    assert game.entered_drone_choice
+
+def test_resolve_choice_does_not_call_enter_drone_choice_when_no_pending_drones():
+    game = FakeGame()
+    exp = ExperienceSystem(game)
+    exp.choices_pending = 2
+    exp.pending_drones = []
+    exp.resolve_choice()
+    assert not game.entered_drone_choice
+
+# --- add_starting_drone ---
+class FakePlayer:
+    def __init__(self):
+        self.added = []
+    def add_drone(self, drone_class, asteroids):
+        self.added.append((drone_class, asteroids))
+
+class FakeGameWithPlayer(FakeGame):
+    def __init__(self):
+        super().__init__()
+        self.player = FakePlayer()
+        self.asteroids = []
+
+def test_add_starting_drone_removes_from_pending():
+    game = FakeGameWithPlayer()
+    exp = ExperienceSystem(game)
+    drone_class = exp.pending_drones[0]
+    exp.add_starting_drone(drone_class)
+    assert drone_class not in exp.pending_drones
+
+def test_add_starting_drone_appends_to_added():
+    game = FakeGameWithPlayer()
+    exp = ExperienceSystem(game)
+    drone_class = exp.pending_drones[0]
+    exp.add_starting_drone(drone_class)
+    assert drone_class in exp.added_drones
+
+def test_add_starting_drone_calls_player_add_drone():
+    game = FakeGameWithPlayer()
+    exp = ExperienceSystem(game)
+    drone_class = exp.pending_drones[0]
+    exp.add_starting_drone(drone_class)
+    assert (drone_class, game.asteroids) in game.player.added

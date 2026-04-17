@@ -4,6 +4,10 @@ import unittest.mock as mock
 from core import constants as C
 from core.element import Element
 from entities.asteroid import Asteroid
+from entities.elementalessenceorb import ElementalEssenceOrb
+from entities.essenceorb import EssenceOrb
+from entities.experiorb import ExpOrb
+from ui.visualeffect import AsteroidKillExplosionVE, OverkillExplosionVE
 
 # --- split_factor ---
 def test_split_factor_at_45_degrees():
@@ -162,3 +166,52 @@ def test_get_zigzag_points_with_one_segment_returns_only_endpoints():
     assert len(points) == 2
     assert points[0] == start
     assert points[-1] == end
+
+def make_kill_ready_asteroid(size):
+    AsteroidKillExplosionVE.containers = ()
+    OverkillExplosionVE.containers = ()
+    ExpOrb.containers = ()
+    EssenceOrb.containers = ()
+    ElementalEssenceOrb.containers = ()
+    Asteroid.containers = ()
+    return Asteroid(0, 0, size)
+
+# --- damaged (lethal path) ---
+def test_damaged_kills_asteroid_when_health_depleted():
+    a = make_kill_ready_asteroid(2)
+    a.damaged(a.health)
+    assert not a.alive()
+
+def test_damaged_returns_score_on_lethal_hit():
+    a = make_kill_ready_asteroid(2)
+    score = a.damaged(a.health)
+    assert score > 0
+
+def test_damaged_lethal_hit_returns_base_score_times_size():
+    a = make_kill_ready_asteroid(3)
+    score = a.damaged(a.health)
+    assert score == C.BASE_SCORE * 3
+
+# --- kill ---
+def test_kill_returns_base_score_times_size():
+    a = make_kill_ready_asteroid(3)
+    score = a.kill()
+    assert score == C.BASE_SCORE * 3
+
+def test_kill_size_one_does_not_call_spawn_children():
+    a = make_kill_ready_asteroid(1)
+    with mock.patch.object(a, "spawn_children") as mocked:
+        a.kill()
+    mocked.assert_not_called()
+
+def test_kill_size_greater_than_one_calls_spawn_children():
+    a = make_kill_ready_asteroid(2)
+    with mock.patch.object(a, "spawn_children", return_value=True) as mocked:
+        a.kill()
+    mocked.assert_called_once()
+
+def test_kill_with_overkill_triggered_returns_correct_score():
+    a = make_kill_ready_asteroid(2)
+    a.overkill_triggered = True
+    score = a.kill()
+    assert score == C.BASE_SCORE * 2

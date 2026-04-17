@@ -1,5 +1,7 @@
 import pytest
 import pygame
+from collections import defaultdict
+from unittest.mock import patch
 from entities.player import Player
 from core import constants as C
 
@@ -226,3 +228,89 @@ def test_rebalance_three_drones_are_120_degrees_apart():
     p.rebalance_drones()
     assert d2.orbit_angle - d1.orbit_angle == pytest.approx(120, abs=0.001)
     assert d3.orbit_angle - d1.orbit_angle == pytest.approx(240, abs=0.001)
+
+# --- collides_with ---
+class FakeCircle:
+    def __init__(self, x, y, radius):
+        self.position = pygame.Vector2(x, y)
+        self.radius = radius
+
+def test_collides_with_returns_false_when_player_has_shield():
+    p = Player(0, 0)
+    p.shield = True
+    other = FakeCircle(0, 0, 5)
+    assert not p.collides_with(other)
+
+def test_collides_with_circle_center_inside_triangle_returns_true():
+    p = Player(0, 0)
+    p.shield = False
+    p.rotation = 0
+    tip = p.position + pygame.Vector2(0, 1).rotate(p.rotation) * p.radius
+    other = FakeCircle(tip.x, tip.y, 1)
+    assert p.collides_with(other)
+
+def test_collides_with_far_circle_returns_false():
+    p = Player(0, 0)
+    p.shield = False
+    other = FakeCircle(9999, 9999, 1)
+    assert not p.collides_with(other)
+
+def test_collides_with_circle_touching_triangle_edge_returns_true():
+    p = Player(0, 0)
+    p.shield = False
+    p.rotation = 0
+    forward = pygame.Vector2(0, 1).rotate(p.rotation)
+    tip = p.position + forward * p.radius
+    other = FakeCircle(tip.x, tip.y, 3)
+    assert p.collides_with(other)
+
+# --- life_regen ---
+def run_update(p, dt):
+    p._spawn_exhaust_effects = lambda *_: None
+    with patch("pygame.key.get_pressed", return_value=defaultdict(int)):
+        p.update(dt)
+
+def test_life_regen_timer_accumulates_when_enabled_and_lives_below_max():
+    p = Player(0, 0)
+    p.life_regen = True
+    p.lives = 2
+    p.max_lives = 3
+    p.life_regen_timer = 0
+    run_update(p, 0.5)
+    assert p.life_regen_timer > 0
+
+def test_life_regen_adds_life_when_timer_reaches_interval():
+    p = Player(0, 0)
+    p.life_regen = True
+    p.lives = 2
+    p.max_lives = 3
+    p.life_regen_timer = C.PLAYER_LIFE_REGEN_INTERVAL - 0.01
+    run_update(p, 0.02)
+    assert p.lives == 3
+
+def test_life_regen_timer_resets_after_adding_life():
+    p = Player(0, 0)
+    p.life_regen = True
+    p.lives = 2
+    p.max_lives = 3
+    p.life_regen_timer = C.PLAYER_LIFE_REGEN_INTERVAL - 0.01
+    run_update(p, 0.02)
+    assert p.life_regen_timer == pytest.approx(0.0, abs=0.001)
+
+def test_life_regen_does_not_exceed_max_lives():
+    p = Player(0, 0)
+    p.life_regen = True
+    p.lives = 3
+    p.max_lives = 3
+    p.life_regen_timer = C.PLAYER_LIFE_REGEN_INTERVAL
+    run_update(p, 0.01)
+    assert p.lives == 3
+
+def test_life_regen_timer_does_not_advance_when_regen_disabled():
+    p = Player(0, 0)
+    p.life_regen = False
+    p.lives = 2
+    p.max_lives = 3
+    p.life_regen_timer = 0
+    run_update(p, 5.0)
+    assert p.life_regen_timer == pytest.approx(0.0, abs=0.001)

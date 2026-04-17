@@ -1,6 +1,8 @@
 import pytest
 import pygame
-from entities.drone import Drone, LaserDrone, SentinelDrone
+from entities.drone import Drone, ExplosiveDrone, KineticDrone, LaserDrone, PlasmaDrone, SentinelDrone
+from entities.projectile import Rocket, Kinetic, Plasma
+from ui.visualeffect import MuzzleFlareVE
 from core import constants as C
 
 class FakePlayer:
@@ -217,3 +219,54 @@ def test_sentinel_repairs_shield_health_when_timer_expired():
     drone.shield_repair_timer = 0
     drone.shield_sentinel(0)
     assert shield.health == shield.max_health - 2
+
+def test_sentinel_clears_player_shield_when_shield_dies_externally():
+    player = FakeSentinelPlayer()
+    drone = SentinelDrone(player, [])
+    dead_shield = FakeShieldProxy()
+    dead_shield.alive = lambda: False
+    drone.player_shield = dead_shield
+    drone.shield_create_timer = 1.0
+    drone.shield_sentinel(0)
+    assert drone.player_shield is None
+    assert player.shield is False
+
+# --- KineticDrone.acquire_target (base: closest to player) ---
+def test_kinetic_acquire_target_selects_closest_to_player_not_healthiest():
+    player = FakePlayer()
+    player.position = pygame.Vector2(0, 0)
+    close_weak = FakeAsteroid(5, 0, health=1)
+    far_strong = FakeAsteroid(200, 0, health=999)
+    drone = KineticDrone(player, [close_weak, far_strong])
+    drone.acquire_target()
+    assert drone.target is close_weak
+
+# --- ExplosiveDrone.weapons_free ---
+def test_explosive_drone_weapons_free_sets_launch_animation_timer():
+    Rocket.containers = ()
+    player = FakeSentinelPlayer()
+    drone = ExplosiveDrone(player, [])
+    drone.launch_animation_timer = 0
+    drone.weapons_free()
+    assert drone.launch_animation_timer > 0
+
+def test_explosive_drone_weapons_free_returns_zero():
+    Rocket.containers = ()
+    player = FakeSentinelPlayer()
+    drone = ExplosiveDrone(player, [])
+    assert drone.weapons_free() == 0
+
+# --- KineticDrone.weapons_free ---
+def test_kinetic_drone_weapons_free_returns_zero():
+    Kinetic.containers = ()
+    MuzzleFlareVE.containers = ()
+    player = FakeSentinelPlayer()
+    drone = KineticDrone(player, [])
+    assert drone.weapons_free() == 0
+
+# --- PlasmaDrone.weapons_free ---
+def test_plasma_drone_weapons_free_returns_zero():
+    Plasma.containers = ()
+    player = FakeSentinelPlayer()
+    drone = PlasmaDrone(player, [])
+    assert drone.weapons_free() == 0

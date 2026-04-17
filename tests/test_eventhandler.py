@@ -3,10 +3,8 @@ from types import SimpleNamespace
 from systems.eventhandler import EventHandler
 from core import constants as C
 
-
 def make_event(key):
     return SimpleNamespace(key=key)
-
 
 class FakeMapSystem:
     def __init__(self):
@@ -14,7 +12,6 @@ class FakeMapSystem:
 
     def try_interact(self):
         self.interact_called = True
-
 
 class FakeGame:
     def __init__(self, state=C.GAME_RUNNING, shop_mode="hub"):
@@ -32,7 +29,6 @@ class FakeGame:
 
     def exit(self):
         pass
-
 
 # --- ESC in GAME_RUNNING ---
 def test_esc_in_game_running_transitions_to_paused():

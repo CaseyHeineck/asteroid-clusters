@@ -5,11 +5,9 @@ from entities.asteroidfield import AsteroidField
 from entities.asteroid import Asteroid
 from core import constants as C
 
-
 def make_field():
     AsteroidField.containers = ()
     return AsteroidField()
-
 
 # --- spawn_timer ---
 def test_spawn_timer_starts_at_zero():
@@ -35,7 +33,6 @@ def test_spawn_timer_resets_after_exceeding_spawn_rate():
     field.update(0.0)
     assert field.spawn_timer == pytest.approx(0.0, abs=0.001)
     Asteroid.containers = ()
-
 
 # --- spawn ---
 def test_spawn_creates_asteroid_in_container():

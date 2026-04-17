@@ -4,7 +4,6 @@ import pytest
 import core.logger as logger_module
 from core.logger import log_event
 
-
 @pytest.fixture(autouse=True)
 def reset_logger_state():
     logger_module._event_log_initialized = False
@@ -12,7 +11,6 @@ def reset_logger_state():
     yield
     logger_module._event_log_initialized = False
     logger_module._frame_count = 0
-
 
 # --- log_event ---
 def test_log_event_creates_file(tmp_path, monkeypatch):

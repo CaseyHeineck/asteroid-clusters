@@ -1,9 +1,9 @@
 import pytest
 import pygame
 from types import SimpleNamespace
+from unittest.mock import MagicMock
 from systems.collisionsystem import CollisionSystem
 from core import constants as C
-
 
 class FakeOrb:
     def __init__(self, x, y, value=5):
@@ -13,7 +13,6 @@ class FakeOrb:
 
     def kill(self):
         self._killed = True
-
 
 class FakeEssence:
     def __init__(self):
@@ -26,7 +25,6 @@ class FakeEssence:
     def add_elemental(self, amount):
         self.added_elemental += amount
 
-
 class FakeExperience:
     def __init__(self):
         self.added_xp = 0
@@ -34,18 +32,11 @@ class FakeExperience:
     def add_xp(self, amount):
         self.added_xp += amount
 
-
 def make_game(player_pos=(0, 0)):
-    game = SimpleNamespace(
-        player=SimpleNamespace(position=pygame.Vector2(*player_pos)),
-        experience=FakeExperience(),
-        essence=FakeEssence(),
-        exp_orbs=[],
-        essence_orbs=[],
-        elemental_essence_orbs=[],
-    )
+    game = SimpleNamespace(player=SimpleNamespace(position=pygame.Vector2(*player_pos)),
+        experience=FakeExperience(), essence=FakeEssence(), exp_orbs=[],
+        essence_orbs=[], elemental_essence_orbs=[])
     return game
-
 
 # --- handle_exp_orb_pickups ---
 def test_no_exp_orbs_is_no_op():
@@ -88,7 +79,6 @@ def test_multiple_nearby_exp_orbs_all_collected():
     assert game.experience.added_xp == 10
     assert all(o._killed for o in orbs)
 
-
 # --- handle_essence_orb_pickups ---
 def test_no_essence_orbs_is_no_op():
     game = make_game()
@@ -120,7 +110,6 @@ def test_distant_essence_orb_not_collected():
     cs.handle_essence_orb_pickups()
     assert game.essence.added == 0
 
-
 # --- handle_elemental_essence_orb_pickups ---
 def test_no_elemental_orbs_is_no_op():
     game = make_game()
@@ -151,3 +140,186 @@ def test_distant_elemental_orb_not_collected():
     cs = CollisionSystem(game)
     cs.handle_elemental_essence_orb_pickups()
     assert game.essence.added_elemental == 0
+
+# --- handle_asteroid_collisions ---
+class FakeAsteroidCS:
+    def __init__(self, x=0, y=0, damage=5, health=10, radius=20):
+        self.position = pygame.Vector2(x, y)
+        self.velocity = pygame.Vector2(0, 0)
+        self.damage = damage
+        self.health = health
+        self.radius = radius
+
+    def collides_with(self, other):
+        return self.position.distance_to(other.position) <= self.radius + other.radius
+
+    def damaged(self, amount):
+        self.health -= amount
+        if self.health <= 0:
+            return 100
+        return 0
+
+class FakeShieldCS:
+    def __init__(self, x=0, y=0, damage=3, radius=30):
+        self.position = pygame.Vector2(x, y)
+        self.radius = radius
+        self.damage = damage
+        self.stat_source = "shield"
+        self.blocked = []
+        self.damaged_calls = []
+
+    def block_asteroid(self, asteroid, impact_scale):
+        self.blocked.append(asteroid)
+
+    def damaged(self, amount):
+        self.damaged_calls.append(amount)
+
+class FakePlayerCS:
+    def __init__(self, x=0, y=0, radius=26):
+        self.position = pygame.Vector2(x, y)
+        self.radius = radius
+        self.can_be_damaged = True
+        self.collision_damage = C.PLAYER_COLLISION_DAMAGE
+        self.game_over = False
+        self.stat_source = "player"
+        self.collision_calls = []
+
+    def collides_with(self, other):
+        return self.position.distance_to(other.position) <= self.radius + other.radius
+
+    def apply_collision_to_asteroid(self, asteroid, impact_scale):
+        self.collision_calls.append(asteroid)
+
+    def damaged(self):
+        return -50, 2
+
+class FakeProjectileCS:
+    def __init__(self, collide=True, score=0):
+        self._collide = collide
+        self._score = score
+        self.hits = []
+
+    def collides_with(self, other):
+        return self._collide
+
+    def on_hit(self, asteroid):
+        self.hits.append(asteroid)
+        return self._score
+
+class FakeHUDCS:
+    def __init__(self):
+        self.score_updates = []
+        self.lives_updates = []
+
+    def update_score(self, delta):
+        self.score_updates.append(delta)
+
+    def update_player_lives(self, lives):
+        self.lives_updates.append(lives)
+
+def make_ac_game(asteroids=None, shields=None, player=None, projectiles=None):
+    hud = FakeHUDCS()
+    player = player or FakePlayerCS(x=1000, y=1000)
+    game = SimpleNamespace(asteroids=asteroids or [], shields=shields or [],
+        player=player, projectiles=projectiles or [], HUD=hud,
+        combat_stats=SimpleNamespace(record_damage_event=lambda **kw: None),
+        wrap_object=lambda obj: None, on_game_over=MagicMock())
+    return game
+
+def test_asteroid_is_wrapped_each_frame():
+    wrapped = []
+    asteroid = FakeAsteroidCS()
+    game = make_ac_game(asteroids=[asteroid])
+    game.wrap_object = lambda obj: wrapped.append(obj)
+    CollisionSystem(game).handle_asteroid_collisions()
+    assert asteroid in wrapped
+
+def test_shield_blocks_asteroid_calls_block_asteroid():
+    asteroid = FakeAsteroidCS(x=0, y=0)
+    shield = FakeShieldCS(x=0, y=0)
+    game = make_ac_game(asteroids=[asteroid], shields=[shield])
+    CollisionSystem(game).handle_asteroid_collisions()
+    assert len(shield.blocked) == 1
+
+def test_shield_takes_damage_equal_to_asteroid_damage():
+    asteroid = FakeAsteroidCS(x=0, y=0, damage=7)
+    shield = FakeShieldCS(x=0, y=0)
+    game = make_ac_game(asteroids=[asteroid], shields=[shield])
+    CollisionSystem(game).handle_asteroid_collisions()
+    assert shield.damaged_calls == [7]
+
+def test_shield_block_prevents_player_from_being_damaged():
+    asteroid = FakeAsteroidCS(x=0, y=0)
+    shield = FakeShieldCS(x=0, y=0)
+    player = FakePlayerCS(x=0, y=0)
+    damaged_calls = []
+    player.damaged = lambda: damaged_calls.append(1) or (-50, 2)
+    game = make_ac_game(asteroids=[asteroid], shields=[shield], player=player)
+    CollisionSystem(game).handle_asteroid_collisions()
+    assert damaged_calls == []
+
+def test_player_collision_called_when_no_shield():
+    asteroid = FakeAsteroidCS(x=0, y=0)
+    player = FakePlayerCS(x=0, y=0)
+    game = make_ac_game(asteroids=[asteroid], player=player)
+    CollisionSystem(game).handle_asteroid_collisions()
+    assert len(player.collision_calls) == 1
+
+def test_player_not_checked_when_cannot_be_damaged():
+    asteroid = FakeAsteroidCS(x=0, y=0)
+    player = FakePlayerCS(x=0, y=0)
+    player.can_be_damaged = False
+    game = make_ac_game(asteroids=[asteroid], player=player)
+    CollisionSystem(game).handle_asteroid_collisions()
+    assert player.collision_calls == []
+
+def test_player_collision_updates_hud_lives():
+    asteroid = FakeAsteroidCS(x=0, y=0)
+    player = FakePlayerCS(x=0, y=0)
+    game = make_ac_game(asteroids=[asteroid], player=player)
+    CollisionSystem(game).handle_asteroid_collisions()
+    assert len(game.HUD.lives_updates) == 1
+
+def test_player_collision_reports_score_delta_to_hud():
+    asteroid = FakeAsteroidCS(x=0, y=0)
+    player = FakePlayerCS(x=0, y=0)
+    game = make_ac_game(asteroids=[asteroid], player=player)
+    CollisionSystem(game).handle_asteroid_collisions()
+    assert any(s != 0 for s in game.HUD.score_updates)
+
+def test_game_over_triggered_when_player_game_over_flag_set():
+    asteroid = FakeAsteroidCS(x=0, y=0)
+    player = FakePlayerCS(x=0, y=0)
+    player.game_over = True
+    game = make_ac_game(asteroids=[asteroid], player=player)
+    CollisionSystem(game).handle_asteroid_collisions()
+    game.on_game_over.assert_called_once()
+
+def test_game_over_not_triggered_when_player_survives():
+    asteroid = FakeAsteroidCS(x=0, y=0)
+    player = FakePlayerCS(x=0, y=0)
+    player.game_over = False
+    game = make_ac_game(asteroids=[asteroid], player=player)
+    CollisionSystem(game).handle_asteroid_collisions()
+    game.on_game_over.assert_not_called()
+
+def test_colliding_projectile_calls_on_hit():
+    asteroid = FakeAsteroidCS(x=0, y=0)
+    projectile = FakeProjectileCS(collide=True, score=0)
+    game = make_ac_game(asteroids=[asteroid], projectiles=[projectile])
+    CollisionSystem(game).handle_asteroid_collisions()
+    assert asteroid in projectile.hits
+
+def test_projectile_score_reported_to_hud():
+    asteroid = FakeAsteroidCS(x=0, y=0)
+    projectile = FakeProjectileCS(collide=True, score=200)
+    game = make_ac_game(asteroids=[asteroid], projectiles=[projectile])
+    CollisionSystem(game).handle_asteroid_collisions()
+    assert 200 in game.HUD.score_updates
+
+def test_non_colliding_projectile_is_not_hit():
+    asteroid = FakeAsteroidCS(x=0, y=0)
+    projectile = FakeProjectileCS(collide=False, score=200)
+    game = make_ac_game(asteroids=[asteroid], projectiles=[projectile])
+    CollisionSystem(game).handle_asteroid_collisions()
+    assert projectile.hits == []

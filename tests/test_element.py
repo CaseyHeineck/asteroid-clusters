@@ -34,7 +34,6 @@ def test_both_none_returns_neutral():
     result = get_damage_multiplier(None, None)
     assert result == 1.0
 
-
 # --- Strong matchups (attacker deals 2x damage) ---
 def test_solar_is_strong_against_cryo():
     result = get_damage_multiplier(Element.SOLAR, Element.CRYO)
@@ -44,7 +43,6 @@ def test_solar_is_strong_against_void():
     result = get_damage_multiplier(Element.SOLAR, Element.VOID)
     assert result == 2.0
 
-
 # --- Weak matchups (attacker deals .5x damage) ---
 def test_solar_is_weak_against_flux():
     result = get_damage_multiplier(Element.SOLAR, Element.FLUX)
@@ -53,7 +51,6 @@ def test_solar_is_weak_against_flux():
 def test_solar_is_weak_against_ion():
     result = get_damage_multiplier(Element.SOLAR, Element.ION)
     assert result == 0.5
-
 
 # --- Neutral matchup (same element vs same element attacker deals 1x damage) ---
 def test_solar_vs_solar_is_neutral():

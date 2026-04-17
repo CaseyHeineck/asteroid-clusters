@@ -1,7 +1,9 @@
 import pytest
 import pygame
+import unittest.mock as mock
 from entities.asteroid import Asteroid
 from core import constants as C
+from core.element import Element
 
 # --- split_factor ---
 # Piecewise function: maps spawn angle to a [MIN, 1.0] velocity scale factor.
@@ -68,7 +70,6 @@ def test_damaged_health_decreases_by_exact_amount():
     a.damaged(7)
     assert a.health == 13
 
-
 # --- spawn_children ---
 def test_spawn_children_returns_false_for_size_one():
     a = Asteroid(0, 0, 1)
@@ -100,3 +101,19 @@ def test_spawn_children_element_is_not_propagated_without_parent_element():
     a.element = None
     a.velocity = C.ASTEROID_MIN_SPEED * pygame.Vector2(1, 0)
     a.spawn_children()
+
+def test_spawn_children_at_least_one_child_inherits_parent_element():
+    Asteroid.containers = ()
+    a = Asteroid(0, 0, 3)
+    a.element = Element.SOLAR
+    a.velocity = C.ASTEROID_MIN_SPEED * pygame.Vector2(1, 0)
+    created = []
+
+    class CapturingAsteroid(Asteroid):
+        def __init__(self, x, y, size):
+            super().__init__(x, y, size)
+            created.append(self)
+
+    with mock.patch("entities.asteroid.Asteroid", CapturingAsteroid):
+        a.spawn_children()
+    assert any(c.element == Element.SOLAR for c in created)

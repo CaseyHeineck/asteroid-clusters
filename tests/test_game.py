@@ -6,7 +6,6 @@ from game import Game
 from core import constants as C
 from entities.drone import KineticDrone, PlasmaDrone, ExplosiveDrone, LaserDrone, SentinelDrone
 
-
 def make_game_stub():
     g = Game.__new__(Game)
     g.current_state = C.MAIN_MENU
@@ -21,11 +20,9 @@ def make_game_stub():
     g._current_shop = MagicMock()
     return g
 
-
 class FakePlayer:
     def __init__(self):
         self.position = pygame.Vector2(0, 0)
-
 
 # --- wrap_object ---
 def test_wrap_object_past_right_edge_wraps_left():
@@ -58,7 +55,6 @@ def test_wrap_object_within_bounds_is_unchanged():
     g.wrap_object(obj)
     assert obj.position.x == pytest.approx(100.0)
     assert obj.position.y == pytest.approx(200.0)
-
 
 # --- state transitions ---
 def test_on_resume_sets_state_to_game_running():
@@ -97,7 +93,6 @@ def test_on_mancer_back_resets_shop_mode_to_hub():
     g.on_mancer_back()
     assert g.shop_mode == "hub"
 
-
 # --- enter_drone_choice ---
 def test_enter_drone_choice_with_empty_pending_sets_game_running():
     g = make_game_stub()
@@ -105,7 +100,6 @@ def test_enter_drone_choice_with_empty_pending_sets_game_running():
     g.current_state = C.DRONE_CHOICE
     g.enter_drone_choice()
     assert g.current_state == C.GAME_RUNNING
-
 
 # --- _apply_banish_ability ---
 def test_banish_sentinel_enables_player_life_regen():
@@ -157,7 +151,6 @@ def test_banish_ability_is_no_op_when_player_has_no_drones():
     g.player.drones = []
     g._apply_banish_ability(KineticDrone)
     g.HUD.show_banish_notify.assert_not_called()
-
 
 # --- apply_upgrade ---
 def test_apply_upgrade_does_nothing_when_essence_insufficient():
@@ -211,3 +204,85 @@ def test_apply_upgrade_only_affects_matching_drone_class():
     g.player.drones = [kinetic, plasma]
     g.apply_upgrade(KineticDrone, "damage")
     assert plasma.damage_multiplier == original_plasma_mult
+
+def test_apply_upgrade_damage_increases_laser_drone_damage_directly():
+    g = make_game_stub()
+    g.essence.spend.return_value = True
+    drone = LaserDrone(FakePlayer(), [])
+    original = drone.damage
+    g.player.drones = [drone]
+    g.apply_upgrade(LaserDrone, "damage")
+    assert drone.damage > original
+
+def test_apply_upgrade_shield_health_increases_sentinel_shield_max_health():
+    g = make_game_stub()
+    g.essence.spend.return_value = True
+    drone = SentinelDrone(FakePlayer(), [])
+    drone.player_shield = None
+    original = drone.shield_max_health
+    g.player.drones = [drone]
+    g.apply_upgrade(SentinelDrone, "shield_health")
+    assert drone.shield_max_health == original + C.SHOP_SHIELD_HEALTH_INCREASE
+
+def test_apply_upgrade_shield_health_updates_live_shield_max_health():
+    g = make_game_stub()
+    g.essence.spend.return_value = True
+    drone = SentinelDrone(FakePlayer(), [])
+    fake_shield = SimpleNamespace(max_health=drone.shield_max_health)
+    drone.player_shield = fake_shield
+    original = fake_shield.max_health
+    g.player.drones = [drone]
+    g.apply_upgrade(SentinelDrone, "shield_health")
+    assert fake_shield.max_health == original + C.SHOP_SHIELD_HEALTH_INCREASE
+
+def test_apply_upgrade_repair_rate_reduces_sentinel_repair_timer():
+    g = make_game_stub()
+    g.essence.spend.return_value = True
+    drone = SentinelDrone(FakePlayer(), [])
+    original = drone.shield_repair_timer_base
+    g.player.drones = [drone]
+    g.apply_upgrade(SentinelDrone, "repair_rate")
+    assert drone.shield_repair_timer_base < original
+
+# --- on_shop_infuse ---
+def test_on_shop_infuse_uses_infuse_cost_when_drone_has_no_element():
+    g = make_game_stub()
+    g.essence.spend_elemental.return_value = False
+    g.elem_mancer_menus = {}
+    from core.element import Element
+    drone = KineticDrone(FakePlayer(), [])
+    drone.element = None
+    g.on_shop_infuse(drone, Element.SOLAR)
+    g.essence.spend_elemental.assert_called_with(C.WIZARD_INFUSE_COST)
+
+def test_on_shop_infuse_uses_overwrite_cost_when_drone_already_infused():
+    g = make_game_stub()
+    g.essence.spend_elemental.return_value = False
+    g.elem_mancer_menus = {}
+    from core.element import Element
+    drone = KineticDrone(FakePlayer(), [])
+    drone.element = Element.CRYO
+    g.on_shop_infuse(drone, Element.SOLAR)
+    g.essence.spend_elemental.assert_called_with(C.WIZARD_OVERWRITE_COST)
+
+def test_on_shop_infuse_does_not_change_element_when_spend_fails():
+    g = make_game_stub()
+    g.essence.spend_elemental.return_value = False
+    g.elem_mancer_menus = {}
+    from core.element import Element
+    drone = KineticDrone(FakePlayer(), [])
+    drone.element = None
+    g.on_shop_infuse(drone, Element.SOLAR)
+    assert drone.element is None
+
+def test_on_shop_infuse_sets_drone_element_on_success():
+    g = make_game_stub()
+    g.essence.spend_elemental.return_value = True
+    g.elem_mancer_menus = {}
+    from core.element import Element
+    from unittest.mock import patch
+    drone = KineticDrone(FakePlayer(), [])
+    drone.element = None
+    with patch("game.create_elementalmancer_menu", return_value=MagicMock()):
+        g.on_shop_infuse(drone, Element.SOLAR)
+    assert drone.element == Element.SOLAR

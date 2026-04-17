@@ -1,7 +1,7 @@
+import core.logger as logger_module
 import json
 import os
 import pytest
-import core.logger as logger_module
 from core.logger import log_event
 
 @pytest.fixture(autouse=True)

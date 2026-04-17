@@ -1,8 +1,8 @@
 import pygame
-from unittest.mock import patch
-from ui.shop import Shop
 from core import constants as C
 from core.element import ALL_ELEMENTS
+from ui.shop import Shop
+from unittest.mock import patch
 
 def make_shop():
     shop = object.__new__(Shop)

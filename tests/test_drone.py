@@ -1,9 +1,9 @@
-import pytest
 import pygame
-from entities.drone import Drone, ExplosiveDrone, KineticDrone, LaserDrone, PlasmaDrone, SentinelDrone
-from entities.projectile import Rocket, Kinetic, Plasma
-from ui.visualeffect import MuzzleFlareVE
+import pytest
 from core import constants as C
+from entities.drone import Drone, ExplosiveDrone, KineticDrone, LaserDrone, PlasmaDrone, SentinelDrone
+from entities.projectile import Kinetic, Plasma, Rocket
+from ui.visualeffect import MuzzleFlareVE
 
 class FakePlayer:
     def __init__(self):
@@ -26,7 +26,6 @@ class FakeSentinelPlayer:
         return True
 
 # --- Drone.collides_with ---
-# Drones never participate in physical collisions — they are attached to the player
 def test_drone_collides_with_always_returns_false():
     drone = LaserDrone(FakePlayer(), [])
     other = LaserDrone(FakePlayer(), [])
@@ -80,21 +79,19 @@ def test_lerp_color_clamps_t_above_one():
     assert result == (100, 100, 100)
 
 # --- LaserDrone.get_platform_color ---
-# Fully charged returns the last (hottest) color; uncharged returns the first
 def test_platform_color_when_fully_charged_is_last_in_sequence():
     drone = LaserDrone(FakePlayer(), [])
-    drone.weapons_free_timer = 0  # fully charged
+    drone.weapons_free_timer = 0
     color = drone.get_platform_color()
     assert color == C.LASER_RED
 
 def test_platform_color_when_uncharged_is_first_in_sequence():
     drone = LaserDrone(FakePlayer(), [])
-    drone.weapons_free_timer = drone.weapons_free_timer_max  # just fired
+    drone.weapons_free_timer = drone.weapons_free_timer_max
     color = drone.get_platform_color()
     assert color == C.INDIGO
 
 # --- Drone.acquire_target ---
-# Picks the asteroid closest to the player, not the drone
 class FakeAsteroid:
     def __init__(self, x, y, health=10):
         self.position = pygame.Vector2(x, y)
@@ -270,3 +267,121 @@ def test_plasma_drone_weapons_free_returns_zero():
     player = FakeSentinelPlayer()
     drone = PlasmaDrone(player, [])
     assert drone.weapons_free() == 0
+
+# --- Drone.shoot (timer reset after firing) ---
+def test_shoot_sets_timer_to_max_after_firing():
+    Rocket.containers = ()
+    player = FakeSentinelPlayer()
+    drone = ExplosiveDrone(player, [])
+    drone.weapons_free_timer = 0
+    drone.target = FakeAsteroid(10, 0)
+    drone.shoot()
+    assert drone.weapons_free_timer == drone.weapons_free_timer_max
+
+# --- Drone.update (timer decrement) ---
+def test_update_decrements_weapons_free_timer():
+    drone = LaserDrone(FakePlayer(), [])
+    drone.weapons_free_timer = 1.0
+    drone.update(0.4)
+    assert drone.weapons_free_timer == pytest.approx(0.6, abs=0.001)
+
+def test_update_clamps_timer_to_zero():
+    drone = LaserDrone(FakePlayer(), [])
+    drone.weapons_free_timer = 0.1
+    drone.update(1.0)
+    assert drone.weapons_free_timer == 0.0
+
+# --- ExplosiveDrone.update (launch animation timer) ---
+def test_explosive_drone_update_decrements_launch_animation_timer():
+    Rocket.containers = ()
+    player = FakeSentinelPlayer()
+    drone = ExplosiveDrone(player, [])
+    drone.launch_animation_timer = 1.0
+    drone.update(0.3)
+    assert drone.launch_animation_timer == pytest.approx(0.7, abs=0.001)
+
+def test_explosive_drone_update_clamps_launch_timer_to_zero():
+    Rocket.containers = ()
+    player = FakeSentinelPlayer()
+    drone = ExplosiveDrone(player, [])
+    drone.launch_animation_timer = 0.1
+    drone.update(5.0)
+    assert drone.launch_animation_timer == 0.0
+
+# --- KineticDrone.acquire_target (range filtering) ---
+def test_kinetic_acquire_target_ignores_asteroids_outside_range():
+    player = FakePlayer()
+    player.position = pygame.Vector2(0, 0)
+    drone = KineticDrone(player, [])
+    drone.position = pygame.Vector2(0, 0)
+    far = FakeAsteroid(C.KINETIC_DRONE_WEAPONS_RANGE + 100, 0)
+    drone.asteroids = [far]
+    drone.acquire_target()
+    assert drone.target is None
+
+def test_kinetic_acquire_target_picks_asteroid_within_range():
+    player = FakePlayer()
+    player.position = pygame.Vector2(0, 0)
+    drone = KineticDrone(player, [])
+    drone.position = pygame.Vector2(0, 0)
+    near = FakeAsteroid(10, 0)
+    drone.asteroids = [near]
+    drone.acquire_target()
+    assert drone.target is near
+
+# --- LaserDrone.acquire_target (same-health tiebreaker) ---
+def test_laser_acquire_target_picks_closest_to_player_when_health_tied():
+    player = FakePlayer()
+    player.position = pygame.Vector2(0, 0)
+    close = FakeAsteroid(10, 0, health=10)
+    far = FakeAsteroid(50, 0, health=10)
+    drone = LaserDrone(player, [close, far])
+    drone.acquire_target()
+    assert drone.target is close
+
+# --- SentinelDrone.shield_sentinel (additional cases) ---
+def test_sentinel_does_not_create_shield_when_create_timer_active():
+    drone = SentinelDrone(FakeSentinelPlayer(), [])
+    drone.player_shield = None
+    drone.shield_create_timer = 1.0
+    drone.shield_sentinel(0)
+    assert drone.player_shield is None
+
+def test_sentinel_does_not_repair_when_shield_at_full_health():
+    player = FakeSentinelPlayer()
+    drone = SentinelDrone(player, [])
+    drone.shield_create_timer = 0
+    drone.shield_sentinel(0)
+    shield = drone.player_shield
+    pygame.sprite.Group(shield)
+    assert shield.health == shield.max_health
+    drone.shield_repair_timer = 0
+    drone.shield_sentinel(0)
+    assert shield.health == shield.max_health
+
+def test_sentinel_repair_timer_resets_after_repair():
+    player = FakeSentinelPlayer()
+    drone = SentinelDrone(player, [])
+    drone.shield_create_timer = 0
+    drone.shield_sentinel(0)
+    shield = drone.player_shield
+    pygame.sprite.Group(shield)
+    shield.health = shield.max_health - 3
+    drone.shield_repair_timer = 0
+    drone.shield_sentinel(0)
+    assert drone.shield_repair_timer > 0
+
+def test_sentinel_calls_add_repaired_on_combat_stats():
+    player = FakeSentinelPlayer()
+    drone = SentinelDrone(player, [])
+    drone.shield_create_timer = 0
+    drone.shield_sentinel(0)
+    shield = drone.player_shield
+    pygame.sprite.Group(shield)
+    shield.health = shield.max_health - 3
+    drone.shield_repair_timer = 0
+    repaired_calls = []
+    player.game.combat_stats.add_repaired = lambda src, amt: repaired_calls.append((src, amt))
+    drone.shield_sentinel(0)
+    assert len(repaired_calls) == 1
+    assert repaired_calls[0][1] == 1

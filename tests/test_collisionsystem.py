@@ -1,9 +1,9 @@
-import pytest
 import pygame
-from types import SimpleNamespace
-from unittest.mock import MagicMock
-from systems.collisionsystem import CollisionSystem
+import pytest
 from core import constants as C
+from types import SimpleNamespace
+from systems.collisionsystem import CollisionSystem
+from unittest.mock import MagicMock
 
 class FakeOrb:
     def __init__(self, x, y, value=5):

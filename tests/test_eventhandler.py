@@ -1,7 +1,7 @@
 import pygame
+from core import constants as C
 from types import SimpleNamespace
 from systems.eventhandler import EventHandler
-from core import constants as C
 
 def make_event(key):
     return SimpleNamespace(key=key)

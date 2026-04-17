@@ -1,6 +1,6 @@
 import pygame
-from entities.shield import Shield
 from core import constants as C
+from entities.shield import Shield
 
 class FakeCombatStats:
     def add_absorbed(self, source, amount): pass

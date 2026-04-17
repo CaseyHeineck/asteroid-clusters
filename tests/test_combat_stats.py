@@ -70,7 +70,6 @@ def test_record_damage_event_tracks_actual_damage():
     assert stats.damage_dealt["player"] == 4
 
 def test_record_damage_event_caps_at_health_before():
-    # Can't deal more damage than the target had health
     stats = CombatStats()
     stats.record_damage_event(source="player", health_before=5, attempted_damage=100)
     assert stats.damage_dealt["player"] == 5

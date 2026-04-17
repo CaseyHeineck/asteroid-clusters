@@ -1,6 +1,6 @@
 import math
-import random
 import pygame
+import random
 from core import constants as C
 from core.element import ALL_ELEMENTS
 

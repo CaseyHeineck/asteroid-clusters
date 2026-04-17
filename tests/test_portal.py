@@ -1,7 +1,7 @@
-import pytest
 import pygame
-from entities.portal import Portal
+import pytest
 from core import constants as C
+from entities.portal import Portal
 
 # --- position (edge placement from __init__) ---
 def test_north_portal_positioned_at_top_center():

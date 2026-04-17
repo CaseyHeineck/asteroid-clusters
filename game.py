@@ -1,6 +1,6 @@
 import os
-import random
 import pygame
+import random
 import sys
 from core import constants as C
 from core.element import ALL_ELEMENTS
@@ -8,21 +8,21 @@ from core.logger import *
 from entities.asteroid import Asteroid
 from entities.asteroidfield import AsteroidField
 from entities.drone import Drone, ExplosiveDrone, KineticDrone, LaserDrone, PlasmaDrone, SentinelDrone
-from entities.experiorb import ExpOrb
-from entities.essenceorb import EssenceOrb
 from entities.elementalessenceorb import ElementalEssenceOrb
+from entities.essenceorb import EssenceOrb
+from entities.experiorb import ExpOrb
 from entities.player import Player
 from entities.projectile import Projectile
 from entities.shield import Shield
 from systems.collisionsystem import CollisionSystem
+from systems.essence import EssenceSystem
 from systems.eventhandler import EventHandler
 from systems.experience import ExperienceSystem
-from systems.essence import EssenceSystem
 from systems.mapsystem import MapSystem
-from ui.endgamereport import CombatStats
 from ui.display import Display
-from ui.minimap import MiniMap
+from ui.endgamereport import CombatStats
 from ui.menus import *
+from ui.minimap import MiniMap
 from ui.starfield import StarField
 from ui.visualeffect import *
 
@@ -403,7 +403,6 @@ class Game:
         self._restore_menu_cursor(self.elem_mancer_menus[element], cursor_idx)
 
     def apply_upgrade(self, drone_class, upgrade_type):
-        from entities.drone import LaserDrone, SentinelDrone
         cls_name = drone_class.__name__
         key = (cls_name, upgrade_type)
         count = self.upgrade_counts.get(key, 0)

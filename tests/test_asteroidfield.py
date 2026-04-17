@@ -1,9 +1,9 @@
-import pytest
 import pygame
+import pytest
 from unittest.mock import patch
-from entities.asteroidfield import AsteroidField
-from entities.asteroid import Asteroid
 from core import constants as C
+from entities.asteroid import Asteroid
+from entities.asteroidfield import AsteroidField
 
 def make_field():
     AsteroidField.containers = ()

@@ -1,4 +1,4 @@
-from systems.gameplayeffect import SingleTargetEffect, PlasmaBurnSTE, OverkillSTE
+from systems.gameplayeffect import OverkillSTE, PlasmaBurnSTE, SingleTargetEffect
 
 # --- SingleTargetEffect.merge ---
 def test_merge_keeps_longer_duration():

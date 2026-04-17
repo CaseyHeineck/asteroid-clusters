@@ -1,10 +1,11 @@
-import pytest
 import pygame
-from types import SimpleNamespace
-from unittest.mock import MagicMock, patch
-from game import Game
+import pytest
 from core import constants as C
-from entities.drone import KineticDrone, PlasmaDrone, ExplosiveDrone, LaserDrone, SentinelDrone
+from game import Game
+from types import SimpleNamespace
+from core.element import Element
+from entities.drone import ExplosiveDrone, KineticDrone, LaserDrone, PlasmaDrone, SentinelDrone
+from unittest.mock import MagicMock, patch, patch
 
 def make_game_stub():
     g = Game.__new__(Game)
@@ -81,7 +82,6 @@ def test_on_enter_technomancer_sets_shop_mode():
     assert g.shop_mode == "technomancer"
 
 def test_on_enter_elementalmancer_sets_shop_mode_to_element():
-    from core.element import Element
     g = make_game_stub()
     g.on_enter_elementalmancer(Element.CRYO)
     assert g.shop_mode == Element.CRYO
@@ -249,7 +249,6 @@ def test_on_shop_infuse_uses_infuse_cost_when_drone_has_no_element():
     g = make_game_stub()
     g.essence.spend_elemental.return_value = False
     g.elem_mancer_menus = {}
-    from core.element import Element
     drone = KineticDrone(FakePlayer(), [])
     drone.element = None
     g.on_shop_infuse(drone, Element.SOLAR)
@@ -259,7 +258,6 @@ def test_on_shop_infuse_uses_overwrite_cost_when_drone_already_infused():
     g = make_game_stub()
     g.essence.spend_elemental.return_value = False
     g.elem_mancer_menus = {}
-    from core.element import Element
     drone = KineticDrone(FakePlayer(), [])
     drone.element = Element.CRYO
     g.on_shop_infuse(drone, Element.SOLAR)
@@ -269,7 +267,6 @@ def test_on_shop_infuse_does_not_change_element_when_spend_fails():
     g = make_game_stub()
     g.essence.spend_elemental.return_value = False
     g.elem_mancer_menus = {}
-    from core.element import Element
     drone = KineticDrone(FakePlayer(), [])
     drone.element = None
     g.on_shop_infuse(drone, Element.SOLAR)
@@ -279,8 +276,6 @@ def test_on_shop_infuse_sets_drone_element_on_success():
     g = make_game_stub()
     g.essence.spend_elemental.return_value = True
     g.elem_mancer_menus = {}
-    from core.element import Element
-    from unittest.mock import patch
     drone = KineticDrone(FakePlayer(), [])
     drone.element = None
     with patch("game.create_elementalmancer_menu", return_value=MagicMock()):

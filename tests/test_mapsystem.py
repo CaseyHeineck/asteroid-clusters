@@ -1,8 +1,8 @@
 import pygame
-from types import SimpleNamespace
-from unittest.mock import MagicMock, patch
-from systems.mapsystem import MapSystem
 from core import constants as C
+from types import SimpleNamespace
+from systems.mapsystem import MapSystem
+from unittest.mock import MagicMock, patch
 
 def make_portal(unlocked):
     return SimpleNamespace(unlocked=unlocked)

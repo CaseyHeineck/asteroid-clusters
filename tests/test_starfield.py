@@ -1,6 +1,6 @@
 import pygame
-from ui.starfield import StarField
 from core import constants as C
+from ui.starfield import StarField
 
 # --- _generate ---
 def test_generate_creates_correct_star_count():

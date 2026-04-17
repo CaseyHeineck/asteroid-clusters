@@ -1,9 +1,10 @@
-import pytest
 import pygame
+import pytest
 from collections import defaultdict
-from unittest.mock import patch
-from entities.player import Player
 from core import constants as C
+from entities.drone import LaserDrone
+from entities.player import Player
+from unittest.mock import patch
 
 # --- approach_zero ---
 def test_approach_zero_decrements_positive_value():
@@ -177,14 +178,14 @@ def test_distance_to_segment_before_start_uses_start_point():
     p = Player(0, 0)
     start = pygame.Vector2(0, 0)
     end = pygame.Vector2(10, 0)
-    point = pygame.Vector2(-3, 4)  # behind start, 5 away
+    point = pygame.Vector2(-3, 4)
     assert p.distance_point_to_segment(point, start, end) == pytest.approx(5.0, abs=0.001)
 
 def test_distance_to_segment_beyond_end_uses_end_point():
     p = Player(0, 0)
     start = pygame.Vector2(0, 0)
     end = pygame.Vector2(10, 0)
-    point = pygame.Vector2(13, 4)  # past end, 5 away from (10,0)
+    point = pygame.Vector2(13, 4)
     assert p.distance_point_to_segment(point, start, end) == pytest.approx(5.0, abs=0.001)
 
 def test_distance_to_zero_length_segment_is_distance_to_point():
@@ -202,7 +203,7 @@ class FakeDrone:
 def test_rebalance_drones_no_op_when_empty():
     p = Player(0, 0)
     p.drones = []
-    p.rebalance_drones()  # should not raise
+    p.rebalance_drones()
 
 def test_rebalance_single_drone_preserves_angle():
     p = Player(0, 0)
@@ -314,3 +315,92 @@ def test_life_regen_timer_does_not_advance_when_regen_disabled():
     p.life_regen_timer = 0
     run_update(p, 5.0)
     assert p.life_regen_timer == pytest.approx(0.0, abs=0.001)
+
+# --- brake ---
+def test_brake_reduces_forward_speed():
+    p = Player(0, 0)
+    p.forward_speed = 100
+    p.brake(1.0)
+    assert p.forward_speed < 100
+
+def test_brake_reduces_perpendicular_speed():
+    p = Player(0, 0)
+    p.perpendicular_speed = 100
+    p.brake(1.0)
+    assert p.perpendicular_speed < 100
+
+def test_brake_does_not_make_forward_speed_negative():
+    p = Player(0, 0)
+    p.forward_speed = 1
+    p.brake(100.0)
+    assert p.forward_speed == 0
+
+# --- sync_local_speeds_from_velocity ---
+def test_sync_local_speeds_sets_forward_speed_from_velocity():
+    p = Player(0, 0)
+    p.rotation = 0
+    p.velocity = pygame.Vector2(0, 10)
+    p.sync_local_speeds_from_velocity()
+    assert p.forward_speed == pytest.approx(10.0, abs=0.01)
+
+def test_sync_local_speeds_sets_perpendicular_speed_from_velocity():
+    p = Player(0, 0)
+    p.rotation = 0
+    p.velocity = pygame.Vector2(5, 0)
+    p.sync_local_speeds_from_velocity()
+    assert p.perpendicular_speed == pytest.approx(-5.0, abs=0.01)
+
+def test_sync_local_speeds_zero_velocity_gives_zero_speeds():
+    p = Player(0, 0)
+    p.velocity = pygame.Vector2(0, 0)
+    p.sync_local_speeds_from_velocity()
+    assert p.forward_speed == pytest.approx(0.0, abs=0.01)
+    assert p.perpendicular_speed == pytest.approx(0.0, abs=0.01)
+
+# --- add_drone ---
+def test_add_drone_appends_to_drones_list():
+    p = Player(0, 0)
+    p.add_drone(LaserDrone, [])
+    assert len(p.drones) == 1
+
+def test_add_drone_returns_new_drone_instance():
+    p = Player(0, 0)
+    drone = p.add_drone(LaserDrone, [])
+    assert isinstance(drone, LaserDrone)
+
+def test_add_drone_rebalances_two_drones_180_apart():
+    p = Player(0, 0)
+    d1 = p.add_drone(LaserDrone, [])
+    d2 = p.add_drone(LaserDrone, [])
+    assert abs(d2.orbit_angle - d1.orbit_angle) == pytest.approx(180, abs=0.001)
+
+# --- apply_collision_to_asteroid ---
+class FakeAsteroidPhysics:
+    def __init__(self, x, y, radius=20, weight=10):
+        self.position = pygame.Vector2(x, y)
+        self.velocity = pygame.Vector2(0, 0)
+        self.radius = radius
+        self.weight = weight
+
+def test_apply_collision_pushes_asteroid_away_from_player():
+    p = Player(0, 0)
+    p.velocity = pygame.Vector2(0, 50)
+    asteroid = FakeAsteroidPhysics(0, p.radius + 30)
+    p.apply_collision_to_asteroid(asteroid)
+    assert asteroid.velocity.y > 0
+
+def test_apply_collision_no_effect_when_already_moving_apart():
+    p = Player(0, 0)
+    p.velocity = pygame.Vector2(0, -50)
+    asteroid = FakeAsteroidPhysics(0, p.radius + 30)
+    asteroid.velocity = pygame.Vector2(0, 100)
+    initial_vel = asteroid.velocity.copy()
+    p.apply_collision_to_asteroid(asteroid)
+    assert asteroid.velocity == initial_vel
+
+def test_apply_collision_caps_asteroid_speed_at_max():
+    p = Player(0, 0)
+    p.velocity = pygame.Vector2(0, C.ASTEROID_MAX_SPEED * 100)
+    asteroid = FakeAsteroidPhysics(0, p.radius + 30)
+    p.apply_collision_to_asteroid(asteroid)
+    assert asteroid.velocity.length() <= C.ASTEROID_MAX_SPEED + 0.001

@@ -1,5 +1,5 @@
-from systems.experience import ExperienceSystem
 from core import constants as C
+from systems.experience import ExperienceSystem
 
 class FakeHUD:
     def update_level(self, level, xp_current, xp_needed): pass
@@ -39,7 +39,6 @@ def test_xp_to_reach_level_increases_each_level():
         assert exp.xp_to_reach_level(level) > exp.xp_to_reach_level(level - 1)
 
 def test_xp_to_reach_level_cap_equals_past_cap():
-    # Asking for level 36+ should return the same as asking for cap+1
     exp = ExperienceSystem(None)
     assert exp.xp_to_reach_level(C.EXP_LEVEL_CAP + 1) == exp.xp_to_reach_level(C.EXP_LEVEL_CAP + 5)
 
@@ -64,7 +63,6 @@ def test_xp_needed_at_level_cap_is_zero():
     assert exp.xp_needed_this_level() == 0
 
 # --- is_drone_choice_level ---
-# Starting drone covers choice 1. Leveling gives 4 more choices: 2, 4, 8, 12.
 def test_level_2_is_a_drone_choice_level():
     exp = ExperienceSystem(None)
     assert exp.is_drone_choice_level(2)

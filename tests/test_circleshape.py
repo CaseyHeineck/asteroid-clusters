@@ -1,9 +1,8 @@
-import pytest
 import pygame
+import pytest
 from core.circleshape import CircleShape
 from systems.gameplayeffect import GameplayEffect, SingleTargetEffect
 
-# Helper subclasses used to test that different types don't merge
 class EffectTypeA(SingleTargetEffect): pass
 class EffectTypeB(SingleTargetEffect): pass
 
@@ -129,7 +128,6 @@ def test_separate_from_no_op_when_not_overlapping():
 
 # --- resolve_impact ---
 def test_resolve_impact_transfers_velocity_in_elastic_equal_mass_collision():
-    # Equal mass elastic collision: moving body stops, stationary body moves
     a = CircleShape(0, 0, 10, bounciness=1.0)
     b = CircleShape(25, 0, 10, bounciness=1.0)
     a.velocity = pygame.Vector2(100, 0)
@@ -141,7 +139,7 @@ def test_resolve_impact_transfers_velocity_in_elastic_equal_mass_collision():
 def test_resolve_impact_no_op_when_objects_moving_apart():
     a = CircleShape(0, 0, 10, bounciness=1.0)
     b = CircleShape(25, 0, 10, bounciness=1.0)
-    a.velocity = pygame.Vector2(-100, 0)  # moving away from b
+    a.velocity = pygame.Vector2(-100, 0)
     b.velocity = pygame.Vector2(0, 0)
     a.resolve_impact(b)
     assert a.velocity.x == pytest.approx(-100, abs=0.001)

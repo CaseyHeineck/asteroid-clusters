@@ -1,7 +1,7 @@
-from types import SimpleNamespace
-from unittest.mock import patch
-from systems.airspace import AirSpace
 from core import constants as C
+from types import SimpleNamespace
+from systems.airspace import AirSpace
+from unittest.mock import patch
 
 def make_space_at(gx, gy, portals=None):
     space = object.__new__(AirSpace)

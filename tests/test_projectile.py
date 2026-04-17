@@ -1,7 +1,7 @@
 import pygame
-from core.element import Element
 from core import constants as C
-from entities.projectile import Projectile, Kinetic, Plasma, Rocket, _elemental_damage
+from core.element import Element
+from entities.projectile import Kinetic, Plasma, Projectile, Rocket, _elemental_damage
 from systems.gameplayeffect import OverkillSTE, PlasmaBurnSTE
 from ui.visualeffect import RocketHitExplosionVE
 

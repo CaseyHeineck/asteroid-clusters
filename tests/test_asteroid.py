@@ -1,20 +1,17 @@
-import pytest
 import pygame
+import pytest
 import unittest.mock as mock
-from entities.asteroid import Asteroid
 from core import constants as C
 from core.element import Element
+from entities.asteroid import Asteroid
 
 # --- split_factor ---
-# Piecewise function: maps spawn angle to a [MIN, 1.0] velocity scale factor.
-# Four quadrants each produce a symmetric 0→1→0 curve; values below MIN are clamped.
 def test_split_factor_at_45_degrees():
     a = Asteroid(0, 0, 1)
     assert a.split_factor(45) == pytest.approx(0.5, abs=0.001)
 
 def test_split_factor_at_90_clamps_to_minimum():
     a = Asteroid(0, 0, 1)
-    # 1 - (90/90) = 0, which is below MIN, so returns MIN
     assert a.split_factor(90) == pytest.approx(C.ASTEROID_SPLIT_FACTOR_MIN, abs=0.001)
 
 def test_split_factor_at_135_degrees():
@@ -52,9 +49,8 @@ def test_split_factor_raises_on_zero_angle():
         a.split_factor(0)
 
 # --- damaged (non-lethal path only) ---
-# kill() is not testable without display — only test paths where health stays above 0
 def test_damaged_reduces_health():
-    a = Asteroid(0, 0, 2)  # size 2 → full_health = 20
+    a = Asteroid(0, 0, 2)
     a.damaged(5)
     assert a.health == a.full_health - 5
 
@@ -64,7 +60,7 @@ def test_damaged_returns_zero_when_not_lethal():
     assert result == 0
 
 def test_damaged_health_decreases_by_exact_amount():
-    a = Asteroid(0, 0, 3)  # full_health = 30
+    a = Asteroid(0, 0, 3)
     a.damaged(10)
     assert a.health == 20
     a.damaged(7)
@@ -95,25 +91,74 @@ def test_spawn_children_returns_true_when_reductions_leave_valid_children():
     a.child_count_reduction = 1
     assert a.spawn_children() is True
 
+def capture_children(parent):
+    created = []
+    class _Capturing(Asteroid):
+        def __init__(self, x, y, size):
+            super().__init__(x, y, size)
+            created.append(self)
+    with mock.patch("entities.asteroid.Asteroid", _Capturing):
+        parent.spawn_children()
+    return created
+
 def test_spawn_children_element_is_not_propagated_without_parent_element():
     Asteroid.containers = ()
     a = Asteroid(0, 0, 3)
     a.element = None
     a.velocity = C.ASTEROID_MIN_SPEED * pygame.Vector2(1, 0)
-    a.spawn_children()
+    children = capture_children(a)
+    assert all(c.element is None for c in children)
 
 def test_spawn_children_at_least_one_child_inherits_parent_element():
     Asteroid.containers = ()
     a = Asteroid(0, 0, 3)
     a.element = Element.SOLAR
     a.velocity = C.ASTEROID_MIN_SPEED * pygame.Vector2(1, 0)
-    created = []
+    children = capture_children(a)
+    assert any(c.element == Element.SOLAR for c in children)
 
-    class CapturingAsteroid(Asteroid):
-        def __init__(self, x, y, size):
-            super().__init__(x, y, size)
-            created.append(self)
+def test_spawn_children_creates_correct_child_count():
+    Asteroid.containers = ()
+    a = Asteroid(0, 0, 3)
+    a.velocity = C.ASTEROID_MIN_SPEED * pygame.Vector2(1, 0)
+    children = capture_children(a)
+    assert len(children) == 2
 
-    with mock.patch("entities.asteroid.Asteroid", CapturingAsteroid):
-        a.spawn_children()
-    assert any(c.element == Element.SOLAR for c in created)
+def test_spawn_children_creates_one_child_for_size_two():
+    Asteroid.containers = ()
+    a = Asteroid(0, 0, 2)
+    a.velocity = C.ASTEROID_MIN_SPEED * pygame.Vector2(1, 0)
+    children = capture_children(a)
+    assert len(children) == 1
+
+# --- get_zigzag_points ---
+def test_get_zigzag_points_zero_length_direction_returns_start_and_end():
+    a = Asteroid(0, 0, 1)
+    start = pygame.Vector2(5, 5)
+    end = pygame.Vector2(5, 5)
+    points = a.get_zigzag_points(start, end, segments=4, jag_amount=5)
+    assert points == [start, end]
+
+def test_get_zigzag_points_returns_segments_plus_one_points():
+    a = Asteroid(0, 0, 1)
+    start = pygame.Vector2(0, 0)
+    end = pygame.Vector2(100, 0)
+    points = a.get_zigzag_points(start, end, segments=4, jag_amount=5)
+    assert len(points) == 5
+
+def test_get_zigzag_points_starts_at_start_and_ends_at_end():
+    a = Asteroid(0, 0, 1)
+    start = pygame.Vector2(10, 20)
+    end = pygame.Vector2(80, 40)
+    points = a.get_zigzag_points(start, end, segments=4, jag_amount=5)
+    assert points[0] == start
+    assert points[-1] == end
+
+def test_get_zigzag_points_with_one_segment_returns_only_endpoints():
+    a = Asteroid(0, 0, 1)
+    start = pygame.Vector2(0, 0)
+    end = pygame.Vector2(50, 0)
+    points = a.get_zigzag_points(start, end, segments=1, jag_amount=5)
+    assert len(points) == 2
+    assert points[0] == start
+    assert points[-1] == end

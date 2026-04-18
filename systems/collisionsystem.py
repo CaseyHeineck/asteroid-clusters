@@ -6,7 +6,7 @@ class CollisionSystem:
 
     def handle(self):
         self.handle_asteroid_collisions()
-        self.handle_exp_orb_pickups()
+        self.handle_enemy_collisions()
         self.handle_essence_orb_pickups()
         self.handle_elemental_essence_orb_pickups()
 
@@ -53,15 +53,52 @@ class CollisionSystem:
                     if score:
                         self.game.HUD.update_score(score)
 
-    def handle_exp_orb_pickups(self):
-        if not self.game.exp_orbs:
-            return
-        player_pos = self.game.player.position
-        to_collect = [orb for orb in list(self.game.exp_orbs)
-                      if player_pos.distance_to(orb.position) <= C.EXP_ORB_PICKUP_RADIUS]
-        for orb in to_collect:
-            self.game.experience.add_xp(orb.value)
-            orb.kill()
+    def handle_enemy_collisions(self):
+        current_space = getattr(self.game, 'current_space', None)
+        for enemy in list(self.game.enemies):
+            enemy_airspace = getattr(enemy, 'airspace', None)
+            same_airspace = (
+                enemy_airspace is None
+                or current_space is None
+                or enemy_airspace == current_space
+            )
+            if same_airspace:
+                self.game.wrap_object(enemy)
+                for projectile in list(self.game.projectiles):
+                    if projectile.stat_source == C.ENEMY:
+                        continue
+                    if projectile.collides_with(enemy):
+                        score, xp = enemy.damaged(projectile.damage,
+                            getattr(projectile, "element", None))
+                        projectile.kill()
+                        if score:
+                            self.game.HUD.update_score(score)
+                        if xp:
+                            self.game.experience.add_xp(xp)
+                if self.game.player.can_be_damaged and self.game.player.collides_with(enemy):
+                    enemy.collide_and_impact(self.game.player)
+                    score_delta, lives = self.game.player.damaged()
+                    if score_delta:
+                        self.game.HUD.update_score(score_delta)
+                    self.game.HUD.update_player_lives(lives)
+                    if self.game.player.game_over:
+                        self.game.on_game_over()
+            else:
+                pos = enemy.position
+                if (pos.x < 0 or pos.x > C.SCREEN_WIDTH
+                        or pos.y < 0 or pos.y > C.SCREEN_HEIGHT):
+                    enemy.airspace = current_space
+        for projectile in list(self.game.projectiles):
+            if projectile.stat_source != C.ENEMY:
+                continue
+            if projectile.collides_with(self.game.player):
+                projectile.kill()
+                score_delta, lives = self.game.player.damaged()
+                if score_delta:
+                    self.game.HUD.update_score(score_delta)
+                self.game.HUD.update_player_lives(lives)
+                if self.game.player.game_over:
+                    self.game.on_game_over()
 
     def handle_essence_orb_pickups(self):
         if not self.game.essence_orbs:

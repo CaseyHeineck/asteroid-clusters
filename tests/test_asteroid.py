@@ -6,7 +6,6 @@ from core.element import Element
 from entities.asteroid import Asteroid
 from entities.elementalessenceorb import ElementalEssenceOrb
 from entities.essenceorb import EssenceOrb
-from entities.experiorb import ExpOrb
 from ui.visualeffect import AsteroidKillExplosionVE, OverkillExplosionVE
 
 # --- split_factor ---
@@ -47,10 +46,9 @@ def test_split_factor_never_below_minimum():
     for angle in range(1, 361):
         assert a.split_factor(angle) >= C.ASTEROID_SPLIT_FACTOR_MIN
 
-def test_split_factor_raises_on_zero_angle():
+def test_split_factor_returns_one_on_zero_angle():
     a = Asteroid(0, 0, 1)
-    with pytest.raises(ValueError):
-        a.split_factor(0)
+    assert a.split_factor(0) == pytest.approx(1.0, abs=0.001)
 
 # --- damaged (non-lethal path only) ---
 def test_damaged_reduces_health():
@@ -135,6 +133,114 @@ def test_spawn_children_creates_one_child_for_size_two():
     children = capture_children(a)
     assert len(children) == 1
 
+def test_spawn_children_large_returns_true():
+    Asteroid.containers = ()
+    a = Asteroid(0, 0, C.ASTEROID_LARGE_THRESHOLD)
+    a.velocity = C.ASTEROID_MIN_SPEED * pygame.Vector2(1, 0)
+    assert a.spawn_children() is True
+
+def test_spawn_children_large_overkill_returns_false():
+    Asteroid.containers = ()
+    a = Asteroid(0, 0, C.ASTEROID_LARGE_THRESHOLD)
+    a.child_size_reduction = 1
+    assert a.spawn_children() is False
+
+def test_spawn_children_large_size_five_produces_exactly_two_children():
+    Asteroid.containers = ()
+    a = Asteroid(0, 0, C.ASTEROID_LARGE_THRESHOLD)
+    a.velocity = C.ASTEROID_MIN_SPEED * pygame.Vector2(1, 0)
+    children = capture_children(a)
+    assert len(children) == 2
+
+def test_spawn_children_large_size_five_children_are_size_four_and_one():
+    Asteroid.containers = ()
+    a = Asteroid(0, 0, C.ASTEROID_LARGE_THRESHOLD)
+    a.velocity = C.ASTEROID_MIN_SPEED * pygame.Vector2(1, 0)
+    children = capture_children(a)
+    sizes = sorted(c.size for c in children)
+    assert sizes == [1, 4]
+
+def test_spawn_children_large_inherits_element_to_at_least_one_child():
+    Asteroid.containers = ()
+    a = Asteroid(0, 0, C.ASTEROID_LARGE_THRESHOLD)
+    a.element = Element.SOLAR
+    a.velocity = C.ASTEROID_MIN_SPEED * pygame.Vector2(1, 0)
+    children = capture_children(a)
+    assert any(c.element == Element.SOLAR for c in children)
+
+def test_spawn_children_large_does_not_propagate_element_without_parent_element():
+    Asteroid.containers = ()
+    a = Asteroid(0, 0, C.ASTEROID_LARGE_THRESHOLD)
+    a.element = None
+    a.velocity = C.ASTEROID_MIN_SPEED * pygame.Vector2(1, 0)
+    children = capture_children(a)
+    assert all(c.element is None for c in children)
+
+# --- _generate_large_split ---
+def test_generate_large_split_size_five_always_returns_4_1():
+    Asteroid.containers = ()
+    a = Asteroid(0, 0, 5)
+    for _ in range(20):
+        assert a._generate_large_split() == [4, 1]
+
+def test_generate_large_split_returns_empty_when_overkill():
+    Asteroid.containers = ()
+    a = Asteroid(0, 0, 8)
+    a.child_size_reduction = 1
+    assert a._generate_large_split() == []
+
+def test_generate_large_split_children_sum_never_exceeds_parent_size():
+    Asteroid.containers = ()
+    for size in range(C.ASTEROID_LARGE_THRESHOLD, C.ASTEROID_MAX_SIZE + 1):
+        a = Asteroid(0, 0, size)
+        for _ in range(30):
+            children = a._generate_large_split()
+            assert sum(children) <= size
+
+def test_generate_large_split_always_returns_at_least_two_children():
+    Asteroid.containers = ()
+    for size in range(C.ASTEROID_LARGE_THRESHOLD, C.ASTEROID_MAX_SIZE + 1):
+        a = Asteroid(0, 0, size)
+        for _ in range(20):
+            children = a._generate_large_split()
+            assert len(children) >= 2
+
+def test_generate_large_split_never_exceeds_six_children():
+    Asteroid.containers = ()
+    for size in range(C.ASTEROID_LARGE_THRESHOLD, C.ASTEROID_MAX_SIZE + 1):
+        a = Asteroid(0, 0, size)
+        for _ in range(20):
+            assert len(a._generate_large_split()) <= C.ASTEROID_LARGE_SPLIT_MAX_CHILDREN
+
+def test_generate_large_split_no_child_exceeds_parent_minus_one():
+    Asteroid.containers = ()
+    for size in range(C.ASTEROID_LARGE_THRESHOLD, C.ASTEROID_MAX_SIZE + 1):
+        a = Asteroid(0, 0, size)
+        for _ in range(20):
+            assert all(c <= size - 1 for c in a._generate_large_split())
+
+def test_generate_large_split_at_most_one_large_child_in_normal_splits():
+    Asteroid.containers = ()
+    a = Asteroid(0, 0, 10)
+    for _ in range(50):
+        children = a._generate_large_split()
+        large_count = sum(1 for c in children if c >= C.ASTEROID_LARGE_THRESHOLD)
+        assert large_count <= 1
+
+def test_generate_large_split_size_16_returns_8_8_when_chance_triggers():
+    Asteroid.containers = ()
+    a = Asteroid(0, 0, C.ASTEROID_MAX_SIZE)
+    with mock.patch("entities.asteroid.random.random", return_value=0.0):
+        assert a._generate_large_split() == [8, 8]
+
+def test_generate_large_split_size_16_normal_path_when_chance_does_not_trigger():
+    Asteroid.containers = ()
+    a = Asteroid(0, 0, C.ASTEROID_MAX_SIZE)
+    with mock.patch("entities.asteroid.random.random", return_value=1.0):
+        children = a._generate_large_split()
+        assert children != [8, 8]
+        assert len(children) >= 2
+
 # --- get_zigzag_points ---
 def test_get_zigzag_points_zero_length_direction_returns_start_and_end():
     a = Asteroid(0, 0, 1)
@@ -170,7 +276,6 @@ def test_get_zigzag_points_with_one_segment_returns_only_endpoints():
 def make_kill_ready_asteroid(size):
     AsteroidKillExplosionVE.containers = ()
     OverkillExplosionVE.containers = ()
-    ExpOrb.containers = ()
     EssenceOrb.containers = ()
     ElementalEssenceOrb.containers = ()
     Asteroid.containers = ()
@@ -215,3 +320,24 @@ def test_kill_with_overkill_triggered_returns_correct_score():
     a.overkill_triggered = True
     score = a.kill()
     assert score == C.BASE_SCORE * 2
+
+def test_kill_large_elemental_drops_double_elemental_essence_amount():
+    a = make_kill_ready_asteroid(C.ASTEROID_LARGE_THRESHOLD)
+    a.element = Element.SOLAR
+    expected = max(1, int(C.ASTEROID_LARGE_THRESHOLD * C.ELEMENTAL_ESSENCE_DROP_BASE
+                          * C.ASTEROID_LARGE_ELEMENTAL_ESSENCE_MULT))
+    with mock.patch("entities.asteroid.ElementalEssenceOrb") as MockOrb:
+        MockOrb.containers = True
+        a.kill()
+    drop_amount = MockOrb.call_args[0][2]
+    assert drop_amount == expected
+
+def test_kill_normal_elemental_drops_base_elemental_essence_amount():
+    a = make_kill_ready_asteroid(C.ASTEROID_KINDS)
+    a.element = Element.SOLAR
+    expected = max(1, int(C.ASTEROID_KINDS * C.ELEMENTAL_ESSENCE_DROP_BASE * 1.0))
+    with mock.patch("entities.asteroid.ElementalEssenceOrb") as MockOrb:
+        MockOrb.containers = True
+        a.kill()
+    drop_amount = MockOrb.call_args[0][2]
+    assert drop_amount == expected

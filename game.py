@@ -8,9 +8,10 @@ from core.logger import *
 from entities.asteroid import Asteroid
 from entities.asteroidfield import AsteroidField
 from entities.drone import Drone, ExplosiveDrone, KineticDrone, LaserDrone, PlasmaDrone, SentinelDrone
+from entities.enemy import Enemy, PlasmaEnemy
+from entities.enemyspawner import EnemySpawner
 from entities.elementalessenceorb import ElementalEssenceOrb
 from entities.essenceorb import EssenceOrb
-from entities.experiorb import ExpOrb
 from entities.player import Player
 from entities.projectile import Projectile
 from entities.shield import Shield
@@ -40,11 +41,12 @@ class Game:
         self.updatable = None
         self.drawable = None
         self.asteroids = None
-        self.exp_orbs = None
         self.essence_orbs = None
         self.elemental_essence_orbs = None
         self.asteroid_field = None
         self.drones = None
+        self.enemies = None
+        self.enemy_spawner = None
         self.shields = None
         self.visual_effects = None
         self.HUD = None
@@ -226,30 +228,33 @@ class Game:
         self.updatable = pygame.sprite.Group()
         self.drawable = pygame.sprite.Group()
         self.asteroids = pygame.sprite.Group()
-        self.exp_orbs = pygame.sprite.Group()
         self.essence_orbs = pygame.sprite.Group()
         self.elemental_essence_orbs = pygame.sprite.Group()
         self.projectiles = pygame.sprite.Group()
         self.drones = pygame.sprite.Group()
+        self.enemies = pygame.sprite.Group()
         self.shields = pygame.sprite.Group()
         self.visual_effects = pygame.sprite.Group()
 
         Asteroid.containers = (self.asteroids, self.updatable, self.drawable)
         AsteroidField.containers = (self.updatable,)
-        ExpOrb.containers = (self.exp_orbs, self.drawable, self.updatable)
         EssenceOrb.containers = (self.essence_orbs, self.drawable, self.updatable)
         Projectile.containers = (self.projectiles, self.drawable, self.updatable)
         Player.containers = (self.updatable, self.drawable)
         Drone.containers = (self.drones, self.drawable, self.updatable)
+        Enemy.containers = (self.enemies, self.drawable, self.updatable)
+        PlasmaEnemy.containers = (self.enemies, self.drawable, self.updatable)
+        EnemySpawner.containers = (self.updatable,)
         Shield.containers = (self.shields, self.drawable, self.updatable)
         VisualEffect.containers = (self.visual_effects, self.drawable, self.updatable)
 
         ElementalEssenceOrb.containers = (self.elemental_essence_orbs, self.drawable, self.updatable)
-        self.asteroid_field = AsteroidField()
+        self.asteroid_field = AsteroidField(self.asteroids)
         self.HUD = Display(10, 10)
         self.combat_stats = CombatStats()
         self.player = Player((C.SCREEN_WIDTH / 2), (C.SCREEN_HEIGHT / 2))
         self.player.game = self
+        self.enemy_spawner = EnemySpawner(self)
         self.experience = ExperienceSystem(self)
         self.essence = EssenceSystem(self)
         self.upgrade_counts = {}
@@ -280,6 +285,12 @@ class Game:
     def on_main_menu(self):
         self.current_state = C.MAIN_MENU
 
+    @property
+    def current_space(self):
+        if self.map_system is None:
+            return None
+        return self.map_system.current_space()
+
     def enter_new_airspace(self, arrival_pos, prev_space, new_space):
         self._save_airspace_state(prev_space)
         for sprite in list(self.projectiles.sprites()):
@@ -289,7 +300,7 @@ class Game:
         if new_space.active_state is not None:
             self._restore_airspace_state(new_space)
         else:
-            self.asteroid_field = AsteroidField()
+            self.asteroid_field = AsteroidField(self.asteroids)
         self.player.position = pygame.Vector2(arrival_pos)
         self.player.velocity *= 0.75
         self.player.forward_speed *= 0.75
@@ -298,15 +309,12 @@ class Game:
     def _save_airspace_state(self, space):
         space.active_state = {
             "asteroids":              list(self.asteroids.sprites()),
-            "exp_orbs":               list(self.exp_orbs.sprites()),
             "essence_orbs":           list(self.essence_orbs.sprites()),
             "elemental_essence_orbs": list(self.elemental_essence_orbs.sprites()),
             "asteroid_field":         self.asteroid_field,
         }
         for sprite in space.active_state["asteroids"]:
             sprite.remove(self.asteroids, self.updatable, self.drawable)
-        for sprite in space.active_state["exp_orbs"]:
-            sprite.remove(self.exp_orbs, self.updatable, self.drawable)
         for sprite in space.active_state["essence_orbs"]:
             sprite.remove(self.essence_orbs, self.updatable, self.drawable)
         for sprite in space.active_state["elemental_essence_orbs"]:
@@ -317,8 +325,6 @@ class Game:
         state = space.active_state
         for sprite in state["asteroids"]:
             sprite.add(self.asteroids, self.updatable, self.drawable)
-        for sprite in state["exp_orbs"]:
-            sprite.add(self.exp_orbs, self.updatable, self.drawable)
         for sprite in state["essence_orbs"]:
             sprite.add(self.essence_orbs, self.updatable, self.drawable)
         for sprite in state.get("elemental_essence_orbs", []):
@@ -415,11 +421,11 @@ class Game:
                 continue
             if upgrade_type == "damage":
                 if isinstance(drone, LaserDrone):
-                    drone.damage = int(drone.damage * (1 + C.SHOP_DAMAGE_INCREASE))
+                    drone.platform.damage = int(drone.platform.damage * (1 + C.SHOP_DAMAGE_INCREASE))
                 else:
-                    drone.damage_multiplier *= (1 + C.SHOP_DAMAGE_INCREASE)
+                    drone.platform.damage_multiplier *= (1 + C.SHOP_DAMAGE_INCREASE)
             elif upgrade_type == "fire_rate":
-                drone.weapons_free_timer_max *= (1 - C.SHOP_FIRE_RATE_INCREASE)
+                drone.platform.weapons_free_timer_max *= (1 - C.SHOP_FIRE_RATE_INCREASE)
             elif upgrade_type == "shield_health" and isinstance(drone, SentinelDrone):
                 drone.shield_max_health += C.SHOP_SHIELD_HEALTH_INCREASE
                 if drone.player_shield:

@@ -181,38 +181,38 @@ def test_apply_upgrade_damage_increases_kinetic_damage_multiplier():
     g = make_game_stub()
     g.essence.spend.return_value = True
     drone = KineticDrone(FakePlayer(), [])
-    original = drone.damage_multiplier
+    original = drone.platform.damage_multiplier
     g.player.drones = [drone]
     g.apply_upgrade(KineticDrone, "damage")
-    assert drone.damage_multiplier > original
+    assert drone.platform.damage_multiplier > original
 
 def test_apply_upgrade_fire_rate_reduces_timer_max():
     g = make_game_stub()
     g.essence.spend.return_value = True
     drone = KineticDrone(FakePlayer(), [])
-    original = drone.weapons_free_timer_max
+    original = drone.platform.weapons_free_timer_max
     g.player.drones = [drone]
     g.apply_upgrade(KineticDrone, "fire_rate")
-    assert drone.weapons_free_timer_max < original
+    assert drone.platform.weapons_free_timer_max < original
 
 def test_apply_upgrade_only_affects_matching_drone_class():
     g = make_game_stub()
     g.essence.spend.return_value = True
     kinetic = KineticDrone(FakePlayer(), [])
     plasma = PlasmaDrone(FakePlayer(), [])
-    original_plasma_mult = plasma.damage_multiplier
+    original_plasma_mult = plasma.platform.damage_multiplier
     g.player.drones = [kinetic, plasma]
     g.apply_upgrade(KineticDrone, "damage")
-    assert plasma.damage_multiplier == original_plasma_mult
+    assert plasma.platform.damage_multiplier == original_plasma_mult
 
 def test_apply_upgrade_damage_increases_laser_drone_damage_directly():
     g = make_game_stub()
     g.essence.spend.return_value = True
     drone = LaserDrone(FakePlayer(), [])
-    original = drone.damage
+    original = drone.platform.damage
     g.player.drones = [drone]
     g.apply_upgrade(LaserDrone, "damage")
-    assert drone.damage > original
+    assert drone.platform.damage > original
 
 def test_apply_upgrade_shield_health_increases_sentinel_shield_max_health():
     g = make_game_stub()

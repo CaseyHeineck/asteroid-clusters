@@ -7,7 +7,6 @@ from core.element import ELEMENT_COLORS
 from core.logger import log_event
 from entities.elementalessenceorb import ElementalEssenceOrb
 from entities.essenceorb import EssenceOrb
-from entities.experiorb import ExpOrb
 from ui.visualeffect import AsteroidKillExplosionVE, OverkillExplosionVE
 
 class Asteroid(CircleShape):
@@ -200,12 +199,6 @@ class Asteroid(CircleShape):
         AsteroidKillExplosionVE(self.position.x, self.position.y, explosion_radius)
         if self.overkill_triggered:
             OverkillExplosionVE(self.position.x, self.position.y, explosion_radius)
-        if ExpOrb.containers and random.random() < C.EXP_ORB_DROP_CHANCE:
-            angle = random.uniform(0, 360)
-            dist = random.uniform(0, self.radius)
-            offset = pygame.Vector2(dist, 0).rotate(angle)
-            ExpOrb(self.position.x + offset.x, self.position.y + offset.y,
-                int(self.size ** C.EXP_ORB_SIZE_EXPONENT * C.EXP_ORB_VALUE_BASE))
         if EssenceOrb.containers and random.random() < C.ESSENCE_ORB_DROP_CHANCE:
             angle = random.uniform(0, 360)
             dist = random.uniform(0, self.radius)
@@ -216,7 +209,9 @@ class Asteroid(CircleShape):
             angle = random.uniform(0, 360)
             dist = random.uniform(0, self.radius)
             offset = pygame.Vector2(dist, 0).rotate(angle)
-            drop_amount = max(1, self.size * C.ELEMENTAL_ESSENCE_DROP_BASE)
+            essence_mult = (C.ASTEROID_LARGE_ELEMENTAL_ESSENCE_MULT
+                            if self.size >= C.ASTEROID_LARGE_THRESHOLD else 1.0)
+            drop_amount = max(1, int(self.size * C.ELEMENTAL_ESSENCE_DROP_BASE * essence_mult))
             ElementalEssenceOrb(self.position.x + offset.x, self.position.y + offset.y,
                 drop_amount, self.element)
         did_split = False
@@ -230,20 +225,27 @@ class Asteroid(CircleShape):
         return score_value
 
     def spawn_children(self):
-        child_size = self.size - 1 - self.child_size_reduction
-        child_count = self.size - 1 - self.child_count_reduction
-        if child_size < 1 or child_count < 1:
+        if self.size >= C.ASTEROID_LARGE_THRESHOLD:
+            children_sizes = self._generate_large_split()
+        else:
+            child_size = self.size - 1 - self.child_size_reduction
+            child_count = self.size - 1 - self.child_count_reduction
+            if child_size < 1 or child_count < 1:
+                return False
+            children_sizes = [child_size] * child_count
+        if not children_sizes:
             return False
-        child_radius = child_size * C.ASTEROID_MIN_RADIUS
         children = []
-        for i in range(child_count):
+        child_count = len(children_sizes)
+        for i, child_size in enumerate(children_sizes):
             range_size = 360 / child_count
-            new_angle = random.uniform(1 + (range_size * i), range_size * (i + 1))
+            new_angle = random.uniform(range_size * i + 1, range_size * (i + 1))
             velocity = self.velocity.rotate(new_angle)
             if velocity.length_squared() == 0:
                 direction = pygame.Vector2(1, 0)
             else:
                 direction = velocity.normalize()
+            child_radius = child_size * C.ASTEROID_MIN_RADIUS
             min_spawn_distance = self.radius - 10
             max_spawn_distance = self.radius + child_radius + 10
             spawn_distance = random.uniform(min_spawn_distance, max_spawn_distance)
@@ -261,6 +263,27 @@ class Asteroid(CircleShape):
                     child.element = self.element
         return True
 
+    def _generate_large_split(self):
+        if self.child_size_reduction > 0:
+            return []
+        n = self.size
+        if n == 5:
+            return [4, 1]
+        if n == C.ASTEROID_MAX_SIZE and random.random() < C.ASTEROID_LARGE_SPLIT_DOUBLE_LARGE_CHANCE:
+            return [8, 8]
+        budget = n
+        children = []
+        large_chance = (n - C.ASTEROID_LARGE_THRESHOLD) / (C.ASTEROID_MAX_SIZE - C.ASTEROID_LARGE_THRESHOLD)
+        if random.random() < large_chance:
+            large_size = random.randint(C.ASTEROID_LARGE_THRESHOLD, n - 1)
+            children.append(large_size)
+            budget -= large_size
+        while budget > 0 and len(children) < C.ASTEROID_LARGE_SPLIT_MAX_CHILDREN:
+            piece = random.randint(1, min(4, budget))
+            children.append(piece)
+            budget -= piece
+        return children if len(children) >= 2 else [n - 1, 1]
+
     def split_factor(self, angle):
         factor = 0
         if angle > 270 and angle <= 360:
@@ -275,7 +298,7 @@ class Asteroid(CircleShape):
         elif angle > 0 and angle <= 90:
             factor = 1 - (angle / 90)
         else:
-            raise ValueError
+            factor = 1.0
         if factor < C.ASTEROID_SPLIT_FACTOR_MIN:
             return C.ASTEROID_SPLIT_FACTOR_MIN
         else:

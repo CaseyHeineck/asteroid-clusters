@@ -5,6 +5,25 @@ Entries are never removed — only appended. Each entry is dated and summarizes 
 
 ---
 
+## 2026-04-18
+
+### Enemy Ships
+
+Enemy ships now enter the field and actively hunt the player — the first intelligent hostile threat alongside the asteroid field.
+
+- **Enemies spawn on a timer** and close directly on the player; contact deals collision damage
+- **Plasma Enemy** — the first named enemy type: a ranged gunship that pursues the player and fires burning plasma bolts; same burn DoT mechanic as the Plasma drone, but aimed at you
+- **Elemental enemies** — 35% of enemy spawns are assigned a random element, making them resistant or vulnerable to your infused drones' element; matchup awareness now matters
+- Enemy ships render as **rectangular hulls with type-specific wing geometry** — each enemy class has a distinct silhouette; the Plasma Enemy has swept-back delta wings and a nose-mounted cannon
+- **Enemy projectiles are danger red** — immediately distinguishable from player and drone fire; elemental enemy projectiles keep their element's color ring on top of the red base
+- Enemy body color is **neutral steel gray** so elemental glows read cleanly without a competing default color
+
+### Player Color Update
+
+Player ship color changed to **hull green** — reads clearly against black and is visually distinct from enemy ships, projectiles, and all five element colors.
+
+---
+
 ## 2026-04-12
 
 ### Banishment Feedback

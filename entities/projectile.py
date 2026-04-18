@@ -63,8 +63,14 @@ class Projectile(CircleShape):
             aoe.apply(ignored_targets=[asteroid])
 
     def draw(self, screen):
-        draw_color = get_element_primary_color(self.element) if self.element else self.color
-        pygame.draw.circle(screen, draw_color, self.position, self.radius)
+        if self.element:
+            pygame.draw.circle(screen, self.color, self.position, self.radius)
+            ring_color = get_element_primary_color(self.element)
+            pygame.draw.circle(screen, ring_color, self.position, self.radius, max(1, self.radius // 3))
+        elif self.stat_source == C.ENEMY:
+            pygame.draw.circle(screen, self.color, self.position, self.radius)
+        else:
+            pygame.draw.circle(screen, C.PLAYER_BODY_COLOR, self.position, self.radius)
 
     def update(self, dt):
         self.physics_move(dt)
@@ -218,3 +224,7 @@ class Rocket(Projectile):
             (cx + body_w // 2, tail_y + fin_h)])
         rotated = pygame.transform.rotate(surf, -angle)
         screen.blit(rotated, rotated.get_rect(center=(int(self.position.x), int(self.position.y))))
+        if self.element:
+            ring_color = get_element_primary_color(self.element)
+            pygame.draw.circle(screen, ring_color, (int(self.position.x), int(self.position.y)),
+                self.radius + 2, 2)

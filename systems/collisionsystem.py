@@ -53,6 +53,12 @@ class CollisionSystem:
                     if score:
                         self.game.HUD.update_score(score)
 
+    def _place_at_opposite_edge(self, enemy):
+        if enemy.position.x < 0 or enemy.position.x > C.SCREEN_WIDTH:
+            enemy.position.x %= C.SCREEN_WIDTH
+        if enemy.position.y < 0 or enemy.position.y > C.SCREEN_HEIGHT:
+            enemy.position.y %= C.SCREEN_HEIGHT
+
     def handle_enemy_collisions(self):
         current_space = getattr(self.game, 'current_space', None)
         for enemy in list(self.game.enemies):
@@ -63,7 +69,6 @@ class CollisionSystem:
                 or enemy_airspace == current_space
             )
             if same_airspace:
-                self.game.wrap_object(enemy)
                 for projectile in list(self.game.projectiles):
                     if projectile.stat_source == C.ENEMY:
                         continue
@@ -88,6 +93,7 @@ class CollisionSystem:
                 if (pos.x < 0 or pos.x > C.SCREEN_WIDTH
                         or pos.y < 0 or pos.y > C.SCREEN_HEIGHT):
                     enemy.airspace = current_space
+                    self._place_at_opposite_edge(enemy)
         for projectile in list(self.game.projectiles):
             if projectile.stat_source != C.ENEMY:
                 continue

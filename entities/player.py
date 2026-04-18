@@ -223,9 +223,9 @@ class Player(CircleShape):
 
     def draw(self, screen):
         if self.damage_cooldown:
-            color = C.RED if self.flash_visible else C.WHITE
+            color = C.PLAYER_BODY_COLOR if self.flash_visible else C.WHITE
         else:
-            color = C.RED
+            color = C.PLAYER_BODY_COLOR
         pygame.draw.polygon(screen, color, self.triangle(), C.LINE_WIDTH)
         self._draw_exhaust_ports(screen, color)
 

@@ -81,7 +81,6 @@ def get_element_name(element):
     return ELEMENT_COLORS[element]["name"]
 
 def draw_elemental_glow(screen, position, radius, element):
-    """Draw a pulsing elemental glow halo around a circular object."""
     t = pygame.time.get_ticks() / 1000.0
     pulse = (math.sin(t * 2.2) + 1) / 2
     colors = ELEMENT_COLORS[element]
@@ -98,3 +97,26 @@ def draw_elemental_glow(screen, position, radius, element):
     inner_ring_r = max(ring_width + 1, int(radius * 1.12))
     pygame.draw.circle(surf, (*primary_rgb, ring_alpha), (c, c), inner_ring_r, ring_width)
     screen.blit(surf, surf.get_rect(center=(int(position.x), int(position.y))))
+
+def draw_elemental_glow_poly(screen, corners, element):
+    t = pygame.time.get_ticks() / 1000.0
+    pulse = (math.sin(t * 2.2) + 1) / 2
+    colors = ELEMENT_COLORS[element]
+    glow_rgb = colors["glow"]
+    primary_rgb = colors["primary"]
+    pad = 18
+    min_x = min(c.x for c in corners)
+    max_x = max(c.x for c in corners)
+    min_y = min(c.y for c in corners)
+    max_y = max(c.y for c in corners)
+    ox = int(min_x) - pad
+    oy = int(min_y) - pad
+    w = int(max_x - min_x) + pad * 2
+    h = int(max_y - min_y) + pad * 2
+    surf = pygame.Surface((w, h), pygame.SRCALPHA)
+    local = [(c.x - ox, c.y - oy) for c in corners]
+    glow_alpha = int(55 + 38 * pulse)
+    pygame.draw.polygon(surf, (*glow_rgb, glow_alpha), local)
+    ring_alpha = int(195 + 50 * pulse)
+    pygame.draw.polygon(surf, (*primary_rgb, ring_alpha), local, 3)
+    screen.blit(surf, (ox, oy))

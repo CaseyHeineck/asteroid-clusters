@@ -77,6 +77,12 @@ class RocketHitExplosionVE(BaseExplosion):
             overlay_color=C.ROCKET_HIT_EXPLOSION_COLOR,
             overlay_duration=C.ROCKET_HIT_EXPLOSION_DURATION,
             overlay_max_alpha=C.ROCKET_HIT_EXPLOSION_MAX_ALPHA)
+class EnemyKillExplosionVE(BaseExplosion):
+    def __init__(self, x, y, radius):
+        super().__init__(x, y, radius,
+            overlay_color=C.ENEMY_KILL_EXPLOSION_COLOR,
+            overlay_duration=C.ENEMY_KILL_EXPLOSION_DURATION,
+            overlay_max_alpha=C.ENEMY_KILL_EXPLOSION_MAX_ALPHA)
 
 class MuzzleFlareVE(VisualEffect):
     def __init__(self, x, y, size=7):

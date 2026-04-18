@@ -538,3 +538,51 @@ def test_explosion_no_op_when_asteroids_is_none():
     p.combat_stats = FakeCombatStats()
     p.asteroids = None
     p.post_hit_extras(direct)
+
+
+# --- Projectile.draw color selection ---
+def test_player_projectile_no_element_uses_player_body_color():
+    import pygame as pg
+    Projectile.containers = ()
+    p = Projectile(0, 0)
+    p.stat_source = C.PLAYER
+    draw_calls = []
+    original_draw = pg.draw.circle
+    try:
+        pg.draw.circle = lambda s, color, *a, **kw: draw_calls.append(color)
+        p.draw(None)
+    finally:
+        pg.draw.circle = original_draw
+    assert C.PLAYER_BODY_COLOR in draw_calls
+
+def test_enemy_projectile_no_element_uses_self_color():
+    import pygame as pg
+    Projectile.containers = ()
+    p = Projectile(0, 0, color=C.LASER_RED)
+    p.stat_source = C.ENEMY
+    draw_calls = []
+    original_draw = pg.draw.circle
+    try:
+        pg.draw.circle = lambda s, color, *a, **kw: draw_calls.append(color)
+        p.draw(None)
+    finally:
+        pg.draw.circle = original_draw
+    assert C.LASER_RED in draw_calls
+    assert C.PLAYER_BODY_COLOR not in draw_calls
+
+def test_elemental_projectile_draws_base_color_and_element_ring():
+    import pygame as pg
+    from core.element import get_element_primary_color
+    Projectile.containers = ()
+    p = Projectile(0, 0, color=C.MAGENTA)
+    p.stat_source = C.PLASMA_DRONE
+    p.element = Element.SOLAR
+    draw_calls = []
+    original_draw = pg.draw.circle
+    try:
+        pg.draw.circle = lambda s, color, *a, **kw: draw_calls.append(color)
+        p.draw(None)
+    finally:
+        pg.draw.circle = original_draw
+    assert C.MAGENTA in draw_calls
+    assert get_element_primary_color(Element.SOLAR) in draw_calls

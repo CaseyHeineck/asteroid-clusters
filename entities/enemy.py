@@ -1,8 +1,10 @@
 import pygame
 from core import constants as C
 from core.circleshape import CircleShape
-from core.element import draw_elemental_glow, get_damage_multiplier
+from core.element import draw_elemental_glow_poly, get_damage_multiplier
+from core.logger import log_event
 from entities.weaponsplatform import PlasmaPlatform
+from ui.visualeffect import EnemyKillExplosionVE
 
 class Enemy(CircleShape):
     def __init__(self, x, y, player, game=None):
@@ -22,7 +24,8 @@ class Enemy(CircleShape):
         self.extra_abilities = set()
         self.asteroids = None
         self.body_color = C.ENEMY_BODY_COLOR
-        self.line_width = 0
+        self.hull_width = C.ENEMY_HULL_WIDTH
+        self.hull_length = C.ENEMY_HULL_LENGTH
         self.target = None
         self.speed = C.ENEMY_SPEED
         self.airspace = None
@@ -31,8 +34,12 @@ class Enemy(CircleShape):
         mult = get_damage_multiplier(attacker_element, self.element)
         self.health -= max(1, int(amount * mult))
         if self.health <= 0:
+            log_event("enemy_destroyed")
+            explosion_radius = max(12, int(self.radius * 1.5))
+            EnemyKillExplosionVE(self.position.x, self.position.y, explosion_radius)
             self.kill()
             return self.score_value, self.xp_value
+        log_event("enemy_hit")
         return 0, 0
 
     def acquire_target(self):
@@ -64,10 +71,22 @@ class Enemy(CircleShape):
             self.velocity = direction.normalize() * self.speed
             self.rotation = pygame.Vector2(0, -1).angle_to(direction)
 
+    def rect_corners(self):
+        forward = pygame.Vector2(0, -1).rotate(self.rotation)
+        right = forward.rotate(90)
+        hw = self.hull_width / 2
+        hl = self.hull_length / 2
+        return [
+            self.position + forward * hl + right * hw,
+            self.position + forward * hl - right * hw,
+            self.position - forward * hl - right * hw,
+            self.position - forward * hl + right * hw,
+        ]
+
     def draw_body(self, screen):
         if self.element is not None:
-            draw_elemental_glow(screen, self.position, self.radius, self.element)
-        pygame.draw.circle(screen, self.body_color, self.position, self.radius, self.line_width)
+            draw_elemental_glow_poly(screen, self.rect_corners(), self.element)
+        pygame.draw.polygon(screen, self.body_color, self.rect_corners())
 
     def draw(self, screen):
         if not self._in_current_airspace():
@@ -101,3 +120,20 @@ class PlasmaEnemy(Enemy):
         self.platform.weapons_free_timer_max = C.PLASMA_ENEMY_WEAPONS_FREE_TIMER
         self.platform.projectile_speed = C.PLASMA_ENEMY_PROJECTILE_SPEED
         self.platform.weapons_free_timer = C.PLASMA_ENEMY_WEAPONS_FREE_TIMER
+
+    def _draw_wings(self, screen):
+        forward = pygame.Vector2(0, -1).rotate(self.rotation)
+        right = forward.rotate(90)
+        hw = self.hull_width / 2
+        hl = self.hull_length / 2
+        ws = C.PLASMA_ENEMY_WING_SPAN
+        wl = C.PLASMA_ENEMY_WING_LENGTH
+        for side in (-1, 1):
+            root_front = self.position - forward * (hl * 0.1) + right * (hw * side)
+            root_rear = self.position - forward * hl + right * (hw * side)
+            tip = self.position - forward * (wl * 0.5) + right * ((hw + ws) * side)
+            pygame.draw.polygon(screen, self.body_color, [root_front, root_rear, tip])
+
+    def draw_body(self, screen):
+        super().draw_body(screen)
+        self._draw_wings(screen)

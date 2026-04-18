@@ -5,7 +5,8 @@ from core.element import Element
 from entities.enemy import Enemy, PlasmaEnemy
 from entities.projectile import Plasma
 from types import SimpleNamespace
-from unittest.mock import MagicMock
+from ui.visualeffect import EnemyKillExplosionVE
+from unittest.mock import MagicMock, patch
 
 class FakePlayer:
     def __init__(self, x=0, y=0):
@@ -88,6 +89,18 @@ def test_enemy_initial_health_equals_max_health():
     enemy, _ = make_enemy()
     assert enemy.health == C.ENEMY_MAX_HEALTH
 
+def test_enemy_body_color_is_neutral_steel_gray():
+    enemy, _ = make_enemy()
+    assert enemy.body_color == C.ENEMY_BODY_COLOR
+
+def test_enemy_hull_width_uses_constant():
+    enemy, _ = make_enemy()
+    assert enemy.hull_width == C.ENEMY_HULL_WIDTH
+
+def test_enemy_hull_length_uses_constant():
+    enemy, _ = make_enemy()
+    assert enemy.hull_length == C.ENEMY_HULL_LENGTH
+
 def test_enemy_initial_element_is_none():
     enemy, _ = make_enemy()
     assert enemy.element is None
@@ -109,11 +122,13 @@ def test_damaged_returns_zero_score_when_alive():
     assert xp == 0
 
 def test_damaged_kills_enemy_when_health_depleted():
+    EnemyKillExplosionVE.containers = ()
     enemy, _ = make_enemy()
     enemy.damaged(C.ENEMY_MAX_HEALTH)
     assert not enemy.alive()
 
 def test_damaged_returns_score_and_xp_on_death():
+    EnemyKillExplosionVE.containers = ()
     enemy, _ = make_enemy()
     score, xp = enemy.damaged(C.ENEMY_MAX_HEALTH)
     assert score == C.ENEMY_SCORE_VALUE
@@ -136,6 +151,53 @@ def test_damaged_minimum_one_damage():
     enemy.element = Element.CRYO
     enemy.damaged(1, attacker_element=Element.FLUX)
     assert enemy.health == C.ENEMY_MAX_HEALTH - 1
+
+def test_damaged_logs_enemy_hit_when_alive():
+    enemy, _ = make_enemy()
+    with patch("entities.enemy.log_event") as mock_log:
+        enemy.damaged(1)
+        mock_log.assert_called_once_with("enemy_hit")
+
+def test_damaged_logs_enemy_destroyed_on_kill():
+    EnemyKillExplosionVE.containers = ()
+    enemy, _ = make_enemy()
+    with patch("entities.enemy.log_event") as mock_log:
+        enemy.damaged(C.ENEMY_MAX_HEALTH)
+        mock_log.assert_called_once_with("enemy_destroyed")
+
+def test_damaged_spawns_explosion_on_kill():
+    EnemyKillExplosionVE.containers = ()
+    enemy, _ = make_enemy()
+    with patch("entities.enemy.EnemyKillExplosionVE") as mock_ve:
+        enemy.damaged(C.ENEMY_MAX_HEALTH)
+        mock_ve.assert_called_once()
+
+# --- Enemy.rect_corners ---
+def test_rect_corners_returns_four_points():
+    enemy, _ = make_enemy()
+    corners = enemy.rect_corners()
+    assert len(corners) == 4
+
+def test_rect_corners_nose_is_forward_of_center():
+    enemy, _ = make_enemy(ex=500, ey=500)
+    enemy.rotation = 0
+    corners = enemy.rect_corners()
+    nose_y = min(c.y for c in corners)
+    assert nose_y < enemy.position.y
+
+def test_rect_corners_span_hull_width():
+    enemy, _ = make_enemy()
+    enemy.rotation = 0
+    corners = enemy.rect_corners()
+    x_values = [c.x for c in corners]
+    assert max(x_values) - min(x_values) == pytest.approx(C.ENEMY_HULL_WIDTH, abs=0.1)
+
+def test_rect_corners_span_hull_length():
+    enemy, _ = make_enemy()
+    enemy.rotation = 0
+    corners = enemy.rect_corners()
+    y_values = [c.y for c in corners]
+    assert max(y_values) - min(y_values) == pytest.approx(C.ENEMY_HULL_LENGTH, abs=0.1)
 
 # --- Enemy.move_toward_player ---
 def test_move_toward_player_sets_velocity_toward_player():
@@ -173,6 +235,7 @@ def test_projectile_hit_kills_projectile():
 
 def test_projectile_kill_enemy_reports_score_to_hud():
     Enemy.containers = ()
+    EnemyKillExplosionVE.containers = ()
     player = FakePlayer(x=9999, y=9999)
     enemy = Enemy(0, 0, player)
     projectile = FakeProjectile(damage=C.ENEMY_MAX_HEALTH)
@@ -182,6 +245,7 @@ def test_projectile_kill_enemy_reports_score_to_hud():
 
 def test_projectile_kill_enemy_awards_xp():
     Enemy.containers = ()
+    EnemyKillExplosionVE.containers = ()
     player = FakePlayer(x=9999, y=9999)
     enemy = Enemy(0, 0, player)
     projectile = FakeProjectile(damage=C.ENEMY_MAX_HEALTH)
@@ -238,7 +302,7 @@ def test_game_over_triggered_when_player_dies_from_enemy():
     game.on_game_over.assert_called_once()
 
 # --- enemy wrapping ---
-def test_enemies_are_wrapped_each_frame():
+def test_same_airspace_enemies_not_wrapped_by_collision_system():
     Enemy.containers = ()
     player = FakePlayer(x=9999, y=9999)
     enemy = Enemy(0, 0, player)
@@ -246,7 +310,7 @@ def test_enemies_are_wrapped_each_frame():
     game, cs = make_cs_game(enemies=[enemy])
     game.wrap_object = lambda obj: wrapped.append(obj)
     cs.handle_enemy_collisions()
-    assert enemy in wrapped
+    assert enemy not in wrapped
 
 # --- stat_source team filtering ---
 def test_enemy_projectile_does_not_damage_enemy():
@@ -303,6 +367,18 @@ def test_plasma_enemy_health_uses_plasma_enemy_constant():
     player = FakePlayer()
     enemy = PlasmaEnemy(0, 0, player, FakeGame())
     assert enemy.health == C.PLASMA_ENEMY_MAX_HEALTH
+
+def test_plasma_enemy_speed_uses_plasma_enemy_constant():
+    Plasma.containers = ()
+    player = FakePlayer()
+    enemy = PlasmaEnemy(0, 0, player, FakeGame())
+    assert enemy.speed == C.PLASMA_ENEMY_SPEED
+
+def test_plasma_enemy_projectile_color_is_danger_red():
+    Plasma.containers = ()
+    player = FakePlayer()
+    enemy = PlasmaEnemy(0, 0, player, FakeGame())
+    assert enemy.platform.projectile_color == C.PLASMA_ENEMY_PROJECTILE_COLOR
 
 def test_plasma_enemy_xp_uses_plasma_enemy_constant():
     Plasma.containers = ()
@@ -422,7 +498,7 @@ def test_enemy_in_different_airspace_not_wrapped():
     cs.handle_enemy_collisions()
     assert enemy not in wrapped
 
-def test_enemy_in_same_airspace_is_wrapped():
+def test_enemy_in_same_airspace_not_wrapped():
     Enemy.containers = ()
     space = object()
     player = FakePlayer(x=9999, y=9999)
@@ -432,7 +508,7 @@ def test_enemy_in_same_airspace_is_wrapped():
     game, cs = make_cs_game(enemies=[enemy], current_space=space)
     game.wrap_object = lambda obj: wrapped.append(obj)
     cs.handle_enemy_collisions()
-    assert enemy in wrapped
+    assert enemy not in wrapped
 
 def test_enemy_in_different_airspace_not_damaged_by_projectile():
     Enemy.containers = ()
@@ -469,6 +545,28 @@ def test_enemy_offscreen_in_different_airspace_switches_to_current():
     game, cs = make_cs_game(enemies=[enemy], current_space=space_b)
     cs.handle_enemy_collisions()
     assert enemy.airspace is space_b
+
+def test_enemy_offscreen_east_placed_at_west_edge_of_new_airspace():
+    Enemy.containers = ()
+    space_a = object()
+    space_b = object()
+    player = FakePlayer(x=9999, y=9999)
+    enemy = Enemy(C.SCREEN_WIDTH + 50, 300, player)
+    enemy.airspace = space_a
+    game, cs = make_cs_game(enemies=[enemy], current_space=space_b)
+    cs.handle_enemy_collisions()
+    assert enemy.position.x == pytest.approx(50, abs=0.1)
+
+def test_enemy_offscreen_north_placed_at_south_edge_of_new_airspace():
+    Enemy.containers = ()
+    space_a = object()
+    space_b = object()
+    player = FakePlayer(x=9999, y=9999)
+    enemy = Enemy(400, -60, player)
+    enemy.airspace = space_a
+    game, cs = make_cs_game(enemies=[enemy], current_space=space_b)
+    cs.handle_enemy_collisions()
+    assert enemy.position.y == pytest.approx(C.SCREEN_HEIGHT - 60, abs=0.1)
 
 def test_enemy_onscreen_in_different_airspace_does_not_switch():
     Enemy.containers = ()

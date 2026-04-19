@@ -75,19 +75,57 @@ class CollisionSystem:
                     if projectile.collides_with(enemy):
                         score, xp = enemy.damaged(projectile.damage,
                             getattr(projectile, "element", None))
-                        projectile.kill()
                         if score:
                             self.game.HUD.update_score(score)
                         if xp:
                             self.game.experience.add_xp(xp)
+                        if getattr(projectile, 'weight', 0) > 0 and enemy.alive():
+                            projectile.separate_from(enemy)
+                            projectile.resolve_impact(enemy)
+                            enemy.impact_timer = C.ENEMY_IMPACT_STUN_DURATION
+                        elif "impact" in getattr(projectile, 'extra_abilities', set()) and enemy.alive():
+                            normal = enemy.position - projectile.position
+                            if normal.length_squared() > 0:
+                                normal = normal.normalize()
+                            enemy.velocity += normal * (projectile.velocity.length()
+                                * C.KINETIC_PROJECTILE_COLLISION_IMPACT_SCALE)
+                            enemy.impact_timer = C.ENEMY_IMPACT_STUN_DURATION
+                        projectile.kill()
                 if self.game.player.can_be_damaged and self.game.player.collides_with(enemy):
                     enemy.collide_and_impact(self.game.player)
-                    score_delta, lives = self.game.player.damaged()
-                    if score_delta:
-                        self.game.HUD.update_score(score_delta)
-                    self.game.HUD.update_player_lives(lives)
-                    if self.game.player.game_over:
-                        self.game.on_game_over()
+                    self.game.player.sync_local_speeds_from_velocity()
+                    enemy.impact_timer = C.ENEMY_IMPACT_STUN_DURATION
+                    score, xp = enemy.damaged(self.game.player.collision_damage)
+                    if score:
+                        self.game.HUD.update_score(score)
+                    if xp:
+                        self.game.experience.add_xp(xp)
+                    if enemy.health > 0:
+                        score_delta, lives = self.game.player.damaged()
+                        if score_delta:
+                            self.game.HUD.update_score(score_delta)
+                        self.game.HUD.update_player_lives(lives)
+                        if self.game.player.game_over:
+                            self.game.on_game_over()
+                for asteroid in list(self.game.asteroids):
+                    if not enemy.alive():
+                        break
+                    if asteroid.collides_with(enemy):
+                        enemy.collide_and_impact(asteroid)
+                        if asteroid.velocity.length() > C.ASTEROID_MAX_SPEED:
+                            asteroid.velocity.scale_to_length(C.ASTEROID_MAX_SPEED)
+                        score, xp = enemy.damaged(asteroid.damage)
+                        if score:
+                            self.game.HUD.update_score(score)
+                        if xp:
+                            self.game.experience.add_xp(xp)
+                        health_before = asteroid.health
+                        ast_score = asteroid.damaged(enemy.damage)
+                        if ast_score:
+                            self.game.HUD.update_score(ast_score)
+                        self.game.combat_stats.record_damage_event(
+                            source=C.ENEMY, health_before=health_before,
+                            attempted_damage=enemy.damage)
             else:
                 pos = enemy.position
                 if (pos.x < 0 or pos.x > C.SCREEN_WIDTH

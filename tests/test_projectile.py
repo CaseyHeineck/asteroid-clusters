@@ -1,4 +1,5 @@
 import pygame
+import pytest
 from core import constants as C
 from core.element import Element
 from entities.projectile import Kinetic, LaserBeam, Plasma, Projectile, Rocket, _elemental_damage
@@ -294,6 +295,8 @@ class FakeHitAsteroid:
         self.full_health = full_health
         self.element = None
         self.radius = 20
+        self.weight = 40
+        self.bounciness = C.ASTEROID_BOUNCINESS
         self.applied_effects = []
         self._alive = True
 
@@ -374,6 +377,50 @@ def test_kinetic_on_hit_caps_asteroid_velocity_at_max_speed():
     asteroid.velocity = pygame.Vector2(0, 0)
     k.on_hit(asteroid)
     assert asteroid.velocity.length() <= C.ASTEROID_MAX_SPEED + 0.01
+
+def test_kinetic_uses_base_weight_by_default():
+    Kinetic.containers = ()
+    Kinetic.weight_override = None
+    k = Kinetic(0, 0)
+    assert k.weight == pytest.approx(C.KINETIC_PROJECTILE_WEIGHT_BASE, abs=0.001)
+
+def test_kinetic_uses_weight_override_when_set():
+    Kinetic.containers = ()
+    Kinetic.weight_override = 5.0
+    k = Kinetic(0, 0)
+    assert k.weight == pytest.approx(5.0, abs=0.001)
+    Kinetic.weight_override = None
+
+def test_kinetic_heavier_projectile_moves_asteroid_more():
+    Kinetic.containers = ()
+    Kinetic.weight_override = None
+    k_light = Kinetic(0, 0)
+    k_light.velocity = pygame.Vector2(1100, 0)
+    k_light.stat_source = "test"
+    k_light.combat_stats = FakeCombatStats()
+    k_light.extra_abilities = set()
+    k_light.asteroids = None
+    k_light.element = None
+    group = pygame.sprite.Group()
+    group.add(k_light)
+    asteroid_light = FakeHitAsteroid(x=10, y=0)
+    k_light.on_hit(asteroid_light)
+    speed_light = asteroid_light.velocity.length()
+    Kinetic.weight_override = C.KINETIC_PROJECTILE_WEIGHT_BASE * (C.SHOP_KINETIC_MASS_INCREASE ** 5)
+    k_heavy = Kinetic(0, 0)
+    k_heavy.velocity = pygame.Vector2(1100, 0)
+    k_heavy.stat_source = "test"
+    k_heavy.combat_stats = FakeCombatStats()
+    k_heavy.extra_abilities = set()
+    k_heavy.asteroids = None
+    k_heavy.element = None
+    group2 = pygame.sprite.Group()
+    group2.add(k_heavy)
+    asteroid_heavy = FakeHitAsteroid(x=10, y=0)
+    k_heavy.on_hit(asteroid_heavy)
+    speed_heavy = asteroid_heavy.velocity.length()
+    Kinetic.weight_override = None
+    assert speed_heavy > speed_light
 
 def test_plasma_on_hit_damages_asteroid():
     p, _ = make_plasma()

@@ -76,11 +76,14 @@ class Projectile(CircleShape):
         self.physics_move(dt)
 
 class Kinetic(Projectile):
+    weight_override = None
+
     def __init__(self, x, y):
+        w = (Kinetic.weight_override if Kinetic.weight_override is not None
+             else C.KINETIC_PROJECTILE_WEIGHT_BASE)
         super().__init__(x, y, C.KINETIC_PROJECTILE_RADIUS, C.KINETIC_PROJECTILE_COLOR,
-            C.KINETIC_PROJECTILE_DAMAGE, weight=C.KINETIC_PROJECTILE_WEIGHT,
+            C.KINETIC_PROJECTILE_DAMAGE, weight=w,
             bounciness=C.KINETIC_PROJECTILE_BOUNCINESS, drag=C.KINETIC_PROJECTILE_DRAG)
-        self.impact_scale = C.KINETIC_PROJECTILE_COLLISION_IMPACT_SCALE
 
     def on_hit(self, asteroid):
         effective_damage = _elemental_damage(self.damage, self.element, asteroid)
@@ -89,8 +92,8 @@ class Kinetic(Projectile):
         score = asteroid.damaged(effective_damage)
         self.combat_stats.record_damage_event(source=self.stat_source,
             health_before=health_before, attempted_damage=effective_damage)
-        normal = self.get_collision_normal(asteroid)
-        asteroid.velocity += normal * (self.velocity.length() * C.KINETIC_PROJECTILE_COLLISION_IMPACT_SCALE)
+        self.separate_from(asteroid)
+        self.resolve_impact(asteroid)
         if asteroid.velocity.length() > C.ASTEROID_MAX_SPEED:
             asteroid.velocity.scale_to_length(C.ASTEROID_MAX_SPEED)
         self.post_hit_extras(asteroid, skip_abilities={"impact"})

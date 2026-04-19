@@ -12,7 +12,8 @@ from ui.visualeffect import AsteroidKillExplosionVE, OverkillExplosionVE
 class Asteroid(CircleShape):
     def __init__(self, x, y, size):
         super().__init__(x, y, size * C.ASTEROID_MIN_RADIUS,
-            weight=size * C.ASTEROID_WEIGHT, bounciness=C.ASTEROID_BOUNCINESS,
+            weight=int(size ** C.ASTEROID_WEIGHT_EXPONENT * C.ASTEROID_WEIGHT_BASE),
+            bounciness=C.ASTEROID_BOUNCINESS,
             drag=C.ASTEROID_DRAG, rotation=random.uniform(0, 360),
             angular_velocity=random.uniform(-C.ASTEROID_MAX_ANGULAR_VELOCITY,
                 C.ASTEROID_MAX_ANGULAR_VELOCITY))

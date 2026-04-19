@@ -29,6 +29,7 @@ class Enemy(CircleShape):
         self.target = None
         self.speed = C.ENEMY_SPEED
         self.airspace = None
+        self.impact_timer = 0
 
     def damaged(self, amount, attacker_element=None):
         mult = get_damage_multiplier(attacker_element, self.element)
@@ -65,11 +66,40 @@ class Enemy(CircleShape):
             return 0
         return self.platform.fire(self) or 0
 
+    def _calculate_avoidance(self, asteroids):
+        avoidance = pygame.Vector2(0, 0)
+        for asteroid in asteroids:
+            to_enemy = self.position - asteroid.position
+            if to_enemy.length_squared() == 0:
+                continue
+            distance = to_enemy.length()
+            if distance > C.ENEMY_ASTEROID_AVOIDANCE_RADIUS:
+                continue
+            if asteroid.velocity.length_squared() > 0:
+                approach_speed = asteroid.velocity.dot(to_enemy.normalize())
+                if approach_speed <= 0:
+                    continue
+            strength = 1.0 - (distance / C.ENEMY_ASTEROID_AVOIDANCE_RADIUS)
+            avoidance += to_enemy.normalize() * strength
+        if avoidance.length_squared() > 0:
+            avoidance = avoidance.normalize()
+        return avoidance
+
     def move_toward_player(self, dt):
+        if self.impact_timer > 0:
+            return
         direction = self.player.position - self.position
-        if direction.length_squared() > 0:
-            self.velocity = direction.normalize() * self.speed
-            self.rotation = pygame.Vector2(0, -1).angle_to(direction)
+        if direction.length_squared() == 0:
+            return
+        move_dir = direction.normalize()
+        if self.asteroids:
+            avoidance = self._calculate_avoidance(self.asteroids)
+            if avoidance.length_squared() > 0:
+                move_dir = (move_dir * (1.0 - C.ENEMY_ASTEROID_AVOIDANCE_WEIGHT)
+                            + avoidance * C.ENEMY_ASTEROID_AVOIDANCE_WEIGHT)
+                if move_dir.length_squared() > 0:
+                    move_dir = move_dir.normalize()
+        self.velocity = move_dir * self.speed
 
     def rect_corners(self):
         forward = pygame.Vector2(0, -1).rotate(self.rotation)
@@ -96,6 +126,8 @@ class Enemy(CircleShape):
             self.platform.draw(screen, self)
 
     def update(self, dt):
+        if self.impact_timer > 0:
+            self.impact_timer = max(0, self.impact_timer - dt)
         if self._in_current_airspace():
             self.move_toward_player(dt)
         self.physics_move(dt)

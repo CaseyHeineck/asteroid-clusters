@@ -93,34 +93,11 @@ class Player(CircleShape):
         self.perpendicular_speed = self.velocity.dot(right)
 
     def apply_collision_to_asteroid(self, asteroid, impact_scale=1.0):
-        normal = self.get_collision_normal(asteroid)
-        distance = self.position.distance_to(asteroid.position)
-        overlap = (self.radius + asteroid.radius) - distance
-        player_weight = max(self.weight, 0.0001)
-        asteroid_weight = max(asteroid.weight, 0.0001)
-        total_weight = player_weight + asteroid_weight
-        if overlap > 0:
-            player_shift = overlap * (asteroid_weight / total_weight)
-            asteroid_shift = overlap * (player_weight / total_weight)
-            self.position -= normal * player_shift
-            asteroid.position += normal * asteroid_shift
-        player_velocity = self.velocity.copy()
-        asteroid_velocity = asteroid.velocity.copy()
-        player_normal_speed = player_velocity.dot(normal)
-        asteroid_normal_speed = asteroid_velocity.dot(normal)
-        relative_normal_speed = player_normal_speed - asteroid_normal_speed
-        if relative_normal_speed <= 0:
-            return
-        impact_push = relative_normal_speed * impact_scale
-        asteroid_push = impact_push * C.PLAYER_COLLISION_ASTEROID_TRANSFER
-        player_slow = impact_push * C.PLAYER_COLLISION_PLAYER_DAMPING
-        asteroid.velocity += normal * asteroid_push
+        self.collide_and_impact(asteroid, impact_scale=impact_scale)
+        if self.velocity.length() > C.PLAYER_MAX_SPEED:
+            self.velocity.scale_to_length(C.PLAYER_MAX_SPEED)
         if asteroid.velocity.length() > C.ASTEROID_MAX_SPEED:
             asteroid.velocity.scale_to_length(C.ASTEROID_MAX_SPEED)
-        player_velocity -= normal * player_slow
-        if player_velocity.length() > C.PLAYER_MAX_SPEED:
-            player_velocity.scale_to_length(C.PLAYER_MAX_SPEED)
-        self.velocity = player_velocity
         self.sync_local_speeds_from_velocity()
 
     def move(self, dt):

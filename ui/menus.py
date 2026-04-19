@@ -273,11 +273,17 @@ def create_technomancer_menu(player_drones, upgrade_counts, essence, on_buy, on_
         name = drone_display_names.get(cls.__name__, cls.__name__)
         kw = _drone_keywords(cls_to_drone[cls])
         menu.add.label(f"\u2014 {name}{kw} \u2014")
-        upgrades = ([("shield_health", "Shield Health +2"),
-            ("repair_rate",   "Repair Speed +15%")]
-            if cls is SentinelDrone
-            else [("damage",    "Damage +15%"),
-                ("fire_rate", "Fire Rate +12%")])
+        if cls is SentinelDrone:
+            upgrades = [("shield_health", "Shield Health +2"),
+                        ("repair_rate",   "Repair Speed +15%")]
+        elif cls is KineticDrone:
+            upgrades = [("damage",          "Damage +15%"),
+                        ("fire_rate",       "Fire Rate +12%"),
+                        ("kinetic_mass",    "Kinetic Mass +60%"),
+                        ("projectile_speed","Projectile Speed +15%")]
+        else:
+            upgrades = [("damage",    "Damage +15%"),
+                        ("fire_rate", "Fire Rate +12%")]
         for upgrade_type, label in upgrades:
             count = upgrade_counts.get((cls.__name__, upgrade_type), 0)
             price = C.SHOP_UPGRADE_BASE_PRICE + count * C.SHOP_UPGRADE_PRICE_STEP

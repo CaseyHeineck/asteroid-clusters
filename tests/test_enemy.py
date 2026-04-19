@@ -18,12 +18,16 @@ class FakePlayer:
         self.can_be_damaged = True
         self.game_over = False
         self.collision_calls = []
+        self.collision_damage = C.PLAYER_COLLISION_DAMAGE
 
     def collides_with(self, other):
         return self.position.distance_to(other.position) <= self.radius + other.radius
 
     def damaged(self):
         return C.LIFE_LOSS_SCORE, 2
+
+    def sync_local_speeds_from_velocity(self):
+        pass
 
 class FakeProjectile:
     def __init__(self, damage=10, element=None, collide=True, stat_source=C.PLAYER):
@@ -214,6 +218,73 @@ def test_move_toward_player_no_crash_when_at_same_position():
     enemy, player = make_enemy(px=0, py=0, ex=0, ey=0)
     enemy.move_toward_player(0.1)
 
+# --- Enemy._calculate_avoidance ---
+class FakeAsteroidForAvoidance:
+    def __init__(self, x, y, vx=0, vy=0, radius=15):
+        self.position = pygame.Vector2(x, y)
+        self.velocity = pygame.Vector2(vx, vy)
+        self.radius = radius
+
+def test_avoidance_zero_when_no_asteroids():
+    enemy, _ = make_enemy(ex=0, ey=0)
+    result = enemy._calculate_avoidance([])
+    assert result.length() == pytest.approx(0, abs=0.001)
+
+def test_avoidance_zero_when_asteroid_out_of_range():
+    enemy, _ = make_enemy(ex=0, ey=0)
+    far = FakeAsteroidForAvoidance(x=9999, y=9999, vx=1, vy=0)
+    result = enemy._calculate_avoidance([far])
+    assert result.length() == pytest.approx(0, abs=0.001)
+
+def test_avoidance_zero_when_asteroid_moving_away():
+    enemy, _ = make_enemy(ex=100, ey=0)
+    asteroid = FakeAsteroidForAvoidance(x=0, y=0, vx=-100, vy=0)
+    result = enemy._calculate_avoidance([asteroid])
+    assert result.length() == pytest.approx(0, abs=0.001)
+
+def test_avoidance_nonzero_when_asteroid_approaching():
+    enemy, _ = make_enemy(ex=100, ey=0)
+    asteroid = FakeAsteroidForAvoidance(x=0, y=0, vx=100, vy=0)
+    result = enemy._calculate_avoidance([asteroid])
+    assert result.length() > 0
+
+def test_avoidance_points_away_from_incoming_asteroid():
+    enemy, _ = make_enemy(ex=100, ey=0)
+    asteroid = FakeAsteroidForAvoidance(x=0, y=0, vx=100, vy=0)
+    result = enemy._calculate_avoidance([asteroid])
+    assert result.x > 0
+
+def test_move_toward_player_blends_avoidance_when_asteroid_incoming():
+    enemy, player = make_enemy(px=0, py=0, ex=100, ey=0)
+    incoming = FakeAsteroidForAvoidance(x=200, y=0, vx=-100, vy=0)
+    enemy.asteroids = [incoming]
+    enemy.move_toward_player(0.1)
+    assert enemy.velocity.length() == pytest.approx(C.ENEMY_SPEED, abs=0.1)
+
+# --- Enemy.impact_timer ---
+def test_enemy_impact_timer_defaults_to_zero():
+    enemy, _ = make_enemy()
+    assert enemy.impact_timer == 0
+
+def test_enemy_impact_timer_prevents_velocity_override():
+    enemy, player = make_enemy(px=0, py=0, ex=100, ey=0)
+    enemy.impact_timer = 0.5
+    enemy.velocity = pygame.Vector2(0, 0)
+    enemy.move_toward_player(0.1)
+    assert enemy.velocity.length() == pytest.approx(0, abs=0.001)
+
+def test_enemy_impact_timer_decrements_in_update():
+    enemy, _ = make_enemy(ex=500, ey=500)
+    enemy.impact_timer = 1.0
+    enemy.update(0.1)
+    assert enemy.impact_timer == pytest.approx(0.9, abs=0.001)
+
+def test_enemy_impact_timer_does_not_go_below_zero():
+    enemy, _ = make_enemy(ex=500, ey=500)
+    enemy.impact_timer = 0.05
+    enemy.update(0.5)
+    assert enemy.impact_timer == pytest.approx(0, abs=0.001)
+
 # --- handle_enemy_collisions: projectile hits ---
 def test_projectile_hit_enemy_takes_damage():
     Enemy.containers = ()
@@ -300,6 +371,35 @@ def test_game_over_triggered_when_player_dies_from_enemy():
     game, cs = make_cs_game(enemies=[enemy], player=player)
     cs.handle_enemy_collisions()
     game.on_game_over.assert_called_once()
+
+# --- handle_enemy_collisions: player damages enemy on contact ---
+def test_player_contact_damages_enemy():
+    Enemy.containers = ()
+    player = FakePlayer(x=0, y=0)
+    enemy = Enemy(0, 0, player)
+    game, cs = make_cs_game(enemies=[enemy], player=player)
+    cs.handle_enemy_collisions()
+    assert enemy.health < C.ENEMY_MAX_HEALTH
+
+def test_player_contact_sets_enemy_impact_timer():
+    Enemy.containers = ()
+    player = FakePlayer(x=0, y=0)
+    enemy = Enemy(0, 0, player)
+    game, cs = make_cs_game(enemies=[enemy], player=player)
+    cs.handle_enemy_collisions()
+    assert enemy.impact_timer > 0
+
+def test_player_contact_does_not_damage_player_when_enemy_dies():
+    Enemy.containers = ()
+    EnemyKillExplosionVE.containers = ()
+    player = FakePlayer(x=0, y=0)
+    player.collision_damage = C.ENEMY_MAX_HEALTH + 100
+    enemy = Enemy(0, 0, player)
+    damaged_calls = []
+    player.damaged = lambda: (damaged_calls.append(1) or (C.LIFE_LOSS_SCORE, 2))
+    game, cs = make_cs_game(enemies=[enemy], player=player)
+    cs.handle_enemy_collisions()
+    assert damaged_calls == []
 
 # --- enemy wrapping ---
 def test_same_airspace_enemies_not_wrapped_by_collision_system():

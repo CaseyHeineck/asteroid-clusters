@@ -244,6 +244,34 @@ def test_apply_upgrade_repair_rate_reduces_sentinel_repair_timer():
     g.apply_upgrade(SentinelDrone, "repair_rate")
     assert drone.shield_repair_timer_base < original
 
+def test_apply_upgrade_kinetic_mass_via_explosive_drone_updates_weight_override():
+    from entities.projectile import Kinetic
+    Kinetic.weight_override = None
+    g = make_game_stub()
+    g.essence.spend.return_value = True
+    drone = ExplosiveDrone(FakePlayer(), [])
+    g.player.drones = [drone]
+    g.apply_upgrade(ExplosiveDrone, "kinetic_mass")
+    assert Kinetic.weight_override == pytest.approx(
+        C.KINETIC_PROJECTILE_WEIGHT_BASE * C.SHOP_KINETIC_MASS_INCREASE, abs=0.001)
+    Kinetic.weight_override = None
+
+def test_apply_upgrade_projectile_speed_via_explosive_drone_increases_speed():
+    g = make_game_stub()
+    g.essence.spend.return_value = True
+    drone = ExplosiveDrone(FakePlayer(), [])
+    original = drone.platform.projectile_speed
+    g.player.drones = [drone]
+    g.apply_upgrade(ExplosiveDrone, "projectile_speed")
+    assert drone.platform.projectile_speed > original
+
+def test_apply_upgrade_projectile_speed_via_laser_drone_does_nothing():
+    g = make_game_stub()
+    g.essence.spend.return_value = True
+    drone = LaserDrone(FakePlayer(), [])
+    g.player.drones = [drone]
+    g.apply_upgrade(LaserDrone, "projectile_speed")
+
 # --- on_shop_infuse ---
 def test_on_shop_infuse_uses_infuse_cost_when_drone_has_no_element():
     g = make_game_stub()

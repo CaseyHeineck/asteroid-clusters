@@ -1,7 +1,7 @@
 import pygame
 from core import constants as C
 from entities.drone import ExplosiveDrone, KineticDrone, LaserDrone, PlasmaDrone, SentinelDrone
-from ui.menus import _drone_keywords, get_source_color
+from ui.menus import _drone_keywords, _drone_upgrades, get_source_color
 
 class FakePlayer:
     def __init__(self):
@@ -56,6 +56,45 @@ def test_drone_keywords_multiple_extras_are_sorted_after_base():
 def test_drone_keywords_result_uses_uppercase():
     drone = make_drone(PlasmaDrone)
     assert _drone_keywords(drone) == _drone_keywords(drone).upper().rstrip()
+
+# --- _drone_upgrades ---
+def test_drone_upgrades_sentinel_returns_shield_options():
+    drone = make_drone(SentinelDrone)
+    types = [t for t, _ in _drone_upgrades(drone)]
+    assert types == ["shield_health", "repair_rate"]
+
+def test_drone_upgrades_kinetic_returns_all_four():
+    drone = make_drone(KineticDrone)
+    types = [t for t, _ in _drone_upgrades(drone)]
+    assert types == ["damage", "fire_rate", "kinetic_mass", "projectile_speed"]
+
+def test_drone_upgrades_explosive_without_impact_returns_two():
+    drone = make_drone(ExplosiveDrone)
+    types = [t for t, _ in _drone_upgrades(drone)]
+    assert types == ["damage", "fire_rate"]
+
+def test_drone_upgrades_plasma_without_impact_returns_two():
+    drone = make_drone(PlasmaDrone)
+    types = [t for t, _ in _drone_upgrades(drone)]
+    assert types == ["damage", "fire_rate"]
+
+def test_drone_upgrades_explosive_with_impact_returns_all_four():
+    drone = make_drone(ExplosiveDrone)
+    drone.extra_abilities = {"impact"}
+    types = [t for t, _ in _drone_upgrades(drone)]
+    assert types == ["damage", "fire_rate", "kinetic_mass", "projectile_speed"]
+
+def test_drone_upgrades_plasma_with_impact_returns_all_four():
+    drone = make_drone(PlasmaDrone)
+    drone.extra_abilities = {"impact"}
+    types = [t for t, _ in _drone_upgrades(drone)]
+    assert types == ["damage", "fire_rate", "kinetic_mass", "projectile_speed"]
+
+def test_drone_upgrades_laser_with_impact_returns_only_two():
+    drone = make_drone(LaserDrone)
+    drone.extra_abilities = {"impact"}
+    types = [t for t, _ in _drone_upgrades(drone)]
+    assert types == ["damage", "fire_rate"]
 
 # --- get_source_color ---
 def test_get_source_color_player_returns_red():

@@ -15,6 +15,9 @@ class FakeAsteroid:
         self.full_health = full_health
         self.position = pygame.Vector2(10, 0)
         self.velocity = pygame.Vector2(0, 0)
+        self.radius = 5
+        self.weight = 40
+        self.bounciness = C.ASTEROID_BOUNCINESS
         self.applied_effects = []
         self._alive = True
 
@@ -265,6 +268,7 @@ def test_burn_skipped_when_in_skip_abilities():
 
 # --- post_hit_extras: impact ---
 def test_impact_adds_velocity_to_asteroid():
+    Kinetic.weight_override = None
     p = make_projectile(["impact"])
     asteroid = FakeAsteroid()
     asteroid.velocity = pygame.Vector2(0, 0)
@@ -272,19 +276,38 @@ def test_impact_adds_velocity_to_asteroid():
     assert asteroid.velocity.length() > 0
 
 def test_impact_caps_velocity_at_max_speed():
+    Kinetic.weight_override = None
     p = make_projectile(["impact"])
     p.velocity = pygame.Vector2(C.ASTEROID_MAX_SPEED * 1000, 0)
     asteroid = FakeAsteroid()
+    asteroid.weight = 0.001
     asteroid.velocity = pygame.Vector2(0, 0)
     p.post_hit_extras(asteroid)
     assert asteroid.velocity.length() <= C.ASTEROID_MAX_SPEED + 0.01
 
 def test_impact_skipped_when_in_skip_abilities():
+    Kinetic.weight_override = None
     p = make_projectile(["impact"])
     asteroid = FakeAsteroid()
     asteroid.velocity = pygame.Vector2(0, 0)
     p.post_hit_extras(asteroid, skip_abilities={"impact"})
     assert asteroid.velocity.length() == 0
+
+def test_impact_uses_kinetic_weight_override_when_set():
+    Kinetic.weight_override = None
+    p_base = make_projectile(["impact"])
+    p_base.velocity = pygame.Vector2(500, 0)
+    asteroid_base = FakeAsteroid()
+    p_base.post_hit_extras(asteroid_base)
+    speed_base = asteroid_base.velocity.length()
+    Kinetic.weight_override = C.KINETIC_PROJECTILE_WEIGHT_BASE * (C.SHOP_KINETIC_MASS_INCREASE ** 5)
+    p_upgraded = make_projectile(["impact"])
+    p_upgraded.velocity = pygame.Vector2(500, 0)
+    asteroid_upgraded = FakeAsteroid()
+    p_upgraded.post_hit_extras(asteroid_upgraded)
+    speed_upgraded = asteroid_upgraded.velocity.length()
+    Kinetic.weight_override = None
+    assert speed_upgraded > speed_base
 
 # --- Kinetic.on_hit / Plasma.on_hit / Rocket.on_hit ---
 class FakeHitAsteroid:

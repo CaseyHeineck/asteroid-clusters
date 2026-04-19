@@ -1,4 +1,5 @@
 from core import constants as C
+from entities.projectile import Kinetic
 
 class CollisionSystem:
     def __init__(self, game):
@@ -84,11 +85,10 @@ class CollisionSystem:
                             projectile.resolve_impact(enemy)
                             enemy.impact_timer = C.ENEMY_IMPACT_STUN_DURATION
                         elif "impact" in getattr(projectile, 'extra_abilities', set()) and enemy.alive():
-                            normal = enemy.position - projectile.position
-                            if normal.length_squared() > 0:
-                                normal = normal.normalize()
-                            enemy.velocity += normal * (projectile.velocity.length()
-                                * C.KINETIC_PROJECTILE_COLLISION_IMPACT_SCALE)
+                            projectile.weight = (Kinetic.weight_override if Kinetic.weight_override is not None
+                                                 else C.KINETIC_PROJECTILE_WEIGHT_BASE)
+                            projectile.separate_from(enemy)
+                            projectile.resolve_impact(enemy)
                             enemy.impact_timer = C.ENEMY_IMPACT_STUN_DURATION
                         projectile.kill()
                 if self.game.player.can_be_damaged and self.game.player.collides_with(enemy):

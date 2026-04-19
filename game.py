@@ -416,7 +416,7 @@ class Game:
         if not self.essence.spend(price):
             return
         self.upgrade_counts[key] = count + 1
-        if upgrade_type == "kinetic_mass" and drone_class is KineticDrone:
+        if upgrade_type == "kinetic_mass":
             current = (Kinetic.weight_override if Kinetic.weight_override is not None
                        else C.KINETIC_PROJECTILE_WEIGHT_BASE)
             Kinetic.weight_override = current * C.SHOP_KINETIC_MASS_INCREASE
@@ -431,7 +431,7 @@ class Game:
                     drone.platform.damage_multiplier *= (1 + C.SHOP_DAMAGE_INCREASE)
             elif upgrade_type == "fire_rate":
                 drone.platform.weapons_free_timer_max *= (1 - C.SHOP_FIRE_RATE_INCREASE)
-            elif upgrade_type == "projectile_speed" and drone_class is KineticDrone:
+            elif upgrade_type == "projectile_speed" and hasattr(drone.platform, "projectile_speed"):
                 drone.platform.projectile_speed *= (1 + C.SHOP_PROJECTILE_SPEED_INCREASE)
             elif upgrade_type == "shield_health" and isinstance(drone, SentinelDrone):
                 drone.shield_max_health += C.SHOP_SHIELD_HEALTH_INCREASE

@@ -46,8 +46,10 @@ class Projectile(CircleShape):
         if skip_abilities is None:
             skip_abilities = set()
         if "impact" in self.extra_abilities and "impact" not in skip_abilities:
-            normal = self.get_collision_normal(asteroid)
-            asteroid.velocity += normal * (self.velocity.length() * C.KINETIC_PROJECTILE_COLLISION_IMPACT_SCALE)
+            self.weight = (Kinetic.weight_override if Kinetic.weight_override is not None
+                           else C.KINETIC_PROJECTILE_WEIGHT_BASE)
+            self.separate_from(asteroid)
+            self.resolve_impact(asteroid)
             if asteroid.velocity.length() > C.ASTEROID_MAX_SPEED:
                 asteroid.velocity.scale_to_length(C.ASTEROID_MAX_SPEED)
         if "burn" in self.extra_abilities and "burn" not in skip_abilities and asteroid.alive():

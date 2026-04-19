@@ -1,6 +1,7 @@
 import pygame
 import pytest
 from core import constants as C
+from entities.projectile import Kinetic
 from types import SimpleNamespace
 from systems.collisionsystem import CollisionSystem
 from unittest.mock import MagicMock
@@ -371,3 +372,119 @@ def test_enemy_asteroid_no_collision_when_not_overlapping():
     CollisionSystem(game).handle_enemy_collisions()
     assert enemy.health == initial_health
     assert enemy.impact_calls == []
+
+# --- handle_enemy_collisions: projectile-enemy ---
+class FakeEnemyForProjectile:
+    def __init__(self, x=50, y=0, radius=20, weight=30):
+        self.position = pygame.Vector2(x, y)
+        self.velocity = pygame.Vector2(0, 0)
+        self.radius = radius
+        self.weight = weight
+        self.bounciness = C.ENEMY_BOUNCINESS
+        self.health = 100
+        self.max_health = 100
+        self.impact_timer = 0
+        self.airspace = None
+        self._alive = True
+
+    def collides_with(self, other):
+        return self.position.distance_to(other.position) <= self.radius + other.radius
+
+    def damaged(self, amount, attacker_element=None):
+        self.health -= amount
+        if self.health <= 0:
+            self._alive = False
+            return 100, 10
+        return 0, 0
+
+    def alive(self):
+        return self._alive
+
+class FakeImpactProjectile:
+    def __init__(self, x=0, y=0, weight=0, extra_abilities=None, damage=5):
+        self.position = pygame.Vector2(x, y)
+        self.velocity = pygame.Vector2(500, 0)
+        self.radius = 3
+        self.weight = weight
+        self.bounciness = 0
+        self.damage = damage
+        self.element = None
+        self.stat_source = C.PLAYER
+        self.extra_abilities = set(extra_abilities or [])
+        self._killed = False
+
+    def collides_with(self, other):
+        return True
+
+    def separate_from(self, other):
+        pass
+
+    def resolve_impact(self, other):
+        other.velocity += pygame.Vector2(10, 0)
+
+    def kill(self):
+        self._killed = True
+
+def make_projectile_enemy_game(enemy, projectile):
+    hud = FakeHUDCS()
+    player = FakePlayerCS(x=9999, y=9999)
+    game = SimpleNamespace(
+        enemies=[enemy],
+        asteroids=[],
+        projectiles=[projectile],
+        shields=[],
+        player=player,
+        HUD=hud,
+        experience=MagicMock(),
+        combat_stats=SimpleNamespace(record_damage_event=lambda **kw: None),
+        wrap_object=lambda obj: None,
+        on_game_over=MagicMock(),
+        current_space=None,
+    )
+    return game
+
+def test_impact_projectile_sets_kinetic_weight_on_enemy_hit():
+    Kinetic.weight_override = None
+    enemy = FakeEnemyForProjectile()
+    projectile = FakeImpactProjectile(weight=0, extra_abilities=["impact"])
+    game = make_projectile_enemy_game(enemy, projectile)
+    CollisionSystem(game).handle_enemy_collisions()
+    assert projectile.weight == pytest.approx(C.KINETIC_PROJECTILE_WEIGHT_BASE, abs=0.001)
+
+def test_impact_projectile_uses_upgraded_kinetic_weight_on_enemy_hit():
+    upgraded_weight = C.KINETIC_PROJECTILE_WEIGHT_BASE * (C.SHOP_KINETIC_MASS_INCREASE ** 3)
+    Kinetic.weight_override = upgraded_weight
+    enemy = FakeEnemyForProjectile()
+    projectile = FakeImpactProjectile(weight=0, extra_abilities=["impact"])
+    game = make_projectile_enemy_game(enemy, projectile)
+    CollisionSystem(game).handle_enemy_collisions()
+    assert projectile.weight == pytest.approx(upgraded_weight, abs=0.001)
+    Kinetic.weight_override = None
+
+def test_impact_projectile_sets_enemy_impact_timer():
+    Kinetic.weight_override = None
+    enemy = FakeEnemyForProjectile()
+    projectile = FakeImpactProjectile(weight=0, extra_abilities=["impact"])
+    game = make_projectile_enemy_game(enemy, projectile)
+    CollisionSystem(game).handle_enemy_collisions()
+    assert enemy.impact_timer == C.ENEMY_IMPACT_STUN_DURATION
+
+def test_impact_projectile_does_not_set_timer_when_enemy_killed():
+    Kinetic.weight_override = None
+    enemy = FakeEnemyForProjectile()
+    enemy.health = 1
+    projectile = FakeImpactProjectile(weight=0, extra_abilities=["impact"], damage=999)
+    game = make_projectile_enemy_game(enemy, projectile)
+    CollisionSystem(game).handle_enemy_collisions()
+    assert enemy.impact_timer == 0
+
+def test_weighted_projectile_does_not_enter_impact_ability_branch():
+    Kinetic.weight_override = None
+    enemy = FakeEnemyForProjectile()
+    projectile = FakeImpactProjectile(weight=1.0, extra_abilities=["impact"])
+    resolve_calls = []
+    original_resolve = projectile.resolve_impact
+    projectile.resolve_impact = lambda other: resolve_calls.append(other) or original_resolve(other)
+    game = make_projectile_enemy_game(enemy, projectile)
+    CollisionSystem(game).handle_enemy_collisions()
+    assert len(resolve_calls) == 1

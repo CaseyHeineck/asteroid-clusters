@@ -118,5 +118,5 @@ def draw_elemental_glow_poly(screen, corners, element):
     glow_alpha = int(55 + 38 * pulse)
     pygame.draw.polygon(surf, (*glow_rgb, glow_alpha), local)
     ring_alpha = int(195 + 50 * pulse)
-    pygame.draw.polygon(surf, (*primary_rgb, ring_alpha), local, 3)
+    pygame.draw.polygon(surf, (*primary_rgb, ring_alpha), local, 5)
     screen.blit(surf, (ox, oy))

@@ -250,21 +250,37 @@ def _drone_keywords(drone):
         return ""
     return "  [" + ", ".join(kw.upper() for kw in all_kw) + "]"
 
+_ABILITY_UPGRADES = {
+    "impact": [("kinetic_mass",     "Kinetic Mass +60%"),
+               ("projectile_speed", "Projectile Speed +15%")],
+    "burn":   [("burn_tick_rate",   "Burn Ticks +"),
+               ("burn_spread",      "Spread Chance +10%")],
+}
+
+_NATIVE_ABILITY = {
+    "KineticDrone":   "impact",
+    "PlasmaDrone":    "burn",
+    "ExplosiveDrone": "explosion",
+    "LaserDrone":     "overkill",
+}
+
 def _drone_upgrades(drone):
     cls = type(drone)
     if cls is SentinelDrone:
         return [("shield_health", "Shield Health +2"),
                 ("repair_rate",   "Repair Speed +15%")]
-    if cls is KineticDrone:
-        return [("damage",           "Damage +15%"),
-                ("fire_rate",        "Fire Rate +12%"),
-                ("kinetic_mass",     "Kinetic Mass +60%"),
-                ("projectile_speed", "Projectile Speed +15%")]
-    upgrades = [("damage",    "Damage +15%"),
-                ("fire_rate", "Fire Rate +12%")]
-    if "impact" in drone.extra_abilities and hasattr(drone.platform, "projectile_speed"):
-        upgrades += [("kinetic_mass",     "Kinetic Mass +60%"),
-                     ("projectile_speed", "Projectile Speed +15%")]
+    upgrades = [("damage", "Damage +15%"), ("fire_rate", "Fire Rate +12%")]
+    seen = {"damage", "fire_rate"}
+    native = _NATIVE_ABILITY.get(cls.__name__)
+    all_abilities = ([native] if native else []) + [a for a in sorted(drone.extra_abilities) if a != native]
+    for ability in all_abilities:
+        for upgrade_type, label in _ABILITY_UPGRADES.get(ability, []):
+            if upgrade_type in seen:
+                continue
+            if upgrade_type == "projectile_speed" and not hasattr(drone.platform, "projectile_speed"):
+                continue
+            upgrades.append((upgrade_type, label))
+            seen.add(upgrade_type)
     return upgrades
 
 def create_technomancer_menu(player_drones, upgrade_counts, essence, on_buy, on_back):

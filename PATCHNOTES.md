@@ -5,6 +5,46 @@ Entries are never removed — only appended. Each entry is dated and summarizes 
 
 ---
 
+## 2026-04-21
+
+### Plasma Burn on Enemies — Bug Fixes & Visual
+
+Three bugs fixed that together meant plasma burn had never actually worked against enemy ships:
+
+- **Burn was never applied on direct hits** — the collision system called `enemy.damaged()` + `projectile.kill()` directly, bypassing `Plasma.on_hit()` entirely. Fixed: `CollisionSystem.handle_enemy_collisions` now applies a `PlasmaBurnSTE` after any hit from a `Plasma` projectile (or any projectile with the `"burn"` ability from banishment)
+- **Burn effects never ticked on enemies** — `Enemy.update()` was not calling `update_gameplay_effects(dt)` or `update_outline_pulse(dt)`, so effects accumulated silently and the pulse flash timer never ran. Both calls added
+- **Lethal burn tick would crash on enemies** — `PlasmaBurnSTE.update()` did `total_score += score` but `Enemy.damaged()` returns a `(score, xp)` tuple while `Asteroid.damaged()` returns a plain int. Fixed with a defensive unpack
+
+### Plasma Burn Stacking
+
+Plasma burn effects now **stack independently** — each projectile that lands owns its own timer and ticks separately. Previously all burns on a single target merged into one (taking max duration, max damage, min tick rate). Stacking is controlled by a new `burn_stack_limit` attribute on `CircleShape` (default `None` = unlimited). Asteroids and basic enemies have no stack limit. Future enemy types can cap stacks by setting `burn_stack_limit` to a number, which causes overflow to merge into the oldest stack.
+
+The `PlasmaBurnSTE` class carries a `stackable = True` flag; the base `SingleTargetEffect` defaults to `stackable = False` (merge behavior unchanged for all other effect types).
+
+### Enemy Visual — Burn Flash & Elemental Outline
+
+- **Plasma burn flash on enemies** — when a burn ticks, the enemy's entire hull (and wings on PlasmaEnemy) flashes to the plasma burn color for `PLASMA_BURN_FLASH_DURATION`, then returns to its body color. Uses the same `pulse_outline` / `get_outline_color` mechanism that asteroids use for their outline flash, applied to the polygon fill instead
+- **Elemental glow on wings** — PlasmaEnemy wings now receive the same `draw_elemental_glow_poly` treatment as the hull when the enemy is elemental; previously the wings rendered plain even on elemental ships
+- **Wider elemental ring** — the colored ring in `draw_elemental_glow_poly` widened from 3 px to 5 px for better readability against the hull fill
+
+---
+
+## 2026-04-20
+
+### Plasma Burn Upgrade Path
+
+Plasma Drone now has a dedicated, four-slot upgrade path that rewards investment in the burn mechanic rather than duplicating generic stat upgrades.
+
+- **Burn duration extended** — plasma burn now lasts 3.1 seconds (up from 1.6s) at a base tick rate of once per second, dealing 3 ticks of damage to start
+- **Burn Tick Rate upgrade** — each purchase reduces the tick interval by 0.05s, letting the burn deal damage more frequently within the same 3.1-second window; stacks with repeated purchases
+- **Burn Spread upgrade** — gives burning targets a 10% chance (per purchase) to spread their burn to any object they physically collide with; the spread burn starts a fresh 3.1-second timer on the new target and inherits the full damage-per-tick, tick rate, and spread chance of the original
+- Spread checks fire on asteroid–enemy collisions in both directions: a burning asteroid can ignite an enemy that runs into it, and a burning enemy can ignite an asteroid it hits
+- The PlasmaDrone upgrade menu now shows **Damage +15%**, **Fire Rate +12%**, **Burn Ticks +**, and **Spread Chance +10%** — the burn-specific slots replace the old generic second slot to keep player choices clear and meaningful
+- **Burn Ticks + (diminishing returns)** — first purchase reduces tick interval by 0.15s (biggest jump); each subsequent purchase tapers the reduction by 0.01s, flooring at 0.05s per purchase; tick rate itself is hard-floored at 0.01s; earlier upgrades matter most
+- **Upgrade inheritance** — any drone that gains an ability through banishment now shows that ability's full upgrade set in the Technomancer shop; e.g. a PlasmaDrone that inherits Impact from a banished KineticDrone gets Kinetic Mass and Projectile Speed added to its six-slot upgrade list; LaserDrone inheriting Impact gets Kinetic Mass but not Projectile Speed (LaserBeam is hitscan, speed is irrelevant)
+
+---
+
 ## 2026-04-18
 
 ### Enemy Ships

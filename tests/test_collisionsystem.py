@@ -2,6 +2,7 @@ import pygame
 import pytest
 from core import constants as C
 from entities.projectile import Kinetic
+from systems.gameplayeffect import PlasmaBurnSTE
 from types import SimpleNamespace
 from systems.collisionsystem import CollisionSystem
 from unittest.mock import MagicMock
@@ -488,3 +489,137 @@ def test_weighted_projectile_does_not_enter_impact_ability_branch():
     game = make_projectile_enemy_game(enemy, projectile)
     CollisionSystem(game).handle_enemy_collisions()
     assert len(resolve_calls) == 1
+
+# --- _try_spread_burn ---
+class FakeBurnableAsteroid:
+    def __init__(self, x=0, y=0, radius=20):
+        self.position = pygame.Vector2(x, y)
+        self.velocity = pygame.Vector2(0, 0)
+        self.radius = radius
+        self.damage = 1
+        self.health = 50
+        self.weight = 40
+        self.bounciness = 0.25
+        self.gameplay_effects = []
+        self.applied_effects = []
+
+    def collides_with(self, other):
+        return self.position.distance_to(other.position) <= self.radius + other.radius
+
+    def add_gameplay_effect(self, effect):
+        effect.apply_to(self)
+        self.applied_effects.append(effect)
+        self.gameplay_effects.append(effect)
+
+    def damaged(self, amount):
+        self.health -= amount
+        return 50 if self.health <= 0 else 0
+
+    def alive(self):
+        return self.health > 0
+
+class FakeBurnableEnemy:
+    def __init__(self, x=0, y=0, radius=20, weight=20):
+        self.position = pygame.Vector2(x, y)
+        self.velocity = pygame.Vector2(0, 0)
+        self.radius = radius
+        self.weight = weight
+        self.bounciness = 0.30
+        self.damage = 1
+        self.health = 30
+        self.airspace = None
+        self._alive = True
+        self.gameplay_effects = []
+        self.applied_effects = []
+
+    def collides_with(self, other):
+        return self.position.distance_to(other.position) <= self.radius + other.radius
+
+    def collide_and_impact(self, other):
+        pass
+
+    def damaged(self, amount, attacker_element=None):
+        self.health -= amount
+        if self.health <= 0:
+            self._alive = False
+            return 100, 20
+        return 0, 0
+
+    def alive(self):
+        return self._alive
+
+    def add_gameplay_effect(self, effect):
+        effect.apply_to(self)
+        self.applied_effects.append(effect)
+        self.gameplay_effects.append(effect)
+
+def test_try_spread_burn_spreads_to_target_when_roll_succeeds():
+    asteroid = FakeBurnableAsteroid()
+    burn = PlasmaBurnSTE(spread_chance=1.0, tick_rate=1.0, duration=5.0)
+    burn.apply_to(asteroid)
+    asteroid.gameplay_effects = [burn]
+    target = FakeBurnableAsteroid()
+    CollisionSystem(SimpleNamespace())._try_spread_burn(asteroid, target)
+    assert any(isinstance(e, PlasmaBurnSTE) for e in target.applied_effects)
+
+def test_try_spread_burn_does_not_spread_when_roll_fails():
+    asteroid = FakeBurnableAsteroid()
+    burn = PlasmaBurnSTE(spread_chance=0.0, tick_rate=1.0, duration=5.0)
+    burn.apply_to(asteroid)
+    asteroid.gameplay_effects = [burn]
+    target = FakeBurnableAsteroid()
+    CollisionSystem(SimpleNamespace())._try_spread_burn(asteroid, target)
+    assert not any(isinstance(e, PlasmaBurnSTE) for e in target.applied_effects)
+
+def test_try_spread_burn_does_nothing_when_source_has_no_burn():
+    asteroid = FakeBurnableAsteroid()
+    target = FakeBurnableAsteroid()
+    CollisionSystem(SimpleNamespace())._try_spread_burn(asteroid, target)
+    assert target.applied_effects == []
+
+def test_try_spread_burn_does_nothing_when_target_cannot_receive():
+    asteroid = FakeBurnableAsteroid()
+    burn = PlasmaBurnSTE(spread_chance=1.0, tick_rate=1.0, duration=5.0)
+    burn.apply_to(asteroid)
+    asteroid.gameplay_effects = [burn]
+    target = SimpleNamespace(gameplay_effects=[])
+    CollisionSystem(SimpleNamespace())._try_spread_burn(asteroid, target)
+
+def test_spread_burn_inherits_source_damage_per_tick():
+    asteroid = FakeBurnableAsteroid()
+    burn = PlasmaBurnSTE(damage_per_tick=7, spread_chance=1.0, tick_rate=1.0, duration=5.0)
+    burn.apply_to(asteroid)
+    asteroid.gameplay_effects = [burn]
+    target = FakeBurnableAsteroid()
+    CollisionSystem(SimpleNamespace())._try_spread_burn(asteroid, target)
+    assert target.applied_effects[0].damage_per_tick == 7
+
+def test_burn_spreads_from_burning_asteroid_to_enemy_on_collision():
+    enemy = FakeBurnableEnemy(x=0, y=0)
+    asteroid = FakeBurnableAsteroid(x=0, y=0)
+    burn = PlasmaBurnSTE(spread_chance=1.0, tick_rate=1.0, duration=5.0)
+    burn.apply_to(asteroid)
+    asteroid.gameplay_effects = [burn]
+    game = make_enemy_asteroid_game(enemy, asteroid)
+    CollisionSystem(game).handle_enemy_collisions()
+    assert any(isinstance(e, PlasmaBurnSTE) for e in enemy.applied_effects)
+
+def test_burn_spreads_from_burning_enemy_to_asteroid_on_collision():
+    enemy = FakeBurnableEnemy(x=0, y=0)
+    asteroid = FakeBurnableAsteroid(x=0, y=0)
+    burn = PlasmaBurnSTE(spread_chance=1.0, tick_rate=1.0, duration=5.0)
+    burn.apply_to(enemy)
+    enemy.gameplay_effects = [burn]
+    game = make_enemy_asteroid_game(enemy, asteroid)
+    CollisionSystem(game).handle_enemy_collisions()
+    assert any(isinstance(e, PlasmaBurnSTE) for e in asteroid.applied_effects)
+
+def test_burn_does_not_spread_when_not_colliding():
+    enemy = FakeBurnableEnemy(x=0, y=0)
+    asteroid = FakeBurnableAsteroid(x=9999, y=9999)
+    burn = PlasmaBurnSTE(spread_chance=1.0, tick_rate=1.0, duration=5.0)
+    burn.apply_to(asteroid)
+    asteroid.gameplay_effects = [burn]
+    game = make_enemy_asteroid_game(enemy, asteroid)
+    CollisionSystem(game).handle_enemy_collisions()
+    assert not any(isinstance(e, PlasmaBurnSTE) for e in enemy.applied_effects)

@@ -19,6 +19,7 @@ from systems.collisionsystem import CollisionSystem
 from systems.essence import EssenceSystem
 from systems.eventhandler import EventHandler
 from systems.experience import ExperienceSystem
+from systems.gameplayeffect import PlasmaBurnSTE
 from systems.mapsystem import MapSystem
 from ui.display import Display
 from ui.endgamereport import CombatStats
@@ -416,6 +417,18 @@ class Game:
         if not self.essence.spend(price):
             return
         self.upgrade_counts[key] = count + 1
+        if upgrade_type == "burn_tick_rate":
+            current = (PlasmaBurnSTE.tick_rate_override if PlasmaBurnSTE.tick_rate_override is not None
+                       else C.PLASMA_BURN_TICK_RATE)
+            decrease = max(C.SHOP_BURN_TICK_RATE_DECREASE_MIN,
+                           C.SHOP_BURN_TICK_RATE_DECREASE_START - count * C.SHOP_BURN_TICK_RATE_DECREASE_TAPER)
+            PlasmaBurnSTE.tick_rate_override = max(0.01, current - decrease)
+            return
+        if upgrade_type == "burn_spread":
+            current = (PlasmaBurnSTE.spread_chance_override if PlasmaBurnSTE.spread_chance_override is not None
+                       else C.PLASMA_BURN_SPREAD_CHANCE)
+            PlasmaBurnSTE.spread_chance_override = min(1.0, current + C.SHOP_BURN_SPREAD_INCREASE)
+            return
         if upgrade_type == "kinetic_mass":
             current = (Kinetic.weight_override if Kinetic.weight_override is not None
                        else C.KINETIC_PROJECTILE_WEIGHT_BASE)

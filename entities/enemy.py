@@ -114,9 +114,10 @@ class Enemy(CircleShape):
         ]
 
     def draw_body(self, screen):
+        corners = self.rect_corners()
         if self.element is not None:
-            draw_elemental_glow_poly(screen, self.rect_corners(), self.element)
-        pygame.draw.polygon(screen, self.body_color, self.rect_corners())
+            draw_elemental_glow_poly(screen, corners, self.element)
+        pygame.draw.polygon(screen, self.get_outline_color(self.body_color), corners)
 
     def draw(self, screen):
         if not self._in_current_airspace():
@@ -135,6 +136,8 @@ class Enemy(CircleShape):
             self.platform.tick(dt)
         self.acquire_target()
         self.aim_at_target()
+        self.update_outline_pulse(dt)
+        self.update_gameplay_effects(dt)
         return self.shoot()
 
 
@@ -160,11 +163,15 @@ class PlasmaEnemy(Enemy):
         hl = self.hull_length / 2
         ws = C.PLASMA_ENEMY_WING_SPAN
         wl = C.PLASMA_ENEMY_WING_LENGTH
+        fill_color = self.get_outline_color(self.body_color)
         for side in (-1, 1):
             root_front = self.position - forward * (hl * 0.1) + right * (hw * side)
             root_rear = self.position - forward * hl + right * (hw * side)
             tip = self.position - forward * (wl * 0.5) + right * ((hw + ws) * side)
-            pygame.draw.polygon(screen, self.body_color, [root_front, root_rear, tip])
+            wing = [root_front, root_rear, tip]
+            if self.element is not None:
+                draw_elemental_glow_poly(screen, wing, self.element)
+            pygame.draw.polygon(screen, fill_color, wing)
 
     def draw_body(self, screen):
         super().draw_body(screen)

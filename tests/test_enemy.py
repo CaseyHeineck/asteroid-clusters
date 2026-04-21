@@ -401,6 +401,46 @@ def test_player_contact_does_not_damage_player_when_enemy_dies():
     cs.handle_enemy_collisions()
     assert damaged_calls == []
 
+# --- enemy update calls gameplay effect and outline pulse ---
+def test_enemy_update_calls_update_gameplay_effects():
+    enemy, _ = make_enemy(ex=500, ey=500)
+    called = []
+    enemy.update_gameplay_effects = lambda dt: called.append(dt) or 0
+    enemy.update(0.1)
+    assert called == [0.1]
+
+def test_enemy_update_calls_update_outline_pulse():
+    enemy, _ = make_enemy(ex=500, ey=500)
+    called = []
+    enemy.update_outline_pulse = lambda dt: called.append(dt)
+    enemy.update(0.1)
+    assert called == [0.1]
+
+# --- plasma projectile applies burn to enemy on collision ---
+def test_plasma_hit_applies_burn_to_enemy():
+    Enemy.containers = ()
+    Plasma.containers = ()
+    player = FakePlayer(x=9999, y=9999)
+    enemy = Enemy(0, 0, player)
+    projectile = Plasma(0, 0)
+    projectile.stat_source = C.PLAYER
+    from unittest.mock import MagicMock
+    projectile.combat_stats = MagicMock()
+    game, cs = make_cs_game(enemies=[enemy], projectiles=[projectile])
+    cs.handle_enemy_collisions()
+    from systems.gameplayeffect import PlasmaBurnSTE
+    assert any(isinstance(e, PlasmaBurnSTE) for e in enemy.gameplay_effects)
+
+def test_non_plasma_hit_does_not_apply_burn_to_enemy():
+    Enemy.containers = ()
+    player = FakePlayer(x=9999, y=9999)
+    enemy = Enemy(0, 0, player)
+    projectile = FakeProjectile(damage=5)
+    game, cs = make_cs_game(enemies=[enemy], projectiles=[projectile])
+    cs.handle_enemy_collisions()
+    from systems.gameplayeffect import PlasmaBurnSTE
+    assert not any(isinstance(e, PlasmaBurnSTE) for e in enemy.gameplay_effects)
+
 # --- enemy wrapping ---
 def test_same_airspace_enemies_not_wrapped_by_collision_system():
     Enemy.containers = ()
@@ -450,6 +490,25 @@ def test_friendly_projectile_does_not_damage_player():
     cs.handle_enemy_collisions()
     assert damaged_calls == []
 
+# --- Enemy burn body flash visual ---
+def test_enemy_draw_body_uses_pulse_color_as_fill_when_burning():
+    enemy, _ = make_enemy()
+    enemy.pulse_outline(C.PLASMA_PROJECTILE_COLOR, 0.5)
+    drawn_colors = []
+    with patch("entities.enemy.pygame.draw.polygon",
+               side_effect=lambda s, color, pts, *a: drawn_colors.append(color)):
+        enemy.draw_body(None)
+    assert C.PLASMA_PROJECTILE_COLOR in drawn_colors
+
+def test_enemy_draw_body_uses_body_color_as_fill_when_not_burning():
+    enemy, _ = make_enemy()
+    drawn_colors = []
+    with patch("entities.enemy.pygame.draw.polygon",
+               side_effect=lambda s, color, pts, *a: drawn_colors.append(color)):
+        enemy.draw_body(None)
+    assert enemy.body_color in drawn_colors
+    assert C.PLASMA_PROJECTILE_COLOR not in drawn_colors
+
 # --- PlasmaEnemy ---
 class FakeGame:
     def __init__(self):
@@ -495,6 +554,51 @@ def test_plasma_enemy_fires_with_enemy_stat_source():
     enemy.target = player
     enemy.rotation = 180
     enemy.shoot()
+
+def test_plasma_enemy_draw_wings_uses_pulse_color_when_burning():
+    Plasma.containers = ()
+    player = FakePlayer()
+    enemy = PlasmaEnemy(0, 0, player, FakeGame())
+    enemy.pulse_outline(C.PLASMA_PROJECTILE_COLOR, 0.5)
+    drawn_colors = []
+    with patch("entities.enemy.pygame.draw.polygon",
+               side_effect=lambda s, color, pts, *a: drawn_colors.append(color)):
+        enemy._draw_wings(None)
+    assert drawn_colors.count(C.PLASMA_PROJECTILE_COLOR) == 2
+
+def test_plasma_enemy_draw_wings_uses_body_color_when_not_burning():
+    Plasma.containers = ()
+    player = FakePlayer()
+    enemy = PlasmaEnemy(0, 0, player, FakeGame())
+    drawn_colors = []
+    with patch("entities.enemy.pygame.draw.polygon",
+               side_effect=lambda s, color, pts, *a: drawn_colors.append(color)):
+        enemy._draw_wings(None)
+    assert C.PLASMA_PROJECTILE_COLOR not in drawn_colors
+
+def test_plasma_enemy_draw_wings_calls_elemental_glow_per_wing_when_elemental():
+    from core.element import Element
+    Plasma.containers = ()
+    player = FakePlayer()
+    enemy = PlasmaEnemy(0, 0, player, FakeGame())
+    enemy.element = Element.SOLAR
+    glow_calls = []
+    with patch("entities.enemy.draw_elemental_glow_poly",
+               side_effect=lambda s, corners, el: glow_calls.append(el)), \
+         patch("entities.enemy.pygame.draw.polygon"):
+        enemy._draw_wings(None)
+    assert glow_calls.count(Element.SOLAR) == 2
+
+def test_plasma_enemy_draw_wings_no_elemental_glow_when_not_elemental():
+    Plasma.containers = ()
+    player = FakePlayer()
+    enemy = PlasmaEnemy(0, 0, player, FakeGame())
+    glow_calls = []
+    with patch("entities.enemy.draw_elemental_glow_poly",
+               side_effect=lambda s, corners, el: glow_calls.append(el)), \
+         patch("entities.enemy.pygame.draw.polygon"):
+        enemy._draw_wings(None)
+    assert glow_calls == []
 
 def test_plasma_enemy_update_decrements_platform_timer():
     Plasma.containers = ()

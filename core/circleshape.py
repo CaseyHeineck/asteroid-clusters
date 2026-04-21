@@ -16,6 +16,7 @@ class CircleShape(pygame.sprite.Sprite):
         self.rotation = rotation
         self.angular_velocity = angular_velocity
         self.gameplay_effects = []
+        self.burn_stack_limit = None
         self.outline_pulse_color = None
         self.outline_pulse_timer = 0
 
@@ -45,6 +46,15 @@ class CircleShape(pygame.sprite.Sprite):
         self.position += self.velocity * dt
 
     def add_gameplay_effect(self, effect):
+        if getattr(effect, 'stackable', False):
+            if self.burn_stack_limit is not None:
+                same_type = [e for e in self.gameplay_effects if type(e) is type(effect)]
+                if len(same_type) >= self.burn_stack_limit:
+                    same_type[0].merge(effect)
+                    return
+            effect.apply_to(self)
+            self.gameplay_effects.append(effect)
+            return
         for existing_effect in self.gameplay_effects:
             if existing_effect.can_merge_with(effect):
                 existing_effect.merge(effect)

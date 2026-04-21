@@ -22,6 +22,8 @@ class GameplayEffect:
         return 0
 
 class SingleTargetEffect(GameplayEffect):
+    stackable = False
+
     def __init__(self, duration=0):
         super().__init__(duration)
         self.target = None
@@ -87,12 +89,26 @@ class OverkillSTE(SingleTargetEffect):
             self.target.overkill_triggered = True
 
 class PlasmaBurnSTE(SingleTargetEffect):
+    stackable = True
+    tick_rate_override = None
+    spread_chance_override = None
+
     def __init__(self, damage_per_tick=C.PLASMA_BURN_DAMAGE,
-            tick_rate=C.PLASMA_BURN_TICK_RATE, duration=C.PLASMA_BURN_DURATION):
+            tick_rate=None, duration=C.PLASMA_BURN_DURATION,
+            spread_chance=None):
         super().__init__(duration)
         self.damage_per_tick = damage_per_tick
+        if tick_rate is None:
+            tick_rate = (PlasmaBurnSTE.tick_rate_override
+                         if PlasmaBurnSTE.tick_rate_override is not None
+                         else C.PLASMA_BURN_TICK_RATE)
         self.tick_rate = tick_rate
         self.tick_timer = tick_rate
+        if spread_chance is None:
+            spread_chance = (PlasmaBurnSTE.spread_chance_override
+                             if PlasmaBurnSTE.spread_chance_override is not None
+                             else C.PLASMA_BURN_SPREAD_CHANCE)
+        self.spread_chance = spread_chance
         self.stat_source = None
         self.combat_stats = None
 
@@ -101,6 +117,7 @@ class PlasmaBurnSTE(SingleTargetEffect):
         self.damage_per_tick = max(self.damage_per_tick, other.damage_per_tick)
         self.tick_rate = min(self.tick_rate, other.tick_rate)
         self.tick_timer = min(self.tick_timer, other.tick_timer)
+        self.spread_chance = max(self.spread_chance, other.spread_chance)
 
     def update(self, dt):
         total_score = super().update(dt)
@@ -113,7 +130,8 @@ class PlasmaBurnSTE(SingleTargetEffect):
                     self.target.pulse_outline(C.PLASMA_PROJECTILE_COLOR,
                         C.PLASMA_BURN_FLASH_DURATION)
                 health_before = self.target.health
-                score = self.target.damaged(self.damage_per_tick)
+                result = self.target.damaged(self.damage_per_tick)
+                score = result[0] if isinstance(result, tuple) else result
                 if self.combat_stats:
                     self.combat_stats.record_damage_event(source=self.stat_source,
                         health_before=health_before, attempted_damage=self.damage_per_tick)

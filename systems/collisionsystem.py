@@ -1,5 +1,7 @@
+import random
 from core import constants as C
-from entities.projectile import Kinetic
+from entities.projectile import Kinetic, Plasma
+from systems.gameplayeffect import PlasmaBurnSTE
 
 class CollisionSystem:
     def __init__(self, game):
@@ -54,6 +56,22 @@ class CollisionSystem:
                     if score:
                         self.game.HUD.update_score(score)
 
+    def _try_spread_burn(self, source, target):
+        if not hasattr(source, 'gameplay_effects') or not hasattr(target, 'add_gameplay_effect'):
+            return
+        for effect in source.gameplay_effects:
+            if isinstance(effect, PlasmaBurnSTE) and not effect.expired:
+                if random.random() < effect.spread_chance:
+                    new_burn = PlasmaBurnSTE(
+                        damage_per_tick=effect.damage_per_tick,
+                        tick_rate=effect.tick_rate,
+                        duration=C.PLASMA_BURN_DURATION,
+                        spread_chance=effect.spread_chance)
+                    new_burn.stat_source = effect.stat_source
+                    new_burn.combat_stats = effect.combat_stats
+                    target.add_gameplay_effect(new_burn)
+                break
+
     def _place_at_opposite_edge(self, enemy):
         if enemy.position.x < 0 or enemy.position.x > C.SCREEN_WIDTH:
             enemy.position.x %= C.SCREEN_WIDTH
@@ -90,6 +108,13 @@ class CollisionSystem:
                             projectile.separate_from(enemy)
                             projectile.resolve_impact(enemy)
                             enemy.impact_timer = C.ENEMY_IMPACT_STUN_DURATION
+                        if enemy.health > 0 and (
+                                isinstance(projectile, Plasma)
+                                or "burn" in getattr(projectile, 'extra_abilities', set())):
+                            burn = PlasmaBurnSTE()
+                            burn.stat_source = projectile.stat_source
+                            burn.combat_stats = getattr(projectile, 'combat_stats', None)
+                            enemy.add_gameplay_effect(burn)
                         projectile.kill()
                 if self.game.player.can_be_damaged and self.game.player.collides_with(enemy):
                     enemy.collide_and_impact(self.game.player)
@@ -126,6 +151,8 @@ class CollisionSystem:
                         self.game.combat_stats.record_damage_event(
                             source=C.ENEMY, health_before=health_before,
                             attempted_damage=enemy.damage)
+                        self._try_spread_burn(asteroid, enemy)
+                        self._try_spread_burn(enemy, asteroid)
             else:
                 pos = enemy.position
                 if (pos.x < 0 or pos.x > C.SCREEN_WIDTH

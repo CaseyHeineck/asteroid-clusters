@@ -1,10 +1,13 @@
 import pygame
 import pytest
 from core.circleshape import CircleShape
-from systems.gameplayeffect import GameplayEffect, SingleTargetEffect
+from systems.gameplayeffect import GameplayEffect, PlasmaBurnSTE, SingleTargetEffect
 
 class EffectTypeA(SingleTargetEffect): pass
 class EffectTypeB(SingleTargetEffect): pass
+
+class StackableEffect(SingleTargetEffect):
+    stackable = True
 
 # --- collides_with ---
 def test_overlapping_circles_collide():
@@ -173,6 +176,36 @@ def test_add_gameplay_effect_appends_different_types_separately():
     shape.add_gameplay_effect(e1)
     shape.add_gameplay_effect(e2)
     assert len(shape.gameplay_effects) == 2
+
+def test_burn_stack_limit_defaults_to_none():
+    shape = CircleShape(0, 0, 10)
+    assert shape.burn_stack_limit is None
+
+def test_add_gameplay_effect_stacks_stackable_effects_independently():
+    shape = CircleShape(0, 0, 10)
+    e1 = StackableEffect(duration=3.0)
+    e2 = StackableEffect(duration=3.0)
+    shape.add_gameplay_effect(e1)
+    shape.add_gameplay_effect(e2)
+    assert len(shape.gameplay_effects) == 2
+
+def test_add_gameplay_effect_respects_stack_limit_by_merging_oldest():
+    shape = CircleShape(0, 0, 10)
+    shape.burn_stack_limit = 2
+    e1 = StackableEffect(duration=1.0)
+    e2 = StackableEffect(duration=1.0)
+    e3 = StackableEffect(duration=9.0)
+    shape.add_gameplay_effect(e1)
+    shape.add_gameplay_effect(e2)
+    shape.add_gameplay_effect(e3)
+    assert len(shape.gameplay_effects) == 2
+    assert e1.duration == 9.0
+
+def test_plasma_burn_stacks_without_limit_by_default():
+    shape = CircleShape(0, 0, 10)
+    for _ in range(5):
+        shape.add_gameplay_effect(PlasmaBurnSTE())
+    assert len(shape.gameplay_effects) == 5
 
 # --- update_gameplay_effects ---
 def test_update_gameplay_effects_removes_expired_effect():

@@ -272,6 +272,52 @@ def test_apply_upgrade_projectile_speed_via_laser_drone_does_nothing():
     g.player.drones = [drone]
     g.apply_upgrade(LaserDrone, "projectile_speed")
 
+def test_apply_upgrade_burn_tick_rate_uses_start_decrease_on_first_purchase():
+    from systems.gameplayeffect import PlasmaBurnSTE
+    PlasmaBurnSTE.tick_rate_override = None
+    g = make_game_stub()
+    g.essence.spend.return_value = True
+    g.player.drones = []
+    g.apply_upgrade(PlasmaDrone, "burn_tick_rate")
+    expected = C.PLASMA_BURN_TICK_RATE - C.SHOP_BURN_TICK_RATE_DECREASE_START
+    assert PlasmaBurnSTE.tick_rate_override == pytest.approx(expected, abs=0.001)
+    PlasmaBurnSTE.tick_rate_override = None
+
+def test_apply_upgrade_burn_tick_rate_tapers_on_repeated_purchase():
+    from systems.gameplayeffect import PlasmaBurnSTE
+    PlasmaBurnSTE.tick_rate_override = None
+    g = make_game_stub()
+    g.essence.spend.return_value = True
+    g.player.drones = []
+    g.apply_upgrade(PlasmaDrone, "burn_tick_rate")
+    g.apply_upgrade(PlasmaDrone, "burn_tick_rate")
+    first_decrease = C.SHOP_BURN_TICK_RATE_DECREASE_START
+    second_decrease = C.SHOP_BURN_TICK_RATE_DECREASE_START - C.SHOP_BURN_TICK_RATE_DECREASE_TAPER
+    expected = C.PLASMA_BURN_TICK_RATE - first_decrease - second_decrease
+    assert PlasmaBurnSTE.tick_rate_override == pytest.approx(expected, abs=0.001)
+    PlasmaBurnSTE.tick_rate_override = None
+
+def test_apply_upgrade_burn_spread_increases_spread_chance_override():
+    from systems.gameplayeffect import PlasmaBurnSTE
+    PlasmaBurnSTE.spread_chance_override = None
+    g = make_game_stub()
+    g.essence.spend.return_value = True
+    g.player.drones = []
+    g.apply_upgrade(PlasmaDrone, "burn_spread")
+    assert PlasmaBurnSTE.spread_chance_override == pytest.approx(
+        C.PLASMA_BURN_SPREAD_CHANCE + C.SHOP_BURN_SPREAD_INCREASE, abs=0.001)
+    PlasmaBurnSTE.spread_chance_override = None
+
+def test_apply_upgrade_burn_spread_caps_at_one():
+    from systems.gameplayeffect import PlasmaBurnSTE
+    PlasmaBurnSTE.spread_chance_override = 0.95
+    g = make_game_stub()
+    g.essence.spend.return_value = True
+    g.player.drones = []
+    g.apply_upgrade(PlasmaDrone, "burn_spread")
+    assert PlasmaBurnSTE.spread_chance_override == pytest.approx(1.0, abs=0.001)
+    PlasmaBurnSTE.spread_chance_override = None
+
 # --- on_shop_infuse ---
 def test_on_shop_infuse_uses_infuse_cost_when_drone_has_no_element():
     g = make_game_stub()

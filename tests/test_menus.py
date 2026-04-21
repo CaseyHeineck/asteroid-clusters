@@ -73,10 +73,10 @@ def test_drone_upgrades_explosive_without_impact_returns_two():
     types = [t for t, _ in _drone_upgrades(drone)]
     assert types == ["damage", "fire_rate"]
 
-def test_drone_upgrades_plasma_without_impact_returns_two():
+def test_drone_upgrades_plasma_returns_four():
     drone = make_drone(PlasmaDrone)
     types = [t for t, _ in _drone_upgrades(drone)]
-    assert types == ["damage", "fire_rate"]
+    assert types == ["damage", "fire_rate", "burn_tick_rate", "burn_spread"]
 
 def test_drone_upgrades_explosive_with_impact_returns_all_four():
     drone = make_drone(ExplosiveDrone)
@@ -84,17 +84,18 @@ def test_drone_upgrades_explosive_with_impact_returns_all_four():
     types = [t for t, _ in _drone_upgrades(drone)]
     assert types == ["damage", "fire_rate", "kinetic_mass", "projectile_speed"]
 
-def test_drone_upgrades_plasma_with_impact_returns_all_four():
+def test_drone_upgrades_plasma_with_impact_returns_six():
     drone = make_drone(PlasmaDrone)
     drone.extra_abilities = {"impact"}
     types = [t for t, _ in _drone_upgrades(drone)]
-    assert types == ["damage", "fire_rate", "kinetic_mass", "projectile_speed"]
+    assert types == ["damage", "fire_rate", "burn_tick_rate", "burn_spread",
+                     "kinetic_mass", "projectile_speed"]
 
-def test_drone_upgrades_laser_with_impact_returns_only_two():
+def test_drone_upgrades_laser_with_impact_includes_kinetic_mass_but_not_speed():
     drone = make_drone(LaserDrone)
     drone.extra_abilities = {"impact"}
     types = [t for t, _ in _drone_upgrades(drone)]
-    assert types == ["damage", "fire_rate"]
+    assert types == ["damage", "fire_rate", "kinetic_mass"]
 
 # --- get_source_color ---
 def test_get_source_color_player_returns_red():

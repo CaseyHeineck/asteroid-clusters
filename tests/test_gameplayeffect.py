@@ -1,5 +1,5 @@
 from core import constants as C
-from systems.gameplayeffect import GameplayEffect, PlasmaBurnSTE
+from systems.gameplayeffect import GameplayEffect, PlasmaBurnSTE, SingleTargetEffect
 
 class FakeCombatStats:
     def __init__(self):
@@ -117,3 +117,85 @@ def test_plasma_burn_records_damage_event_to_combat_stats():
     effect.update(1.0)
     assert len(stats.events) == 1
     assert stats.events[0] == 10
+
+# --- PlasmaBurnSTE class variable defaults ---
+def test_plasma_burn_tick_rate_override_defaults_to_none():
+    PlasmaBurnSTE.tick_rate_override = None
+    assert PlasmaBurnSTE.tick_rate_override is None
+
+def test_plasma_burn_spread_chance_override_defaults_to_none():
+    assert PlasmaBurnSTE.spread_chance_override is None
+
+def test_plasma_burn_default_tick_rate_equals_constant():
+    PlasmaBurnSTE.tick_rate_override = None
+    effect = PlasmaBurnSTE()
+    assert effect.tick_rate == C.PLASMA_BURN_TICK_RATE
+
+def test_plasma_burn_default_spread_chance_equals_constant():
+    effect = PlasmaBurnSTE()
+    assert effect.spread_chance == C.PLASMA_BURN_SPREAD_CHANCE
+
+def test_plasma_burn_tick_rate_override_applied_on_construction():
+    PlasmaBurnSTE.tick_rate_override = 0.5
+    effect = PlasmaBurnSTE()
+    PlasmaBurnSTE.tick_rate_override = None
+    assert effect.tick_rate == 0.5
+
+def test_plasma_burn_spread_chance_override_applied_on_construction():
+    PlasmaBurnSTE.spread_chance_override = 0.5
+    effect = PlasmaBurnSTE()
+    PlasmaBurnSTE.spread_chance_override = None
+    assert effect.spread_chance == 0.5
+
+def test_plasma_burn_explicit_tick_rate_ignores_override():
+    PlasmaBurnSTE.tick_rate_override = 0.25
+    effect = PlasmaBurnSTE(tick_rate=2.0)
+    PlasmaBurnSTE.tick_rate_override = None
+    assert effect.tick_rate == 2.0
+
+# --- PlasmaBurnSTE merge with spread_chance ---
+def test_plasma_burn_merge_takes_max_spread_chance():
+    e1 = PlasmaBurnSTE(spread_chance=0.2, tick_rate=1.0, duration=5.0)
+    e2 = PlasmaBurnSTE(spread_chance=0.5, tick_rate=1.0, duration=5.0)
+    e1.merge(e2)
+    assert e1.spread_chance == 0.5
+
+def test_plasma_burn_merge_keeps_own_spread_chance_when_higher():
+    e1 = PlasmaBurnSTE(spread_chance=0.8, tick_rate=1.0, duration=5.0)
+    e2 = PlasmaBurnSTE(spread_chance=0.3, tick_rate=1.0, duration=5.0)
+    e1.merge(e2)
+    assert e1.spread_chance == 0.8
+
+# --- PlasmaBurnSTE handles tuple return from damaged (enemy-style) ---
+class FakeTupleTarget:
+    def __init__(self, health=100):
+        self.health = health
+        self.pulsed = False
+    def alive(self):
+        return self.health > 0
+    def damaged(self, amount):
+        self.health -= amount
+        return (10, 5) if self.health <= 0 else (0, 0)
+    def pulse_outline(self, color, duration):
+        self.pulsed = True
+
+def test_plasma_burn_handles_tuple_damaged_return_without_crash():
+    effect = PlasmaBurnSTE(damage_per_tick=50, tick_rate=1.0, duration=5.0)
+    target = FakeTupleTarget(health=50)
+    effect.apply_to(target)
+    score = effect.update(1.0)
+    assert score == 10
+
+def test_plasma_burn_expires_on_lethal_tick_with_tuple_target():
+    effect = PlasmaBurnSTE(damage_per_tick=50, tick_rate=1.0, duration=5.0)
+    target = FakeTupleTarget(health=50)
+    effect.apply_to(target)
+    effect.update(1.0)
+    assert effect.expired
+
+# --- Stackable flag ---
+def test_single_target_effect_is_not_stackable():
+    assert SingleTargetEffect.stackable is False
+
+def test_plasma_burn_is_stackable():
+    assert PlasmaBurnSTE.stackable is True

@@ -12,7 +12,7 @@ A top-down arcade shooter built with Python and Pygame. You're a space wizard mi
 ### Clone and run
 
 ```bash
-git clone https://github.com/cjheineck/asteroid-clusters.git
+git clone https://github.com/CaseyHeineck/asteroid-clusters.git
 cd asteroid-clusters
 uv sync
 uv run main.py

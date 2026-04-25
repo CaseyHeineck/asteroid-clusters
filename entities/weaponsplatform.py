@@ -25,11 +25,12 @@ class WeaponsPlatform:
 
 
 class KineticPlatform(WeaponsPlatform):
-    def __init__(self):
+    def __init__(self, projectile_color=None):
         super().__init__()
         self.weapons_free_timer_max = C.KINETIC_DRONE_WEAPONS_FREE_TIMER
         self.range = C.KINETIC_DRONE_WEAPONS_RANGE
         self.projectile_speed = C.KINETIC_DRONE_PROJECTILE_SPEED
+        self.projectile_color = projectile_color
 
     def _muzzle_position(self, owner):
         forward = owner.get_forward_vector()
@@ -47,6 +48,8 @@ class KineticPlatform(WeaponsPlatform):
         projectile.extra_abilities = set(owner.extra_abilities)
         projectile.asteroids = owner.asteroids
         projectile.element = owner.element
+        if self.projectile_color is not None:
+            projectile.color = self.projectile_color
         if MuzzleFlareVE.containers:
             MuzzleFlareVE(spawn_pos.x, spawn_pos.y, size=5)
         self.weapons_free_timer = self.weapons_free_timer_max

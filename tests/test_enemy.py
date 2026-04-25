@@ -2,8 +2,8 @@ import pygame
 import pytest
 from core import constants as C
 from core.element import Element
-from entities.enemy import Enemy, PlasmaEnemy
-from entities.projectile import Plasma
+from entities.enemy import Enemy, KineticEnemy, PlasmaEnemy
+from entities.projectile import Kinetic, Plasma
 from types import SimpleNamespace
 from ui.visualeffect import EnemyKillExplosionVE
 from unittest.mock import MagicMock, patch
@@ -782,3 +782,308 @@ def test_enemy_onscreen_in_different_airspace_does_not_switch():
     game, cs = make_cs_game(enemies=[enemy], current_space=space_b)
     cs.handle_enemy_collisions()
     assert enemy.airspace is space_a
+
+
+class FakeAsteroid:
+    def __init__(self, x, y, radius=30):
+        self.position = pygame.Vector2(x, y)
+        self.radius = radius
+        self.velocity = pygame.Vector2(0, 0)
+
+
+def make_kinetic_enemy(px=0, py=0, ex=500, ey=500):
+    Kinetic.containers = ()
+    player = FakePlayer(px, py)
+    game = SimpleNamespace(
+        asteroids=[],
+        combat_stats=SimpleNamespace(record_damage_event=lambda **kw: None),
+    )
+    KineticEnemy.containers = ()
+    enemy = KineticEnemy(ex, ey, player, game)
+    return enemy, player, game
+
+
+# --- KineticEnemy construction ---
+def test_kinetic_enemy_health_uses_constant():
+    enemy, _, _ = make_kinetic_enemy()
+    assert enemy.health == C.KINETIC_ENEMY_MAX_HEALTH
+
+def test_kinetic_enemy_max_health_uses_constant():
+    enemy, _, _ = make_kinetic_enemy()
+    assert enemy.max_health == C.KINETIC_ENEMY_MAX_HEALTH
+
+def test_kinetic_enemy_body_color_uses_constant():
+    enemy, _, _ = make_kinetic_enemy()
+    assert enemy.body_color == C.KINETIC_ENEMY_BODY_COLOR
+
+def test_kinetic_enemy_hull_width_uses_constant():
+    enemy, _, _ = make_kinetic_enemy()
+    assert enemy.hull_width == C.KINETIC_ENEMY_HULL_WIDTH
+
+def test_kinetic_enemy_hull_length_uses_constant():
+    enemy, _, _ = make_kinetic_enemy()
+    assert enemy.hull_length == C.KINETIC_ENEMY_HULL_LENGTH
+
+def test_kinetic_enemy_hull_is_wider_than_long():
+    assert C.KINETIC_ENEMY_HULL_WIDTH > C.KINETIC_ENEMY_HULL_LENGTH
+
+def test_kinetic_enemy_speed_uses_constant():
+    enemy, _, _ = make_kinetic_enemy()
+    assert enemy.speed == C.KINETIC_ENEMY_SPEED
+
+def test_kinetic_enemy_xp_uses_constant():
+    enemy, _, _ = make_kinetic_enemy()
+    assert enemy.xp_value == C.KINETIC_ENEMY_XP_VALUE
+
+def test_kinetic_enemy_has_platform():
+    enemy, _, _ = make_kinetic_enemy()
+    assert enemy.platform is not None
+
+def test_kinetic_enemy_platform_range_uses_constant():
+    enemy, _, _ = make_kinetic_enemy()
+    assert enemy.platform.range == C.KINETIC_ENEMY_WEAPONS_RANGE
+
+def test_kinetic_enemy_platform_timer_max_uses_constant():
+    enemy, _, _ = make_kinetic_enemy()
+    assert enemy.platform.weapons_free_timer_max == C.KINETIC_ENEMY_WEAPONS_FREE_TIMER
+
+def test_kinetic_enemy_platform_projectile_speed_uses_constant():
+    enemy, _, _ = make_kinetic_enemy()
+    assert enemy.platform.projectile_speed == C.KINETIC_ENEMY_PROJECTILE_SPEED
+
+def test_kinetic_enemy_platform_projectile_color_is_danger_red():
+    enemy, _, _ = make_kinetic_enemy()
+    assert enemy.platform.projectile_color == C.KINETIC_ENEMY_PROJECTILE_COLOR
+
+# --- KineticEnemy._find_largest_asteroid ---
+def test_find_largest_returns_none_when_no_asteroids():
+    enemy, _, _ = make_kinetic_enemy()
+    assert enemy._find_largest_asteroid() is None
+
+def test_find_largest_returns_only_asteroid():
+    enemy, _, game = make_kinetic_enemy()
+    a = FakeAsteroid(100, 100, radius=30)
+    game.asteroids = [a]
+    enemy.asteroids = game.asteroids
+    assert enemy._find_largest_asteroid() is a
+
+def test_find_largest_returns_asteroid_with_greatest_radius():
+    enemy, _, game = make_kinetic_enemy()
+    small = FakeAsteroid(100, 100, radius=15)
+    big = FakeAsteroid(200, 200, radius=60)
+    medium = FakeAsteroid(300, 300, radius=30)
+    game.asteroids = [small, big, medium]
+    enemy.asteroids = game.asteroids
+    assert enemy._find_largest_asteroid() is big
+
+# --- KineticEnemy._find_nearest_asteroid ---
+def test_find_nearest_returns_none_when_no_asteroids():
+    enemy, _, _ = make_kinetic_enemy()
+    assert enemy._find_nearest_asteroid() is None
+
+def test_find_nearest_returns_closest_asteroid():
+    enemy, _, game = make_kinetic_enemy(ex=0, ey=0)
+    near = FakeAsteroid(50, 0, radius=15)
+    far = FakeAsteroid(500, 0, radius=15)
+    game.asteroids = [near, far]
+    enemy.asteroids = game.asteroids
+    assert enemy._find_nearest_asteroid() is near
+
+def test_find_nearest_excludes_specified_asteroid():
+    enemy, _, game = make_kinetic_enemy(ex=0, ey=0)
+    near = FakeAsteroid(50, 0, radius=15)
+    far = FakeAsteroid(500, 0, radius=15)
+    game.asteroids = [near, far]
+    enemy.asteroids = game.asteroids
+    assert enemy._find_nearest_asteroid(exclude=near) is far
+
+def test_find_nearest_returns_none_when_only_excluded():
+    enemy, _, game = make_kinetic_enemy(ex=0, ey=0)
+    only = FakeAsteroid(50, 0, radius=15)
+    game.asteroids = [only]
+    enemy.asteroids = game.asteroids
+    assert enemy._find_nearest_asteroid(exclude=only) is None
+
+# --- KineticEnemy._calculate_proximity_avoidance ---
+def test_proximity_avoidance_zero_when_no_objects():
+    enemy, _, _ = make_kinetic_enemy(ex=0, ey=0)
+    result = enemy._calculate_proximity_avoidance([])
+    assert result.length() == pytest.approx(0, abs=0.001)
+
+def test_proximity_avoidance_zero_when_object_out_of_range():
+    enemy, _, _ = make_kinetic_enemy(ex=0, ey=0)
+    far = FakeAsteroid(9999, 0, radius=15)
+    result = enemy._calculate_proximity_avoidance([far])
+    assert result.length() == pytest.approx(0, abs=0.001)
+
+def test_proximity_avoidance_nonzero_when_object_in_range():
+    enemy, _, _ = make_kinetic_enemy(ex=100, ey=0)
+    near = FakeAsteroid(0, 0, radius=15)
+    result = enemy._calculate_proximity_avoidance([near])
+    assert result.length() > 0
+
+def test_proximity_avoidance_points_away_from_nearby_object():
+    enemy, _, _ = make_kinetic_enemy(ex=100, ey=0)
+    near = FakeAsteroid(0, 0, radius=15)
+    result = enemy._calculate_proximity_avoidance([near])
+    assert result.x > 0
+
+# --- KineticEnemy.acquire_target ---
+def test_acquire_target_sets_player_when_player_within_threat_radius():
+    enemy, player, game = make_kinetic_enemy(px=500, py=500, ex=500, ey=500)
+    enemy.acquire_target()
+    assert enemy.target is player
+
+def test_acquire_target_sets_largest_when_in_weapon_range():
+    enemy, player, game = make_kinetic_enemy(px=9999, py=9999, ex=0, ey=0)
+    a = FakeAsteroid(10, 0, radius=60)
+    game.asteroids = [a]
+    enemy.asteroids = game.asteroids
+    enemy.acquire_target()
+    assert enemy.target is a
+
+def test_acquire_target_sets_nearest_when_largest_out_of_range():
+    enemy, player, game = make_kinetic_enemy(px=9999, py=9999, ex=0, ey=0)
+    large = FakeAsteroid(9000, 0, radius=60)
+    near = FakeAsteroid(50, 0, radius=15)
+    game.asteroids = [large, near]
+    enemy.asteroids = game.asteroids
+    enemy.acquire_target()
+    assert enemy.target is near
+
+def test_acquire_target_falls_back_to_largest_when_no_other_asteroid():
+    enemy, player, game = make_kinetic_enemy(px=9999, py=9999, ex=0, ey=0)
+    large = FakeAsteroid(9000, 0, radius=60)
+    game.asteroids = [large]
+    enemy.asteroids = game.asteroids
+    enemy.acquire_target()
+    assert enemy.target is large
+
+def test_acquire_target_sets_none_when_no_asteroids_and_player_far():
+    enemy, player, game = make_kinetic_enemy(px=9999, py=9999, ex=0, ey=0)
+    game.asteroids = []
+    enemy.asteroids = game.asteroids
+    enemy.acquire_target()
+    assert enemy.target is None
+
+# --- KineticEnemy.move_toward_asteroid ---
+def test_move_toward_asteroid_sets_velocity_toward_largest():
+    enemy, player, game = make_kinetic_enemy(px=9999, py=9999, ex=0, ey=0)
+    a = FakeAsteroid(200, 0, radius=30)
+    game.asteroids = [a]
+    enemy.asteroids = game.asteroids
+    enemy.move_toward_asteroid(0.1)
+    assert enemy.velocity.x > 0
+
+def test_move_toward_asteroid_speed_equals_enemy_speed():
+    enemy, player, game = make_kinetic_enemy(px=9999, py=9999, ex=0, ey=0)
+    a = FakeAsteroid(200, 0, radius=30)
+    game.asteroids = [a]
+    enemy.asteroids = game.asteroids
+    enemy.move_toward_asteroid(0.1)
+    assert enemy.velocity.length() == pytest.approx(C.KINETIC_ENEMY_SPEED, abs=0.1)
+
+def test_move_toward_asteroid_moves_toward_player_when_in_threat_radius():
+    enemy, player, game = make_kinetic_enemy(px=500, py=500, ex=500, ey=600)
+    a = FakeAsteroid(0, 0, radius=30)
+    game.asteroids = [a]
+    enemy.asteroids = game.asteroids
+    enemy.move_toward_asteroid(0.1)
+    assert enemy.velocity.y < 0
+
+def test_move_toward_asteroid_respects_impact_timer():
+    enemy, player, game = make_kinetic_enemy(px=9999, py=9999, ex=0, ey=0)
+    a = FakeAsteroid(200, 0, radius=30)
+    game.asteroids = [a]
+    enemy.asteroids = game.asteroids
+    enemy.impact_timer = 0.5
+    enemy.velocity = pygame.Vector2(0, 0)
+    enemy.move_toward_asteroid(0.1)
+    assert enemy.velocity.length() == pytest.approx(0, abs=0.001)
+
+def test_move_toward_asteroid_no_crash_when_no_asteroids():
+    enemy, player, game = make_kinetic_enemy(px=9999, py=9999, ex=0, ey=0)
+    game.asteroids = []
+    enemy.asteroids = game.asteroids
+    enemy.move_toward_asteroid(0.1)
+
+# --- KineticEnemy.update ---
+def test_kinetic_enemy_update_ticks_platform():
+    enemy, _, _ = make_kinetic_enemy(ex=500, ey=500)
+    enemy.platform.weapons_free_timer = 5.0
+    enemy.update(1.0)
+    assert enemy.platform.weapons_free_timer < 5.0
+
+def test_kinetic_enemy_update_calls_update_gameplay_effects():
+    enemy, _, _ = make_kinetic_enemy(ex=500, ey=500)
+    called = []
+    enemy.update_gameplay_effects = lambda dt: called.append(dt) or 0
+    enemy.update(0.1)
+    assert called == [0.1]
+
+def test_kinetic_enemy_update_calls_update_outline_pulse():
+    enemy, _, _ = make_kinetic_enemy(ex=500, ey=500)
+    called = []
+    enemy.update_outline_pulse = lambda dt: called.append(dt)
+    enemy.update(0.1)
+    assert called == [0.1]
+
+def test_kinetic_enemy_moves_toward_player_when_in_different_airspace():
+    enemy, player, game = make_kinetic_enemy(px=0, py=0, ex=300, ey=0)
+    space_a = object()
+    space_b = object()
+    enemy.airspace = space_a
+    enemy.game = SimpleNamespace(current_space=space_b, asteroids=game.asteroids,
+        combat_stats=game.combat_stats)
+    enemy.update(0.1)
+    assert enemy.velocity.x < 0
+
+def test_kinetic_enemy_does_not_move_toward_asteroid_when_in_different_airspace():
+    # player is left, asteroid is right — enemy should move left (toward player)
+    enemy, player, game = make_kinetic_enemy(px=-300, py=0, ex=0, ey=0)
+    a = FakeAsteroid(300, 0, radius=60)
+    game.asteroids = [a]
+    enemy.asteroids = game.asteroids
+    space_a = object()
+    space_b = object()
+    enemy.airspace = space_a
+    enemy.game = SimpleNamespace(current_space=space_b, asteroids=game.asteroids,
+        combat_stats=game.combat_stats)
+    enemy.update(0.1)
+    assert enemy.velocity.x < 0
+
+# --- KineticEnemy._draw_fins ---
+def test_kinetic_enemy_draw_fins_draws_two_polygons():
+    enemy, _, _ = make_kinetic_enemy()
+    draw_calls = []
+    with patch("entities.enemy.pygame.draw.polygon",
+               side_effect=lambda s, color, pts, *a: draw_calls.append(pts)):
+        enemy._draw_fins(None)
+    assert len(draw_calls) == 2
+
+def test_kinetic_enemy_draw_fins_uses_body_color_when_not_burning():
+    enemy, _, _ = make_kinetic_enemy()
+    drawn_colors = []
+    with patch("entities.enemy.pygame.draw.polygon",
+               side_effect=lambda s, color, pts, *a: drawn_colors.append(color)):
+        enemy._draw_fins(None)
+    assert all(c == C.KINETIC_ENEMY_BODY_COLOR for c in drawn_colors)
+
+def test_kinetic_enemy_draw_fins_calls_elemental_glow_per_fin_when_elemental():
+    enemy, _, _ = make_kinetic_enemy()
+    enemy.element = Element.SOLAR
+    glow_calls = []
+    with patch("entities.enemy.draw_elemental_glow_poly",
+               side_effect=lambda s, corners, el: glow_calls.append(el)), \
+         patch("entities.enemy.pygame.draw.polygon"):
+        enemy._draw_fins(None)
+    assert glow_calls.count(Element.SOLAR) == 2
+
+def test_kinetic_enemy_draw_fins_no_elemental_glow_when_not_elemental():
+    enemy, _, _ = make_kinetic_enemy()
+    glow_calls = []
+    with patch("entities.enemy.draw_elemental_glow_poly",
+               side_effect=lambda s, corners, el: glow_calls.append(el)), \
+         patch("entities.enemy.pygame.draw.polygon"):
+        enemy._draw_fins(None)
+    assert glow_calls == []

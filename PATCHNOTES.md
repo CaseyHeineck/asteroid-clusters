@@ -1,5 +1,22 @@
 # ASTEROID CLUSTERS — Patch Notes
 
+---
+
+## 2026-04-25
+
+### Kinetic Enemy — Second Enemy Type
+
+Added `KineticEnemy`, a wide-bodied gunship that hunts asteroids rather than the player.
+
+- **Wide hull** — hull is wider than it is long (48 × 22), giving it a squat disc silhouette; body color is copper to distinguish it from PlasmaEnemy's steel gray; forward-swept triangular fins flare from the front corners
+- **Weapons platform as nose** — `KineticPlatform` mounts at the front of the ship, making it the visual nose; fires small, fast kinetic rounds colored danger red (matching the enemy projectile convention)
+- **Asteroid hunting** — moves toward the largest asteroid on screen; fires at it when within weapon range; when the largest is out of range, fires at the nearest asteroid instead while navigating around non-target asteroids and the player
+- **Player threat override** — if the player enters `KINETIC_ENEMY_PLAYER_THREAT_RADIUS` (220 px), the enemy switches to targeting and moving toward the player until the player exits range
+- **Fire rate** — 2.0 s cooldown, much slower than the player's kinetic drone (0.12 s) but much faster than PlasmaEnemy (10.0 s); projectile speed 900 px/s
+- **Stats** — 35 HP, 25 XP, speed 95; balanced as a level-one threat comparable to PlasmaEnemy
+- **`KineticPlatform` extended** — added optional `projectile_color` param so the enemy's kinetic rounds render in danger red rather than the default drone silver
+- **`EnemySpawner` updated** — now randomly picks between `PlasmaEnemy` and `KineticEnemy` each spawn via `_pick_enemy_class()`; both types still receive elemental assignment at the same 35% rate
+
 All notable changes, additions, and updates to the game are recorded here.
 Entries are never removed — only appended. Each entry is dated and summarizes what changed.
 

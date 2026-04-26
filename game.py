@@ -8,7 +8,7 @@ from core.logger import *
 from entities.asteroid import Asteroid
 from entities.asteroidfield import AsteroidField
 from entities.drone import Drone, ExplosiveDrone, KineticDrone, LaserDrone, PlasmaDrone, SentinelDrone
-from entities.enemy import Enemy, KineticEnemy, PlasmaEnemy
+from entities.enemy import Enemy, ExplosiveEnemy, KineticEnemy, LaserEnemy, PlasmaEnemy
 from entities.enemyspawner import EnemySpawner
 from entities.elementalessenceorb import ElementalEssenceOrb
 from entities.essenceorb import EssenceOrb
@@ -244,7 +244,9 @@ class Game:
         Player.containers = (self.updatable, self.drawable)
         Drone.containers = (self.drones, self.drawable, self.updatable)
         Enemy.containers = (self.enemies, self.drawable, self.updatable)
+        ExplosiveEnemy.containers = (self.enemies, self.drawable, self.updatable)
         KineticEnemy.containers = (self.enemies, self.drawable, self.updatable)
+        LaserEnemy.containers = (self.enemies, self.drawable, self.updatable)
         PlasmaEnemy.containers = (self.enemies, self.drawable, self.updatable)
         EnemySpawner.containers = (self.updatable,)
         Shield.containers = (self.shields, self.drawable, self.updatable)

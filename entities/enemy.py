@@ -3,8 +3,8 @@ from core import constants as C
 from core.circleshape import CircleShape
 from core.element import draw_elemental_glow_poly, get_damage_multiplier
 from core.logger import log_event
-from entities.weaponsplatform import KineticPlatform, PlasmaPlatform
-from ui.visualeffect import EnemyKillExplosionVE
+from entities.weaponsplatform import ExplosivePlatform, KineticPlatform, LaserPlatform, PlasmaPlatform
+from ui.visualeffect import EnemyKillExplosionVE, LaserBeamVE
 
 class Enemy(CircleShape):
     def __init__(self, x, y, player, game=None):
@@ -305,3 +305,243 @@ class KineticEnemy(Enemy):
     def draw_body(self, screen):
         super().draw_body(screen)
         self._draw_fins(screen)
+
+
+class LaserEnemy(Enemy):
+    def __init__(self, x, y, player, game):
+        super().__init__(x, y, player, game)
+        self.health = C.LASER_ENEMY_MAX_HEALTH
+        self.max_health = C.LASER_ENEMY_MAX_HEALTH
+        self.score_value = C.LASER_ENEMY_SCORE_VALUE
+        self.xp_value = C.LASER_ENEMY_XP_VALUE
+        self.body_color = C.LASER_ENEMY_BODY_COLOR
+        self.speed = C.LASER_ENEMY_SPEED
+        self.hull_length = C.LASER_ENEMY_HULL_LENGTH
+        self.hull_width = C.LASER_ENEMY_HULL_WIDTH
+        self.asteroids = game.asteroids
+        self.platform = LaserPlatform()
+        self.platform.weapons_free_timer_max = C.LASER_ENEMY_WEAPONS_FREE_TIMER
+        self.platform.weapons_free_timer = C.LASER_ENEMY_WEAPONS_FREE_TIMER
+        self.platform.range = float("inf")
+        self.platform.damage = C.LASER_ENEMY_DAMAGE
+        self.locked_target_pos = None
+
+    def _mirror_position(self):
+        cx = C.SCREEN_WIDTH / 2
+        cy = C.SCREEN_HEIGHT / 2
+        return pygame.Vector2(2 * cx - self.player.position.x, 2 * cy - self.player.position.y)
+
+    def _ray_hits_asteroid(self, start, direction, asteroid):
+        to_center = asteroid.position - start
+        proj = to_center.dot(direction)
+        if proj < 0:
+            return False, 0
+        perp_sq = max(0, to_center.length_squared() - proj * proj)
+        return perp_sq <= asteroid.radius ** 2, proj
+
+    def _screen_edge_endpoint(self, start, direction):
+        W, H = C.SCREEN_WIDTH, C.SCREEN_HEIGHT
+        t_vals = []
+        if direction.x > 0:
+            t_vals.append((W - start.x) / direction.x)
+        elif direction.x < 0:
+            t_vals.append(-start.x / direction.x)
+        if direction.y > 0:
+            t_vals.append((H - start.y) / direction.y)
+        elif direction.y < 0:
+            t_vals.append(-start.y / direction.y)
+        t = min((v for v in t_vals if v > 0), default=1000)
+        return start + direction * t
+
+    def _fire_laser_at(self, target_pos):
+        forward = self.get_forward_vector()
+        spawn_pos = pygame.Vector2(
+            self.position + forward * (self.radius + C.LASER_DRONE_WEAPONS_PLATFORM_OFFSET))
+        to_target = target_pos - spawn_pos
+        if to_target.length_squared() == 0:
+            return 0
+        max_dist = to_target.length()
+        dir_norm = to_target.normalize()
+        closest_asteroid = None
+        closest_dist = float('inf')
+        if self.asteroids:
+            for asteroid in self.asteroids:
+                hit, dist = self._ray_hits_asteroid(spawn_pos, dir_norm, asteroid)
+                if hit and dist < max_dist and dist < closest_dist:
+                    closest_dist = dist
+                    closest_asteroid = asteroid
+        if closest_asteroid is not None:
+            health_before = closest_asteroid.health
+            end_pos = closest_asteroid.position.copy()
+            if LaserBeamVE.containers:
+                LaserBeamVE(spawn_pos, end_pos, color=C.LASER_BEAM_COLOR,
+                    width=C.LASER_BEAM_WIDTH, duration=C.LASER_BEAM_DURATION)
+            score = closest_asteroid.damaged(self.platform.damage)
+            if self.game and self.game.combat_stats:
+                self.game.combat_stats.record_damage_event(
+                    source=self.stat_source, health_before=health_before,
+                    attempted_damage=self.platform.damage)
+            return score or 0
+        else:
+            end_pos = self._screen_edge_endpoint(spawn_pos, dir_norm)
+            if LaserBeamVE.containers:
+                LaserBeamVE(spawn_pos, end_pos, color=C.LASER_BEAM_COLOR,
+                    width=C.LASER_BEAM_WIDTH, duration=C.LASER_BEAM_DURATION)
+            return 0
+
+    def move_toward_player(self, dt):
+        if self.impact_timer > 0:
+            return
+        dist_to_player = self.position.distance_to(self.player.position)
+        if dist_to_player > C.LASER_ENEMY_FOLLOW_FALLBACK_DIST:
+            target_pos = self.player.position
+        else:
+            target_pos = self._mirror_position()
+        direction = target_pos - self.position
+        if direction.length_squared() == 0:
+            return
+        move_dir = direction.normalize()
+        if self.asteroids:
+            avoidance = self._calculate_avoidance(self.asteroids)
+            if avoidance.length_squared() > 0:
+                move_dir = (move_dir * (1.0 - C.ENEMY_ASTEROID_AVOIDANCE_WEIGHT)
+                            + avoidance * C.ENEMY_ASTEROID_AVOIDANCE_WEIGHT)
+                if move_dir.length_squared() > 0:
+                    move_dir = move_dir.normalize()
+        self.velocity = move_dir * self.speed
+
+    def shoot(self):
+        if not self._in_current_airspace():
+            return 0
+        if self.platform is None or not self.platform.can_fire():
+            return 0
+        if self.locked_target_pos is None:
+            return 0
+        score = self._fire_laser_at(self.locked_target_pos)
+        self.platform.weapons_free_timer = self.platform.weapons_free_timer_max
+        self.locked_target_pos = None
+        return score
+
+    def update(self, dt):
+        if self.impact_timer > 0:
+            self.impact_timer = max(0, self.impact_timer - dt)
+        if self._in_current_airspace():
+            self.move_toward_player(dt)
+        self.physics_move(dt)
+        if self.platform is not None:
+            self.platform.tick(dt)
+        self.acquire_target()
+        self.aim_at_target()
+        warn = C.LASER_ENEMY_CROSSHAIR_WARN_TIME
+        timer = self.platform.weapons_free_timer if self.platform else 1.0
+        if 0 < timer <= warn:
+            if self.locked_target_pos is None:
+                self.locked_target_pos = self.player.position.copy()
+        elif timer > warn:
+            self.locked_target_pos = None
+        self.update_outline_pulse(dt)
+        self.update_gameplay_effects(dt)
+        return self.shoot()
+
+    def draw_body(self, screen):
+        forward = pygame.Vector2(0, -1).rotate(self.rotation)
+        right = forward.rotate(90)
+        hl = self.hull_length / 2
+        hw = self.hull_width / 2
+        nose = self.position + forward * hl
+        left_base = self.position - forward * hl - right * hw
+        right_base = self.position - forward * hl + right * hw
+        triangle = [nose, left_base, right_base]
+        if self.element is not None:
+            draw_elemental_glow_poly(screen, triangle, self.element)
+        pygame.draw.polygon(screen, self.get_outline_color(self.body_color), triangle)
+        if self.platform is not None:
+            em_length = max(6, int(hl * 0.45))
+            em_width = max(4, int(hw * 0.45))
+            base_center = nose - forward * em_length
+            pygame.draw.polygon(screen, self.platform.get_platform_color(),
+                [nose, base_center + right * em_width, base_center - right * em_width])
+
+    def _draw_crosshair(self, screen, pos, alpha):
+        size = C.LASER_ENEMY_CROSSHAIR_SIZE
+        width = C.LASER_ENEMY_CROSSHAIR_WIDTH
+        surf_size = size * 2 + 4
+        surf = pygame.Surface((surf_size, surf_size), pygame.SRCALPHA)
+        c = surf_size // 2
+        color = (*C.RED, alpha)
+        pygame.draw.line(surf, color, (0, c), (surf_size, c), width)
+        pygame.draw.line(surf, color, (c, 0), (c, surf_size), width)
+        pygame.draw.circle(surf, color, (c, c), size - 2, width)
+        screen.blit(surf, surf.get_rect(center=(int(pos.x), int(pos.y))))
+
+    def draw(self, screen):
+        if not self._in_current_airspace():
+            return
+        self.draw_body(screen)
+        if self.locked_target_pos is not None and self.platform is not None:
+            timer = self.platform.weapons_free_timer
+            warn = C.LASER_ENEMY_CROSSHAIR_WARN_TIME
+            t = 1.0 - (timer / warn) if warn > 0 else 1.0
+            t = max(0.0, min(1.0, t))
+            alpha = int(C.LASER_ENEMY_CROSSHAIR_MIN_ALPHA
+                        + (255 - C.LASER_ENEMY_CROSSHAIR_MIN_ALPHA) * t)
+            self._draw_crosshair(screen, self.locked_target_pos, alpha)
+
+
+class ExplosiveEnemy(Enemy):
+    def __init__(self, x, y, player, game):
+        super().__init__(x, y, player, game)
+        self.health = C.EXPLOSIVE_ENEMY_MAX_HEALTH
+        self.max_health = C.EXPLOSIVE_ENEMY_MAX_HEALTH
+        self.score_value = C.EXPLOSIVE_ENEMY_SCORE_VALUE
+        self.xp_value = C.EXPLOSIVE_ENEMY_XP_VALUE
+        self.body_color = C.EXPLOSIVE_ENEMY_BODY_COLOR
+        self.speed = C.EXPLOSIVE_ENEMY_SPEED
+        self.hull_width = C.EXPLOSIVE_ENEMY_HULL_SIZE
+        self.hull_length = C.EXPLOSIVE_ENEMY_HULL_SIZE
+        self.asteroids = game.asteroids
+        self.platform = ExplosivePlatform()
+        self.platform.weapons_free_timer_max = C.EXPLOSIVE_ENEMY_WEAPONS_FREE_TIMER
+        self.platform.weapons_free_timer = C.EXPLOSIVE_ENEMY_WEAPONS_FREE_TIMER
+        self.platform.range = C.EXPLOSIVE_ENEMY_WEAPONS_RANGE
+        self.platform.projectile_speed = C.EXPLOSIVE_ENEMY_PROJECTILE_SPEED
+
+    def _find_best_explosion_pos(self):
+        targets = [self.player] + list(self.asteroids)
+        if not targets:
+            return self.player.position.copy()
+        explosion_r = C.ROCKET_HIT_RADIUS
+        best_pos = self.player.position.copy()
+        best_count = 0
+        for anchor in targets:
+            count = sum(
+                1 for t in targets
+                if anchor.position.distance_to(t.position) <= explosion_r
+            )
+            if count > best_count:
+                best_count = count
+                best_pos = anchor.position.copy()
+        return best_pos
+
+    def move_toward_player(self, dt):
+        if self.impact_timer > 0:
+            return
+        target_pos = self._find_best_explosion_pos()
+        direction = target_pos - self.position
+        if direction.length_squared() == 0:
+            return
+        move_dir = direction.normalize()
+        if self.asteroids:
+            avoidance = self._calculate_avoidance(self.asteroids)
+            if avoidance.length_squared() > 0:
+                move_dir = (move_dir * (1.0 - C.ENEMY_ASTEROID_AVOIDANCE_WEIGHT)
+                            + avoidance * C.ENEMY_ASTEROID_AVOIDANCE_WEIGHT)
+                if move_dir.length_squared() > 0:
+                    move_dir = move_dir.normalize()
+        self.velocity = move_dir * self.speed
+
+    def draw_body(self, screen):
+        corners = self.rect_corners()
+        if self.element is not None:
+            draw_elemental_glow_poly(screen, corners, self.element)
+        pygame.draw.polygon(screen, self.get_outline_color(self.body_color), corners)

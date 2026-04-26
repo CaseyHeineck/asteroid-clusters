@@ -2,7 +2,7 @@ import pygame
 import pytest
 from core import constants as C
 from core.element import ALL_ELEMENTS
-from entities.enemy import KineticEnemy, PlasmaEnemy
+from entities.enemy import ExplosiveEnemy, KineticEnemy, LaserEnemy, PlasmaEnemy
 from entities.enemyspawner import EnemySpawner
 from types import SimpleNamespace
 from unittest.mock import MagicMock, patch
@@ -163,3 +163,19 @@ def test_pick_enemy_class_returns_kinetic_enemy_sometimes():
     spawner = EnemySpawner(game)
     with patch("entities.enemyspawner.random.choice", return_value=KineticEnemy):
         assert spawner._pick_enemy_class() is KineticEnemy
+
+def test_pick_enemy_class_returns_laser_enemy_sometimes():
+    LaserEnemy.containers = ()
+    EnemySpawner.containers = ()
+    game, _, _ = make_game()
+    spawner = EnemySpawner(game)
+    with patch("entities.enemyspawner.random.choice", return_value=LaserEnemy):
+        assert spawner._pick_enemy_class() is LaserEnemy
+
+def test_pick_enemy_class_returns_explosive_enemy_sometimes():
+    ExplosiveEnemy.containers = ()
+    EnemySpawner.containers = ()
+    game, _, _ = make_game()
+    spawner = EnemySpawner(game)
+    with patch("entities.enemyspawner.random.choice", return_value=ExplosiveEnemy):
+        assert spawner._pick_enemy_class() is ExplosiveEnemy

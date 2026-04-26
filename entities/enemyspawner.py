@@ -2,7 +2,7 @@ import pygame
 import random
 from core import constants as C
 from core.element import ALL_ELEMENTS
-from entities.enemy import KineticEnemy, PlasmaEnemy
+from entities.enemy import ExplosiveEnemy, KineticEnemy, LaserEnemy, PlasmaEnemy
 
 class EnemySpawner(pygame.sprite.Sprite):
     def __init__(self, game):
@@ -22,7 +22,7 @@ class EnemySpawner(pygame.sprite.Sprite):
             return random.uniform(0, C.SCREEN_WIDTH), C.SCREEN_HEIGHT + C.ENEMY_SPAWN_MARGIN
 
     def _pick_enemy_class(self):
-        return random.choice([KineticEnemy, PlasmaEnemy])
+        return random.choice([ExplosiveEnemy, KineticEnemy, LaserEnemy, PlasmaEnemy])
 
     def spawn(self):
         x, y = self._offscreen_position()

@@ -2,6 +2,36 @@
 
 ---
 
+## 2026-04-25 (2)
+
+### Laser Enemy & Explosive Enemy — Two New Enemy Types
+
+Added `LaserEnemy` and `ExplosiveEnemy`, bringing the enemy roster to four types.
+
+#### Laser Enemy
+
+- **Triangular hull** — equilateral-ish triangle (40 × 32) pointed forward; body color is dodger blue to read instantly against all other ships; the nose tip IS the emitter tip
+- **Embedded laser emitter** — the `LaserPlatform` charge triangle is drawn directly into the nose of the hull in world space (no surface/blit), scaling ~45% of the half-hull dimensions; it cycles through the same INDIGO → LASER_RED charge gradient as the player's LaserDrone
+- **Mirror movement** — tries to stay on the opposite side of the screen from the player (reflecting through the screen center); because its speed (65 px/s) is far below the player's max (450 px/s) it will never keep pace perfectly; if the distance to the player exceeds 550 px the enemy gives up mirroring and follows the player directly to close the gap; asteroid avoidance active throughout
+- **Always aims at the player** — rotates to face the player's current position every frame
+- **Lock-on crosshair** — when the fire timer reaches ≤ 1.0 s, the crosshair snaps to the player's position at that moment (locked, does not track); the crosshair fades from translucent red (alpha 40) to fully opaque red (alpha 255) over the 1.0 s window, drawn as crossing lines + outer circle; the player has a full second to dodge
+- **Firing behavior** — when the timer hits zero the laser fires along the ray from the enemy toward the locked position; if any asteroid intersects that ray between enemy and locked position, the closest one (to the enemy) is struck; if nothing is in the way the beam draws to the screen edge and deals no damage — the player escaped
+- **Fire rate** — 8.0 s total cycle with a 1.0 s crosshair window; slow, telegraphed, and dangerous
+- **Stats** — 45 HP, 35 XP, 150 score, speed 65
+
+#### Explosive Enemy
+
+- **Square hull** — uses `rect_corners()` with equal hull_width and hull_length (30 × 30); body color is dark orange
+- **`ExplosivePlatform` at the nose** — fires rockets with full AoE explosion; direct hits on the player damage normally; AoE hits nearby asteroids; fire rate 3.5 s, range 300 px, projectile speed 380 px/s
+- **Cluster-seeking movement** — each frame scores every target (player + all asteroids) by counting how many other targets fall within rocket explosion radius (70 px) of that position; moves toward whichever anchor has the highest density; avoids asteroids in transit; encourages the player to spread out rather than staying in a tight area
+- **Stats** — 50 HP, 35 XP, 150 score, speed 75
+
+#### Spawner
+
+- `EnemySpawner._pick_enemy_class()` now draws from all four types equally: `PlasmaEnemy`, `KineticEnemy`, `LaserEnemy`, `ExplosiveEnemy`
+
+---
+
 ## 2026-04-25
 
 ### Kinetic Enemy — Second Enemy Type

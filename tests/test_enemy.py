@@ -2,10 +2,10 @@ import pygame
 import pytest
 from core import constants as C
 from core.element import Element
-from entities.enemy import Enemy, KineticEnemy, PlasmaEnemy
+from entities.enemy import Enemy, ExplosiveEnemy, KineticEnemy, LaserEnemy, PlasmaEnemy
 from entities.projectile import Kinetic, Plasma
 from types import SimpleNamespace
-from ui.visualeffect import EnemyKillExplosionVE
+from ui.visualeffect import EnemyKillExplosionVE, LaserBeamVE
 from unittest.mock import MagicMock, patch
 
 class FakePlayer:
@@ -1087,3 +1087,367 @@ def test_kinetic_enemy_draw_fins_no_elemental_glow_when_not_elemental():
          patch("entities.enemy.pygame.draw.polygon"):
         enemy._draw_fins(None)
     assert glow_calls == []
+
+
+def make_laser_enemy(px=0, py=0, ex=500, ey=500):
+    player = FakePlayer(px, py)
+    game = SimpleNamespace(
+        asteroids=[],
+        combat_stats=SimpleNamespace(record_damage_event=lambda **kw: None),
+    )
+    LaserEnemy.containers = ()
+    enemy = LaserEnemy(ex, ey, player, game)
+    return enemy, player, game
+
+
+def make_explosive_enemy(px=0, py=0, ex=500, ey=500):
+    player = FakePlayer(px, py)
+    game = SimpleNamespace(
+        asteroids=[],
+        combat_stats=SimpleNamespace(record_damage_event=lambda **kw: None),
+    )
+    ExplosiveEnemy.containers = ()
+    enemy = ExplosiveEnemy(ex, ey, player, game)
+    return enemy, player, game
+
+
+# --- LaserEnemy construction ---
+def test_laser_enemy_health_uses_constant():
+    enemy, _, _ = make_laser_enemy()
+    assert enemy.health == C.LASER_ENEMY_MAX_HEALTH
+
+def test_laser_enemy_max_health_uses_constant():
+    enemy, _, _ = make_laser_enemy()
+    assert enemy.max_health == C.LASER_ENEMY_MAX_HEALTH
+
+def test_laser_enemy_speed_uses_constant():
+    enemy, _, _ = make_laser_enemy()
+    assert enemy.speed == C.LASER_ENEMY_SPEED
+
+def test_laser_enemy_body_color_uses_constant():
+    enemy, _, _ = make_laser_enemy()
+    assert enemy.body_color == C.LASER_ENEMY_BODY_COLOR
+
+def test_laser_enemy_xp_uses_constant():
+    enemy, _, _ = make_laser_enemy()
+    assert enemy.xp_value == C.LASER_ENEMY_XP_VALUE
+
+def test_laser_enemy_score_uses_constant():
+    enemy, _, _ = make_laser_enemy()
+    assert enemy.score_value == C.LASER_ENEMY_SCORE_VALUE
+
+def test_laser_enemy_hull_length_uses_constant():
+    enemy, _, _ = make_laser_enemy()
+    assert enemy.hull_length == C.LASER_ENEMY_HULL_LENGTH
+
+def test_laser_enemy_hull_width_uses_constant():
+    enemy, _, _ = make_laser_enemy()
+    assert enemy.hull_width == C.LASER_ENEMY_HULL_WIDTH
+
+def test_laser_enemy_has_platform():
+    enemy, _, _ = make_laser_enemy()
+    assert enemy.platform is not None
+
+def test_laser_enemy_locked_target_pos_starts_none():
+    enemy, _, _ = make_laser_enemy()
+    assert enemy.locked_target_pos is None
+
+
+# --- LaserEnemy._mirror_position ---
+def test_mirror_position_is_opposite_player_through_screen_center():
+    enemy, player, _ = make_laser_enemy(px=200, py=100, ex=500, ey=360)
+    mirror = enemy._mirror_position()
+    expected_x = C.SCREEN_WIDTH - 200
+    expected_y = C.SCREEN_HEIGHT - 100
+    assert mirror.x == pytest.approx(expected_x, abs=0.1)
+    assert mirror.y == pytest.approx(expected_y, abs=0.1)
+
+def test_mirror_position_is_center_when_player_is_at_center():
+    cx, cy = C.SCREEN_WIDTH / 2, C.SCREEN_HEIGHT / 2
+    enemy, player, _ = make_laser_enemy(px=int(cx), py=int(cy), ex=500, ey=360)
+    mirror = enemy._mirror_position()
+    assert mirror.x == pytest.approx(cx, abs=0.1)
+    assert mirror.y == pytest.approx(cy, abs=0.1)
+
+
+# --- LaserEnemy.move_toward_player (mirror behavior) ---
+def test_laser_enemy_moves_toward_mirror_when_player_nearby():
+    # Player at left edge, enemy at center — mirror is at right edge
+    cx, cy = C.SCREEN_WIDTH / 2, C.SCREEN_HEIGHT / 2
+    px, py = 100, int(cy)
+    ex, ey = int(cx), int(cy)
+    enemy, player, _ = make_laser_enemy(px=px, py=py, ex=ex, ey=ey)
+    enemy.move_toward_player(0.1)
+    assert enemy.velocity.x > 0
+
+def test_laser_enemy_moves_toward_player_when_far_away():
+    # Enemy far from player (> fallback dist) — should follow player
+    enemy, player, _ = make_laser_enemy(px=0, py=0, ex=0, ey=int(C.LASER_ENEMY_FOLLOW_FALLBACK_DIST + 100))
+    enemy.move_toward_player(0.1)
+    assert enemy.velocity.y < 0
+
+def test_laser_enemy_move_speed_equals_laser_enemy_speed():
+    enemy, player, _ = make_laser_enemy(px=0, py=0, ex=500, ey=500)
+    enemy.move_toward_player(0.1)
+    assert enemy.velocity.length() == pytest.approx(C.LASER_ENEMY_SPEED, abs=0.1)
+
+def test_laser_enemy_impact_timer_prevents_move():
+    enemy, player, _ = make_laser_enemy(px=0, py=0, ex=500, ey=500)
+    enemy.impact_timer = 0.5
+    enemy.velocity = pygame.Vector2(0, 0)
+    enemy.move_toward_player(0.1)
+    assert enemy.velocity.length() == pytest.approx(0, abs=0.001)
+
+
+# --- LaserEnemy crosshair lock ---
+def test_laser_enemy_locks_target_when_timer_enters_warn_window():
+    enemy, player, _ = make_laser_enemy(px=100, py=200, ex=500, ey=500)
+    enemy.platform.weapons_free_timer = C.LASER_ENEMY_CROSSHAIR_WARN_TIME - 0.01
+    enemy.update(0.0)
+    assert enemy.locked_target_pos is not None
+
+def test_laser_enemy_locks_to_player_position():
+    enemy, player, _ = make_laser_enemy(px=100, py=200, ex=500, ey=500)
+    enemy.platform.weapons_free_timer = C.LASER_ENEMY_CROSSHAIR_WARN_TIME - 0.01
+    enemy.update(0.0)
+    assert enemy.locked_target_pos.x == pytest.approx(100, abs=0.1)
+    assert enemy.locked_target_pos.y == pytest.approx(200, abs=0.1)
+
+def test_laser_enemy_does_not_relatch_when_already_locked():
+    enemy, player, _ = make_laser_enemy(px=100, py=200, ex=500, ey=500)
+    enemy.platform.weapons_free_timer = C.LASER_ENEMY_CROSSHAIR_WARN_TIME - 0.01
+    enemy.update(0.0)
+    player.position = pygame.Vector2(999, 999)
+    enemy.update(0.0)
+    assert enemy.locked_target_pos.x == pytest.approx(100, abs=0.1)
+
+def test_laser_enemy_clears_lock_when_timer_above_warn():
+    enemy, player, _ = make_laser_enemy(px=100, py=200, ex=500, ey=500)
+    enemy.locked_target_pos = pygame.Vector2(100, 200)
+    enemy.platform.weapons_free_timer = C.LASER_ENEMY_CROSSHAIR_WARN_TIME + 0.1
+    enemy.update(0.0)
+    assert enemy.locked_target_pos is None
+
+
+# --- LaserEnemy.shoot ---
+def test_laser_enemy_shoot_returns_zero_without_lock():
+    enemy, _, _ = make_laser_enemy()
+    enemy.platform.weapons_free_timer = 0
+    assert enemy.shoot() == 0
+
+def test_laser_enemy_shoot_clears_lock_after_firing():
+    LaserBeamVE.containers = ()
+    enemy, player, game = make_laser_enemy(px=0, py=0, ex=500, ey=500)
+    enemy.platform.weapons_free_timer = 0
+    enemy.locked_target_pos = pygame.Vector2(0, 0)
+    enemy.shoot()
+    assert enemy.locked_target_pos is None
+
+def test_laser_enemy_shoot_not_fired_when_not_in_airspace():
+    enemy, player, game = make_laser_enemy(px=0, py=0, ex=500, ey=500)
+    space_a = object()
+    space_b = object()
+    enemy.airspace = space_a
+    enemy.game = SimpleNamespace(current_space=space_b, asteroids=game.asteroids,
+        combat_stats=game.combat_stats)
+    enemy.platform.weapons_free_timer = 0
+    enemy.locked_target_pos = pygame.Vector2(0, 0)
+    assert enemy.shoot() == 0
+
+
+# --- LaserEnemy.draw_body ---
+def test_laser_enemy_draw_body_draws_two_triangles():
+    enemy, _, _ = make_laser_enemy()
+    poly_calls = []
+    with patch("entities.enemy.pygame.draw.polygon",
+               side_effect=lambda s, color, pts, *a: poly_calls.append(pts)):
+        enemy.draw_body(None)
+    assert len(poly_calls) == 2
+    assert all(len(pts) == 3 for pts in poly_calls)
+
+def test_laser_enemy_draw_body_nose_is_forward_of_base():
+    enemy, _, _ = make_laser_enemy(ex=500, ey=500)
+    enemy.rotation = 0
+    poly_calls = []
+    with patch("entities.enemy.pygame.draw.polygon",
+               side_effect=lambda s, color, pts, *a: poly_calls.append(pts)):
+        enemy.draw_body(None)
+    pts = poly_calls[0]
+    nose_y = min(p.y for p in pts)
+    base_y = max(p.y for p in pts)
+    assert nose_y < enemy.position.y
+    assert base_y > enemy.position.y
+
+def test_laser_enemy_draw_body_uses_elemental_glow_when_elemental():
+    enemy, _, _ = make_laser_enemy()
+    enemy.element = Element.SOLAR
+    glow_calls = []
+    with patch("entities.enemy.draw_elemental_glow_poly",
+               side_effect=lambda s, corners, el: glow_calls.append(el)), \
+         patch("entities.enemy.pygame.draw.polygon"):
+        enemy.draw_body(None)
+    assert glow_calls == [Element.SOLAR]
+
+
+# --- LaserEnemy ray/edge helpers ---
+def test_ray_hits_asteroid_when_ray_passes_through():
+    enemy, _, _ = make_laser_enemy()
+    start = pygame.Vector2(0, 0)
+    direction = pygame.Vector2(1, 0)
+
+    class FakeAst:
+        position = pygame.Vector2(100, 0)
+        radius = 15
+
+    hit, dist = enemy._ray_hits_asteroid(start, direction, FakeAst())
+    assert hit is True
+    assert dist == pytest.approx(100, abs=0.1)
+
+def test_ray_misses_asteroid_when_perpendicular_distance_too_large():
+    enemy, _, _ = make_laser_enemy()
+    start = pygame.Vector2(0, 0)
+    direction = pygame.Vector2(1, 0)
+
+    class FakeAst:
+        position = pygame.Vector2(100, 20)
+        radius = 15
+
+    hit, _ = enemy._ray_hits_asteroid(start, direction, FakeAst())
+    assert hit is False
+
+def test_ray_misses_asteroid_behind_start():
+    enemy, _, _ = make_laser_enemy()
+    start = pygame.Vector2(200, 0)
+    direction = pygame.Vector2(1, 0)
+
+    class FakeAst:
+        position = pygame.Vector2(100, 0)
+        radius = 15
+
+    hit, _ = enemy._ray_hits_asteroid(start, direction, FakeAst())
+    assert hit is False
+
+def test_screen_edge_endpoint_right():
+    enemy, _, _ = make_laser_enemy()
+    start = pygame.Vector2(C.SCREEN_WIDTH / 2, C.SCREEN_HEIGHT / 2)
+    direction = pygame.Vector2(1, 0)
+    end = enemy._screen_edge_endpoint(start, direction)
+    assert end.x == pytest.approx(C.SCREEN_WIDTH, abs=0.1)
+
+def test_screen_edge_endpoint_up():
+    enemy, _, _ = make_laser_enemy()
+    start = pygame.Vector2(C.SCREEN_WIDTH / 2, C.SCREEN_HEIGHT / 2)
+    direction = pygame.Vector2(0, -1)
+    end = enemy._screen_edge_endpoint(start, direction)
+    assert end.y == pytest.approx(0, abs=0.1)
+
+
+# --- ExplosiveEnemy construction ---
+def test_explosive_enemy_health_uses_constant():
+    enemy, _, _ = make_explosive_enemy()
+    assert enemy.health == C.EXPLOSIVE_ENEMY_MAX_HEALTH
+
+def test_explosive_enemy_max_health_uses_constant():
+    enemy, _, _ = make_explosive_enemy()
+    assert enemy.max_health == C.EXPLOSIVE_ENEMY_MAX_HEALTH
+
+def test_explosive_enemy_speed_uses_constant():
+    enemy, _, _ = make_explosive_enemy()
+    assert enemy.speed == C.EXPLOSIVE_ENEMY_SPEED
+
+def test_explosive_enemy_body_color_uses_constant():
+    enemy, _, _ = make_explosive_enemy()
+    assert enemy.body_color == C.EXPLOSIVE_ENEMY_BODY_COLOR
+
+def test_explosive_enemy_xp_uses_constant():
+    enemy, _, _ = make_explosive_enemy()
+    assert enemy.xp_value == C.EXPLOSIVE_ENEMY_XP_VALUE
+
+def test_explosive_enemy_score_uses_constant():
+    enemy, _, _ = make_explosive_enemy()
+    assert enemy.score_value == C.EXPLOSIVE_ENEMY_SCORE_VALUE
+
+def test_explosive_enemy_hull_is_square():
+    enemy, _, _ = make_explosive_enemy()
+    assert enemy.hull_width == C.EXPLOSIVE_ENEMY_HULL_SIZE
+    assert enemy.hull_length == C.EXPLOSIVE_ENEMY_HULL_SIZE
+
+def test_explosive_enemy_has_platform():
+    enemy, _, _ = make_explosive_enemy()
+    assert enemy.platform is not None
+
+def test_explosive_enemy_platform_range_uses_constant():
+    enemy, _, _ = make_explosive_enemy()
+    assert enemy.platform.range == C.EXPLOSIVE_ENEMY_WEAPONS_RANGE
+
+def test_explosive_enemy_platform_timer_max_uses_constant():
+    enemy, _, _ = make_explosive_enemy()
+    assert enemy.platform.weapons_free_timer_max == C.EXPLOSIVE_ENEMY_WEAPONS_FREE_TIMER
+
+def test_explosive_enemy_platform_projectile_speed_uses_constant():
+    enemy, _, _ = make_explosive_enemy()
+    assert enemy.platform.projectile_speed == C.EXPLOSIVE_ENEMY_PROJECTILE_SPEED
+
+
+# --- ExplosiveEnemy._find_best_explosion_pos ---
+def test_find_best_explosion_pos_returns_player_when_alone():
+    enemy, player, game = make_explosive_enemy(px=100, py=200, ex=500, ey=500)
+    pos = enemy._find_best_explosion_pos()
+    assert pos.x == pytest.approx(100, abs=0.1)
+    assert pos.y == pytest.approx(200, abs=0.1)
+
+def test_find_best_explosion_pos_returns_cluster_over_isolated_player():
+    enemy, player, game = make_explosive_enemy(px=9999, py=9999, ex=500, ey=500)
+    a1 = FakeAsteroid(10, 10, radius=15)
+    a2 = FakeAsteroid(20, 10, radius=15)
+    a3 = FakeAsteroid(15, 20, radius=15)
+    game.asteroids = [a1, a2, a3]
+    enemy.asteroids = game.asteroids
+    pos = enemy._find_best_explosion_pos()
+    assert pos.distance_to(pygame.Vector2(9999, 9999)) > pos.distance_to(pygame.Vector2(15, 13))
+
+def test_find_best_explosion_pos_returns_player_when_no_asteroids():
+    enemy, player, game = make_explosive_enemy(px=300, py=400, ex=500, ey=500)
+    pos = enemy._find_best_explosion_pos()
+    assert pos.x == pytest.approx(300, abs=0.1)
+    assert pos.y == pytest.approx(400, abs=0.1)
+
+
+# --- ExplosiveEnemy.move_toward_player ---
+def test_explosive_enemy_moves_toward_cluster():
+    enemy, player, game = make_explosive_enemy(px=9999, py=9999, ex=500, ey=500)
+    a1 = FakeAsteroid(100, 500, radius=15)
+    a2 = FakeAsteroid(110, 500, radius=15)
+    game.asteroids = [a1, a2]
+    enemy.asteroids = game.asteroids
+    enemy.move_toward_player(0.1)
+    assert enemy.velocity.x < 0
+
+def test_explosive_enemy_move_speed_equals_explosive_enemy_speed():
+    enemy, player, game = make_explosive_enemy(px=0, py=0, ex=500, ey=500)
+    enemy.move_toward_player(0.1)
+    assert enemy.velocity.length() == pytest.approx(C.EXPLOSIVE_ENEMY_SPEED, abs=0.1)
+
+def test_explosive_enemy_impact_timer_prevents_move():
+    enemy, player, game = make_explosive_enemy(px=0, py=0, ex=500, ey=500)
+    enemy.impact_timer = 0.5
+    enemy.velocity = pygame.Vector2(0, 0)
+    enemy.move_toward_player(0.1)
+    assert enemy.velocity.length() == pytest.approx(0, abs=0.001)
+
+
+# --- ExplosiveEnemy.draw_body ---
+def test_explosive_enemy_draw_body_draws_four_corners():
+    enemy, _, _ = make_explosive_enemy()
+    poly_calls = []
+    with patch("entities.enemy.pygame.draw.polygon",
+               side_effect=lambda s, color, pts, *a: poly_calls.append(pts)):
+        enemy.draw_body(None)
+    assert len(poly_calls) == 1
+    assert len(poly_calls[0]) == 4
+
+def test_explosive_enemy_update_ticks_platform():
+    enemy, _, _ = make_explosive_enemy(ex=500, ey=500)
+    enemy.platform.weapons_free_timer = 5.0
+    enemy.update(1.0)
+    assert enemy.platform.weapons_free_timer < 5.0

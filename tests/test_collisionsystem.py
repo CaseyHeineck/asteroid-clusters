@@ -623,3 +623,44 @@ def test_burn_does_not_spread_when_not_colliding():
     game = make_enemy_asteroid_game(enemy, asteroid)
     CollisionSystem(game).handle_enemy_collisions()
     assert not any(isinstance(e, PlasmaBurnSTE) for e in enemy.applied_effects)
+
+# --- handle_enemy_collisions: enemy projectile friendly fire ---
+class FakeEnemyProjectile:
+    def __init__(self, x=0, y=0, damage=5):
+        self.position = pygame.Vector2(x, y)
+        self.velocity = pygame.Vector2(500, 0)
+        self.radius = 6
+        self.weight = 0
+        self.damage = damage
+        self.element = None
+        self.stat_source = C.ENEMY
+        self.extra_abilities = set()
+        self._killed = False
+
+    def collides_with(self, other):
+        return self.position.distance_to(other.position) <= self.radius + other.radius
+
+    def kill(self):
+        self._killed = True
+
+def test_enemy_projectile_damages_other_enemy_friendly_fire():
+    enemy_target = FakeEnemyForProjectile(x=0, y=0)
+    projectile = FakeEnemyProjectile(x=0, y=0, damage=10)
+    game = make_projectile_enemy_game(enemy_target, projectile)
+    CollisionSystem(game).handle_enemy_collisions()
+    assert enemy_target.health < 100
+
+def test_enemy_projectile_is_killed_after_friendly_fire_hit():
+    enemy_target = FakeEnemyForProjectile(x=0, y=0)
+    projectile = FakeEnemyProjectile(x=0, y=0)
+    game = make_projectile_enemy_game(enemy_target, projectile)
+    CollisionSystem(game).handle_enemy_collisions()
+    assert projectile._killed
+
+def test_enemy_projectile_awards_score_on_enemy_kill():
+    enemy_target = FakeEnemyForProjectile(x=0, y=0)
+    enemy_target.health = 1
+    projectile = FakeEnemyProjectile(x=0, y=0, damage=999)
+    game = make_projectile_enemy_game(enemy_target, projectile)
+    CollisionSystem(game).handle_enemy_collisions()
+    assert any(s > 0 for s in game.HUD.score_updates)

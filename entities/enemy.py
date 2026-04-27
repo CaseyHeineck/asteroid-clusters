@@ -1,8 +1,10 @@
 import pygame
+import random
 from core import constants as C
 from core.circleshape import CircleShape
 from core.element import draw_elemental_glow_poly, get_damage_multiplier
 from core.logger import log_event
+from entities.elementalessenceorb import ElementalEssenceOrb
 from entities.weaponsplatform import ExplosivePlatform, KineticPlatform, LaserPlatform, PlasmaPlatform
 from ui.visualeffect import EnemyKillExplosionVE, LaserBeamVE
 
@@ -38,8 +40,15 @@ class Enemy(CircleShape):
             log_event("enemy_destroyed")
             explosion_radius = max(12, int(self.radius * 1.5))
             EnemyKillExplosionVE(self.position.x, self.position.y, explosion_radius)
+            if self.element is not None and ElementalEssenceOrb.containers:
+                angle = random.uniform(0, 360)
+                dist = random.uniform(0, self.radius)
+                offset = pygame.Vector2(dist, 0).rotate(angle)
+                ElementalEssenceOrb(self.position.x + offset.x, self.position.y + offset.y,
+                    C.ENEMY_ELEMENTAL_ESSENCE_DROP, self.element)
             self.kill()
-            return self.score_value, self.xp_value
+            xp = self.xp_value if self.element is not None else self.xp_value + C.ENEMY_NON_ELEMENTAL_BONUS_XP
+            return self.score_value, xp
         log_event("enemy_hit")
         return 0, 0
 
@@ -193,6 +202,7 @@ class KineticEnemy(Enemy):
         self.platform.weapons_free_timer_max = C.KINETIC_ENEMY_WEAPONS_FREE_TIMER
         self.platform.weapons_free_timer = C.KINETIC_ENEMY_WEAPONS_FREE_TIMER
         self.platform.projectile_speed = C.KINETIC_ENEMY_PROJECTILE_SPEED
+        self.platform.projectile_radius = C.KINETIC_ENEMY_PROJECTILE_RADIUS
         self.platform.range = C.KINETIC_ENEMY_WEAPONS_RANGE
 
     def _find_largest_asteroid(self):
@@ -354,40 +364,71 @@ class LaserEnemy(Enemy):
         return start + direction * t
 
     def _fire_laser_at(self, target_pos):
-        forward = self.get_forward_vector()
-        spawn_pos = pygame.Vector2(
-            self.position + forward * (self.radius + C.LASER_DRONE_WEAPONS_PLATFORM_OFFSET))
-        to_target = target_pos - spawn_pos
+        to_target = target_pos - self.position
         if to_target.length_squared() == 0:
             return 0
-        max_dist = to_target.length()
         dir_norm = to_target.normalize()
-        closest_asteroid = None
+        spawn_pos = self.position + dir_norm * (self.radius + C.LASER_DRONE_WEAPONS_PLATFORM_OFFSET)
+        closest_obj = None
         closest_dist = float('inf')
         if self.asteroids:
-            for asteroid in self.asteroids:
-                hit, dist = self._ray_hits_asteroid(spawn_pos, dir_norm, asteroid)
-                if hit and dist < max_dist and dist < closest_dist:
+            for obj in self.asteroids:
+                hit, dist = self._ray_hits_asteroid(spawn_pos, dir_norm, obj)
+                if hit and dist < closest_dist:
                     closest_dist = dist
-                    closest_asteroid = asteroid
-        if closest_asteroid is not None:
-            health_before = closest_asteroid.health
-            end_pos = closest_asteroid.position.copy()
+                    closest_obj = obj
+        game = self.game
+        enemies = getattr(game, 'enemies', None) if game else None
+        if enemies:
+            for obj in enemies:
+                if obj is self or not obj.alive():
+                    continue
+                hit, dist = self._ray_hits_asteroid(spawn_pos, dir_norm, obj)
+                if hit and dist < closest_dist:
+                    closest_dist = dist
+                    closest_obj = obj
+        if self.player is not None:
+            hit, dist = self._ray_hits_asteroid(spawn_pos, dir_norm, self.player)
+            if hit and dist < closest_dist:
+                closest_dist = dist
+                closest_obj = self.player
+        if closest_obj is not None:
+            end_pos = closest_obj.position.copy()
             if LaserBeamVE.containers:
                 LaserBeamVE(spawn_pos, end_pos, color=C.LASER_BEAM_COLOR,
                     width=C.LASER_BEAM_WIDTH, duration=C.LASER_BEAM_DURATION)
-            score = closest_asteroid.damaged(self.platform.damage)
-            if self.game and self.game.combat_stats:
-                self.game.combat_stats.record_damage_event(
-                    source=self.stat_source, health_before=health_before,
-                    attempted_damage=self.platform.damage)
-            return score or 0
+            if closest_obj is self.player:
+                if self.player.can_be_damaged:
+                    score_delta, lives = self.player.damaged()
+                    if game and hasattr(game, 'HUD'):
+                        game.HUD.update_player_lives(lives)
+                        if score_delta:
+                            game.HUD.update_score(score_delta)
+                    if getattr(self.player, 'game_over', False) and game and hasattr(game, 'on_game_over'):
+                        game.on_game_over()
+            else:
+                health_before = closest_obj.health
+                result = closest_obj.damaged(self.platform.damage)
+                if game and game.combat_stats:
+                    game.combat_stats.record_damage_event(
+                        source=self.stat_source, health_before=health_before,
+                        attempted_damage=self.platform.damage)
+                if isinstance(result, tuple):
+                    score, xp = result
+                    if score and game and hasattr(game, 'HUD'):
+                        game.HUD.update_score(score)
+                    if xp and game and hasattr(game, 'experience'):
+                        game.experience.add_xp(xp)
+                else:
+                    score = result
+                    if score and game and hasattr(game, 'HUD'):
+                        game.HUD.update_score(score)
         else:
             end_pos = self._screen_edge_endpoint(spawn_pos, dir_norm)
             if LaserBeamVE.containers:
                 LaserBeamVE(spawn_pos, end_pos, color=C.LASER_BEAM_COLOR,
                     width=C.LASER_BEAM_WIDTH, duration=C.LASER_BEAM_DURATION)
-            return 0
+        return 0
 
     def move_toward_player(self, dt):
         if self.impact_timer > 0:
@@ -439,6 +480,10 @@ class LaserEnemy(Enemy):
                 self.locked_target_pos = self.player.position.copy()
         elif timer > warn:
             self.locked_target_pos = None
+        if self.locked_target_pos is not None:
+            direction = self.locked_target_pos - self.position
+            if direction.length_squared() > 0:
+                self.rotation = pygame.Vector2(0, -1).angle_to(direction)
         self.update_outline_pulse(dt)
         self.update_gameplay_effects(dt)
         return self.shoot()

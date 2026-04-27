@@ -22,7 +22,6 @@ class Asteroid(CircleShape):
         self.full_health = self.size * 10
         self.health = self.full_health
         self.element = None
-        self.child_count_reduction = 0
         self.child_size_reduction = 0
         self.overkill_triggered = False
         self.line_width = int(C.LINE_WIDTH + (self.size * 2))
@@ -200,19 +199,21 @@ class Asteroid(CircleShape):
         AsteroidKillExplosionVE(self.position.x, self.position.y, explosion_radius)
         if self.overkill_triggered:
             OverkillExplosionVE(self.position.x, self.position.y, explosion_radius)
+        overkill_mult = 1.0 + 0.5 * self.child_size_reduction
         if EssenceOrb.containers and random.random() < C.ESSENCE_ORB_DROP_CHANCE:
             angle = random.uniform(0, 360)
             dist = random.uniform(0, self.radius)
             offset = pygame.Vector2(dist, 0).rotate(angle)
+            base_value = int(self.size ** C.ESSENCE_ORB_SIZE_EXPONENT * C.ESSENCE_ORB_VALUE_BASE)
             EssenceOrb(self.position.x + offset.x, self.position.y + offset.y,
-                int(self.size ** C.ESSENCE_ORB_SIZE_EXPONENT * C.ESSENCE_ORB_VALUE_BASE))
+                max(1, int(base_value * overkill_mult)))
         if self.element is not None and ElementalEssenceOrb.containers:
             angle = random.uniform(0, 360)
             dist = random.uniform(0, self.radius)
             offset = pygame.Vector2(dist, 0).rotate(angle)
             essence_mult = (C.ASTEROID_LARGE_ELEMENTAL_ESSENCE_MULT
                             if self.size >= C.ASTEROID_LARGE_THRESHOLD else 1.0)
-            drop_amount = max(1, int(self.size * C.ELEMENTAL_ESSENCE_DROP_BASE * essence_mult))
+            drop_amount = max(1, int(self.size * C.ELEMENTAL_ESSENCE_DROP_BASE * essence_mult * overkill_mult))
             ElementalEssenceOrb(self.position.x + offset.x, self.position.y + offset.y,
                 drop_amount, self.element)
         did_split = False
@@ -226,11 +227,14 @@ class Asteroid(CircleShape):
         return score_value
 
     def spawn_children(self):
-        if self.size >= C.ASTEROID_LARGE_THRESHOLD:
-            children_sizes = self._generate_large_split()
+        effective_size = self.size - self.child_size_reduction
+        if effective_size <= 0:
+            return False
+        if effective_size >= C.ASTEROID_LARGE_THRESHOLD:
+            children_sizes = self._generate_large_split(effective_size)
         else:
-            child_size = self.size - 1 - self.child_size_reduction
-            child_count = self.size - 1 - self.child_count_reduction
+            child_size = effective_size - 1
+            child_count = effective_size - 1
             if child_size < 1 or child_count < 1:
                 return False
             children_sizes = [child_size] * child_count
@@ -264,10 +268,8 @@ class Asteroid(CircleShape):
                     child.element = self.element
         return True
 
-    def _generate_large_split(self):
-        if self.child_size_reduction > 0:
-            return []
-        n = self.size
+    def _generate_large_split(self, size=None):
+        n = self.size if size is None else size
         if n == 5:
             return [4, 1]
         if n == C.ASTEROID_MAX_SIZE and random.random() < C.ASTEROID_LARGE_SPLIT_DOUBLE_LARGE_CHANCE:

@@ -81,7 +81,6 @@ def test_merge_adopts_lower_tick_timer_from_other():
 class FakeAsteroid:
     def __init__(self):
         self.child_size_reduction = 0
-        self.child_count_reduction = 0
         self.overkill_triggered = False
 
 def test_overkill_sets_overkill_triggered_on_target():
@@ -89,27 +88,26 @@ def test_overkill_sets_overkill_triggered_on_target():
     OverkillSTE().apply_to(target)
     assert target.overkill_triggered
 
-def test_overkill_sets_child_size_reduction():
+def test_overkill_sets_child_size_reduction_equal_to_tier():
     target = FakeAsteroid()
-    OverkillSTE(child_size_reduction=1).apply_to(target)
+    OverkillSTE(overkill_tier=1).apply_to(target)
     assert target.child_size_reduction == 1
 
-def test_overkill_sets_child_count_reduction():
+def test_overkill_tier_2_sets_child_size_reduction_to_2():
     target = FakeAsteroid()
-    OverkillSTE(child_count_reduction=1).apply_to(target)
-    assert target.child_count_reduction == 1
+    OverkillSTE(overkill_tier=2).apply_to(target)
+    assert target.child_size_reduction == 2
+
+def test_overkill_tier_3_sets_child_size_reduction_to_3():
+    target = FakeAsteroid()
+    OverkillSTE(overkill_tier=3).apply_to(target)
+    assert target.child_size_reduction == 3
 
 def test_overkill_does_not_lower_existing_higher_size_reduction():
     target = FakeAsteroid()
     target.child_size_reduction = 5
-    OverkillSTE(child_size_reduction=1).apply_to(target)
+    OverkillSTE(overkill_tier=1).apply_to(target)
     assert target.child_size_reduction == 5
-
-def test_overkill_does_not_lower_existing_higher_count_reduction():
-    target = FakeAsteroid()
-    target.child_count_reduction = 3
-    OverkillSTE(child_count_reduction=1).apply_to(target)
-    assert target.child_count_reduction == 3
 
 def test_overkill_expires_immediately_after_apply():
     target = FakeAsteroid()

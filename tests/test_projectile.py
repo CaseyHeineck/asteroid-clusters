@@ -238,6 +238,27 @@ def test_overkill_skipped_when_in_skip_abilities():
     p.pre_hit_extras(asteroid, skip_abilities={"overkill"})
     assert not any(isinstance(e, OverkillSTE) for e in asteroid.applied_effects)
 
+def test_overkill_applies_tier_1_when_damage_exactly_at_threshold():
+    p = make_projectile(["overkill"], damage=15)
+    asteroid = FakeAsteroid(health=5, full_health=10)
+    p.pre_hit_extras(asteroid)
+    effect = next(e for e in asteroid.applied_effects if isinstance(e, OverkillSTE))
+    assert effect.overkill_tier == 1
+
+def test_overkill_applies_tier_2_when_damage_at_double_threshold():
+    p = make_projectile(["overkill"], damage=25)
+    asteroid = FakeAsteroid(health=5, full_health=10)
+    p.pre_hit_extras(asteroid)
+    effect = next(e for e in asteroid.applied_effects if isinstance(e, OverkillSTE))
+    assert effect.overkill_tier == 2
+
+def test_overkill_applies_tier_3_when_damage_at_triple_threshold():
+    p = make_projectile(["overkill"], damage=35)
+    asteroid = FakeAsteroid(health=5, full_health=10)
+    p.pre_hit_extras(asteroid)
+    effect = next(e for e in asteroid.applied_effects if isinstance(e, OverkillSTE))
+    assert effect.overkill_tier == 3
+
 # --- post_hit_extras: burn ---
 def test_burn_applies_plasma_burn_ste_when_alive():
     p = make_projectile(["burn"])
@@ -495,6 +516,66 @@ def test_rocket_on_hit_kills_projectile():
     r.on_hit(asteroid)
     assert not r.alive()
 
+def test_rocket_on_hit_returns_score_xp_tuple():
+    r, _ = make_rocket()
+    asteroid = FakeHitAsteroid(x=10, y=0)
+    result = r.on_hit(asteroid)
+    assert isinstance(result, tuple) and len(result) == 2
+
+def test_rocket_on_hit_xp_is_zero_for_asteroid_target():
+    r, _ = make_rocket()
+    asteroid = FakeHitAsteroid(x=10, y=0)
+    _, xp = r.on_hit(asteroid)
+    assert xp == 0
+
+def test_rocket_on_hit_enemy_damages_enemy():
+    Rocket.containers = ()
+    RocketHitExplosionVE.containers = ()
+    r = Rocket(0, 0, [])
+    r.stat_source = "test"
+    r.combat_stats = FakeCombatStats()
+    r.element = None
+    group = pygame.sprite.Group()
+    group.add(r)
+    enemy = FakeEnemyTarget(health=100)
+    r.on_hit(enemy)
+    assert enemy.health < 100
+
+def test_rocket_on_hit_enemy_returns_score_and_xp_on_kill():
+    Rocket.containers = ()
+    RocketHitExplosionVE.containers = ()
+    r = Rocket(0, 0, [])
+    r.stat_source = "test"
+    r.combat_stats = FakeCombatStats()
+    r.element = None
+    group = pygame.sprite.Group()
+    group.add(r)
+    enemy = FakeEnemyTarget(health=10, max_health=100)
+    score, xp = r.on_hit(enemy)
+    assert score == 100
+    assert xp == 30
+
+def test_rocket_on_hit_applies_aoe_to_enemies_in_range():
+    Rocket.containers = ()
+    RocketHitExplosionVE.containers = ()
+    nearby_enemy = FakeEnemyTarget(health=100)
+    nearby_enemy.position = pygame.Vector2(15, 0)
+    r = Rocket(0, 0, [], enemies=[nearby_enemy])
+    r.stat_source = "test"
+    r.combat_stats = FakeCombatStats()
+    r.element = None
+    group = pygame.sprite.Group()
+    group.add(r)
+    main = FakeHitAsteroid(x=10, y=0)
+    r.on_hit(main)
+    assert nearby_enemy.health < 100
+
+def test_rocket_accepts_enemies_and_player_params():
+    Rocket.containers = ()
+    r = Rocket(0, 0, [], enemies=[], player=None)
+    assert r.enemies == []
+    assert r.player is None
+
 # --- LaserBeam.fire ---
 class FakeLaserTarget:
     def __init__(self, health=100, full_health=100, alive=True):
@@ -559,6 +640,59 @@ def test_laser_beam_fire_does_not_apply_overkill_when_damage_below_threshold():
     target = FakeLaserTarget(health=100, full_health=100)
     beam = make_laser_beam(target, damage=5)
     assert not any(isinstance(e, OverkillSTE) for e in target.applied_effects)
+
+def test_laser_beam_xp_is_zero_for_asteroid_target():
+    target = FakeLaserTarget(health=100, full_health=100)
+    beam = make_laser_beam(target, damage=10)
+    assert beam.xp == 0
+
+# --- LaserBeam with enemy targets ---
+class FakeEnemyTarget:
+    def __init__(self, health=100, max_health=100):
+        self.health = health
+        self.max_health = max_health
+        self.position = pygame.Vector2(0, 100)
+        self.element = None
+        self.applied_effects = []
+        self._alive = True
+
+    def damaged(self, amount):
+        self.health -= amount
+        if self.health <= 0:
+            self._alive = False
+            return 100, 30
+        return 0, 0
+
+    def add_gameplay_effect(self, effect):
+        self.applied_effects.append(effect)
+
+    def alive(self):
+        return self._alive
+
+def test_laser_beam_handles_enemy_target_without_crash():
+    target = FakeEnemyTarget(health=100, max_health=100)
+    beam = make_laser_beam(target, damage=10)
+    assert not beam.alive()
+
+def test_laser_beam_returns_score_not_xp_when_enemy_killed():
+    target = FakeEnemyTarget(health=10, max_health=100)
+    beam = make_laser_beam(target, damage=100)
+    assert beam.score == 100
+
+def test_laser_beam_stores_xp_when_enemy_killed():
+    target = FakeEnemyTarget(health=10, max_health=100)
+    beam = make_laser_beam(target, damage=100)
+    assert beam.xp == 30
+
+def test_laser_beam_damages_enemy_correctly():
+    target = FakeEnemyTarget(health=100, max_health=100)
+    beam = make_laser_beam(target, damage=40)
+    assert target.health == 60
+
+def test_laser_beam_score_is_zero_when_enemy_survives():
+    target = FakeEnemyTarget(health=100, max_health=100)
+    beam = make_laser_beam(target, damage=10)
+    assert beam.score == 0
 
 # --- post_hit_extras: explosion ---
 def make_projectile_with_asteroids(extra_abilities=None, asteroids=None):

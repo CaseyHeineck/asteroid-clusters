@@ -82,15 +82,9 @@ def test_spawn_children_returns_false_when_child_size_reduced_to_zero():
     a.child_size_reduction = 1
     assert a.spawn_children() is False
 
-def test_spawn_children_returns_false_when_child_count_reduced_to_zero():
-    a = Asteroid(0, 0, 2)
-    a.child_count_reduction = 1
-    assert a.spawn_children() is False
-
-def test_spawn_children_returns_true_when_reductions_leave_valid_children():
+def test_spawn_children_returns_true_when_reduction_leaves_valid_children():
     a = Asteroid(0, 0, 3)
     a.child_size_reduction = 1
-    a.child_count_reduction = 1
     assert a.spawn_children() is True
 
 def capture_children(parent):
@@ -139,10 +133,17 @@ def test_spawn_children_large_returns_true():
     a.velocity = C.ASTEROID_MIN_SPEED * pygame.Vector2(1, 0)
     assert a.spawn_children() is True
 
-def test_spawn_children_large_overkill_returns_false():
+def test_spawn_children_large_x1_overkill_spawns_as_one_size_smaller():
     Asteroid.containers = ()
     a = Asteroid(0, 0, C.ASTEROID_LARGE_THRESHOLD)
     a.child_size_reduction = 1
+    a.velocity = C.ASTEROID_MIN_SPEED * pygame.Vector2(1, 0)
+    assert a.spawn_children() is True
+
+def test_spawn_children_large_fully_reduced_returns_false():
+    Asteroid.containers = ()
+    a = Asteroid(0, 0, C.ASTEROID_LARGE_THRESHOLD)
+    a.child_size_reduction = C.ASTEROID_LARGE_THRESHOLD
     assert a.spawn_children() is False
 
 def test_spawn_children_large_size_five_produces_exactly_two_children():
@@ -183,11 +184,13 @@ def test_generate_large_split_size_five_always_returns_4_1():
     for _ in range(20):
         assert a._generate_large_split() == [4, 1]
 
-def test_generate_large_split_returns_empty_when_overkill():
+def test_generate_large_split_with_explicit_size_respects_that_size():
     Asteroid.containers = ()
     a = Asteroid(0, 0, 8)
-    a.child_size_reduction = 1
-    assert a._generate_large_split() == []
+    for _ in range(20):
+        children = a._generate_large_split(5)
+        assert sum(children) <= 5
+        assert len(children) >= 2
 
 def test_generate_large_split_children_sum_never_exceeds_parent_size():
     Asteroid.containers = ()
@@ -336,6 +339,30 @@ def test_kill_normal_elemental_drops_base_elemental_essence_amount():
     a = make_kill_ready_asteroid(C.ASTEROID_KINDS)
     a.element = Element.SOLAR
     expected = max(1, int(C.ASTEROID_KINDS * C.ELEMENTAL_ESSENCE_DROP_BASE * 1.0))
+    with mock.patch("entities.asteroid.ElementalEssenceOrb") as MockOrb:
+        MockOrb.containers = True
+        a.kill()
+    drop_amount = MockOrb.call_args[0][2]
+    assert drop_amount == expected
+
+def test_kill_overkill_x1_increases_elemental_essence_by_1_5x():
+    a = make_kill_ready_asteroid(C.ASTEROID_KINDS)
+    a.element = Element.SOLAR
+    a.child_size_reduction = 1
+    base = max(1, int(C.ASTEROID_KINDS * C.ELEMENTAL_ESSENCE_DROP_BASE * 1.0))
+    expected = max(1, int(base * 1.5))
+    with mock.patch("entities.asteroid.ElementalEssenceOrb") as MockOrb:
+        MockOrb.containers = True
+        a.kill()
+    drop_amount = MockOrb.call_args[0][2]
+    assert drop_amount == expected
+
+def test_kill_overkill_x2_increases_elemental_essence_by_2x():
+    a = make_kill_ready_asteroid(C.ASTEROID_KINDS)
+    a.element = Element.SOLAR
+    a.child_size_reduction = 2
+    base = max(1, int(C.ASTEROID_KINDS * C.ELEMENTAL_ESSENCE_DROP_BASE * 1.0))
+    expected = max(1, int(base * 2.0))
     with mock.patch("entities.asteroid.ElementalEssenceOrb") as MockOrb:
         MockOrb.containers = True
         a.kill()

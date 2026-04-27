@@ -31,6 +31,7 @@ class KineticPlatform(WeaponsPlatform):
         self.range = C.KINETIC_DRONE_WEAPONS_RANGE
         self.projectile_speed = C.KINETIC_DRONE_PROJECTILE_SPEED
         self.projectile_color = projectile_color
+        self.projectile_radius = C.KINETIC_PROJECTILE_RADIUS
 
     def _muzzle_position(self, owner):
         forward = owner.get_forward_vector()
@@ -41,6 +42,7 @@ class KineticPlatform(WeaponsPlatform):
         spawn_pos = self._muzzle_position(owner)
         forward = owner.get_forward_vector()
         projectile = Kinetic(spawn_pos.x, spawn_pos.y)
+        projectile.radius = self.projectile_radius
         projectile.damage = int(C.KINETIC_PROJECTILE_DAMAGE * self.damage_multiplier)
         projectile.velocity = forward * self.projectile_speed
         projectile.stat_source = owner.stat_source
@@ -138,6 +140,8 @@ class LaserPlatform(WeaponsPlatform):
             combat_stats=owner.game.combat_stats,
             extra_abilities=owner.extra_abilities,
             asteroids=owner.asteroids, element=owner.element)
+        if projectile.xp and owner.game and hasattr(owner.game, 'experience'):
+            owner.game.experience.add_xp(projectile.xp)
         self.weapons_free_timer = self.weapons_free_timer_max
         return projectile.score
 
@@ -195,7 +199,11 @@ class ExplosivePlatform(WeaponsPlatform):
     def fire(self, owner):
         forward = owner.get_forward_vector()
         spawn_pos = owner.position + forward * (owner.radius + 4)
-        projectile = Rocket(spawn_pos.x, spawn_pos.y, owner.asteroids)
+        game = getattr(owner, 'game', None)
+        enemies = getattr(game, 'enemies', None) if game else None
+        is_enemy = getattr(owner, 'stat_source', None) == C.ENEMY
+        player = getattr(game, 'player', None) if (is_enemy and game) else None
+        projectile = Rocket(spawn_pos.x, spawn_pos.y, owner.asteroids, enemies=enemies, player=player)
         projectile.damage = int(C.ROCKET_PROJECTILE_DAMAGE * self.damage_multiplier)
         projectile.velocity = forward * self.projectile_speed
         projectile.stat_source = owner.stat_source

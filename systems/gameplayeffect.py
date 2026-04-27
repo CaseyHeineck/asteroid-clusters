@@ -64,12 +64,9 @@ class AreaOfEffect(GameplayEffect):
         return 0
     
 class OverkillSTE(SingleTargetEffect):
-    def __init__(self, child_size_reduction=C.OVERKILL_CHILD_SIZE_REDUCTION,
-            child_count_reduction=C.OVERKILL_CHILD_COUNT_REDUCTION,
-            duration=C.OVERKILL_DURATION):
+    def __init__(self, overkill_tier=1, duration=C.OVERKILL_DURATION):
         super().__init__(duration)
-        self.child_size_reduction = child_size_reduction
-        self.child_count_reduction = child_count_reduction
+        self.overkill_tier = overkill_tier
 
     def apply_to(self, target):
         self.target = target
@@ -80,11 +77,7 @@ class OverkillSTE(SingleTargetEffect):
         if hasattr(self.target, "child_size_reduction"):
             self.target.child_size_reduction = max(
                 self.target.child_size_reduction,
-                self.child_size_reduction)
-        if hasattr(self.target, "child_count_reduction"):
-            self.target.child_count_reduction = max(
-                self.target.child_count_reduction,
-                self.child_count_reduction)
+                self.overkill_tier)
         if hasattr(self.target, "overkill_triggered"):
             self.target.overkill_triggered = True
 
@@ -152,6 +145,7 @@ class RocketHitAOE(AreaOfEffect):
 
     def apply(self, ignored_targets=None):
         total_score = 0
+        total_xp = 0
         self.on_apply()
         RocketHitExplosionVE(self.impact_position.x, self.impact_position.y,
             self.radius)
@@ -159,11 +153,16 @@ class RocketHitAOE(AreaOfEffect):
         for target in valid_targets:
             if hasattr(target, "damaged"):
                 health_before = target.health
-                score = target.damaged(self.damage)
+                result = target.damaged(self.damage)
+                if isinstance(result, tuple):
+                    score, xp = result
+                    total_xp += xp or 0
+                else:
+                    score = result
                 if self.combat_stats:
                     self.combat_stats.record_damage_event(source=self.stat_source,
                         health_before=health_before, attempted_damage=self.damage)
                 if score:
                     total_score += score
         self.expired = True
-        return total_score
+        return total_score, total_xp

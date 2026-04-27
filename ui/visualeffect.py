@@ -20,8 +20,9 @@ class VisualEffect(pygame.sprite.Sprite):
 class BaseExplosion(VisualEffect):
     def __init__(self, x, y, radius, base_color=C.BASE_EXPLOSION_COLOR,
             base_duration=C.BASE_EXPLOSION_DURATION, base_max_alpha=C.BASE_EXPLOSION_MAX_ALPHA,
-            overlay_color=None, overlay_duration=None, overlay_max_alpha=0, line_width=0):
-        duration = max(base_duration, overlay_duration or 0)
+            overlay_color=None, overlay_duration=None, overlay_max_alpha=0, line_width=0,
+            ring_color=None, ring_duration=None, ring_max_alpha=0, ring_line_width=3):
+        duration = max(base_duration, overlay_duration or 0, ring_duration or 0)
         super().__init__(x, y, duration)
         self.radius = radius
         self.base_color = base_color
@@ -31,6 +32,10 @@ class BaseExplosion(VisualEffect):
         self.overlay_duration = overlay_duration or 0
         self.overlay_max_alpha = overlay_max_alpha
         self.line_width = line_width
+        self.ring_color = ring_color
+        self.ring_duration = ring_duration or 0
+        self.ring_max_alpha = ring_max_alpha
+        self.ring_line_width = ring_line_width
 
     def get_alpha(self, layer_duration, max_alpha):
         if layer_duration <= 0:
@@ -40,13 +45,15 @@ class BaseExplosion(VisualEffect):
         ratio = remaining / layer_duration
         return int(max_alpha * ratio)
 
-    def draw_circle(self, surface, color, alpha):
+    def draw_circle(self, surface, color, alpha, line_width=None):
         if alpha <= 0:
             return
+        if line_width is None:
+            line_width = self.line_width
         surface_size = self.radius * 2
         circle_surface = pygame.Surface((surface_size, surface_size), pygame.SRCALPHA)
         pygame.draw.circle(circle_surface, (*color, alpha),
-            (self.radius, self.radius), self.radius, self.line_width)
+            (self.radius, self.radius), self.radius, line_width)
         surface.blit(circle_surface, (0, 0))
 
     def draw(self, screen):
@@ -57,6 +64,9 @@ class BaseExplosion(VisualEffect):
         if self.overlay_color:
             overlay_alpha = self.get_alpha(self.overlay_duration, self.overlay_max_alpha)
             self.draw_circle(effect_surface, self.overlay_color, overlay_alpha)
+        if self.ring_color:
+            ring_alpha = self.get_alpha(self.ring_duration, self.ring_max_alpha)
+            self.draw_circle(effect_surface, self.ring_color, ring_alpha, self.ring_line_width)
         rect = effect_surface.get_rect(center=(self.position.x, self.position.y))
         screen.blit(effect_surface, rect)
 class AsteroidKillExplosionVE(BaseExplosion):
@@ -76,7 +86,11 @@ class RocketHitExplosionVE(BaseExplosion):
         super().__init__(x, y, radius,
             overlay_color=C.ROCKET_HIT_EXPLOSION_COLOR,
             overlay_duration=C.ROCKET_HIT_EXPLOSION_DURATION,
-            overlay_max_alpha=C.ROCKET_HIT_EXPLOSION_MAX_ALPHA)
+            overlay_max_alpha=C.ROCKET_HIT_EXPLOSION_MAX_ALPHA,
+            ring_color=C.ROCKET_HIT_RING_COLOR,
+            ring_duration=C.ROCKET_HIT_RING_DURATION,
+            ring_max_alpha=C.ROCKET_HIT_RING_MAX_ALPHA,
+            ring_line_width=C.ROCKET_HIT_RING_WIDTH)
 class EnemyKillExplosionVE(BaseExplosion):
     def __init__(self, x, y, radius):
         super().__init__(x, y, radius,

@@ -2,6 +2,42 @@
 
 ---
 
+## 2026-04-27
+
+### Enemy Combat Pass — Friendly Fire, Rocket Splash, Laser Lock-On Rewrite
+
+#### Friendly fire — all enemy projectiles now damage other enemies
+
+Previously enemy projectiles were silently filtered out of enemy collision checks, so enemies could never hurt each other. That filter has been removed. All enemy-fired projectiles (kinetic, plasma, rocket) now apply damage to any enemy they collide with, same as player projectiles do. This enables emergent moments where the player can maneuver enemies into harming each other.
+
+#### Player rocket — direct hits and AoE now damage enemies
+
+The explosive rocket fired by the player's `ExplosiveDrone` can now hit enemy ships on direct contact, and enemies caught within the `ROCKET_HIT_RADIUS` blast take `ROCKET_HIT_DAMAGE` splash damage. Score and XP from any enemy killed by a rocket (direct or AoE) are attributed correctly and reported to the HUD/experience system.
+
+#### Enemy rocket — visual blast radius + multi-target AoE
+
+The `ExplosiveEnemy`'s rocket now:
+- Triggers a `RocketHitExplosionVE` explosion with a visible ring outline (`ROCKET_HIT_RING_COLOR` orange, `ROCKET_HIT_RING_DURATION` 0.28 s) that clearly communicates the danger radius to the player
+- Deals AoE splash damage to asteroids, other enemies, and the player if they are within blast radius — enemy rockets were previously harmless on AoE
+- Added `ring_color / ring_duration / ring_max_alpha / ring_line_width` layer to `BaseExplosion` so any future explosion type can show an expanding ring independently of the base and overlay layers
+
+#### Enemy kinetic projectile — tuned for readability
+
+- Speed reduced from 900 → 550 px/s so the projectile is more visible and more avoidable
+- Radius increased from 3 → 6 px so it reads clearly against the background
+
+#### Laser enemy — lock-on rewrite
+
+The laser's firing behavior has been completely corrected:
+
+- **Ship rotation follows the lock** — once the lock-on is acquired (1 s before firing), the enemy ship immediately turns to face the locked position and holds that aim for the entire warn window; the crosshair and ship nose now both point at the same spot, giving the player a clear read
+- **Direction from locked position, not ship facing** — previously the ray used the ship's current forward vector, causing it to fire in the wrong direction if the ship had drifted; it now fires along the exact line from the enemy toward the locked-on coordinate regardless of how the ship ends up oriented
+- **No distance cap** — the old code stopped the ray at the locked position; the ray now extends to the screen edge so objects that have stepped into the line of fire after the lock was set are correctly struck
+- **Checks all collidable objects** — the ray now tests asteroids, all other enemy ships, and the player; previously only asteroids were considered; the closest object along the ray takes the damage; if nothing is on the line the beam draws to the screen edge (a genuine miss)
+- **Score and XP routing** — enemy kills from the laser route score to the HUD and XP to the experience system directly from `_fire_laser_at`; player hits update lives and trigger game-over correctly
+
+---
+
 ## 2026-04-25 (2)
 
 ### Laser Enemy & Explosive Enemy — Two New Enemy Types
@@ -308,5 +344,3 @@ Player ship color changed to **hull green** — reads clearly against black and 
 - Prices start at 15 essence and increase by 10 each time that specific upgrade is purchased
 - Upgrades apply immediately to all live instances of the upgraded drone class
 - Sentinel shield health and repair rate upgrades driven by per-instance attributes for independent scaling
-
----

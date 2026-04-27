@@ -136,7 +136,41 @@ def test_damaged_returns_score_and_xp_on_death():
     enemy, _ = make_enemy()
     score, xp = enemy.damaged(C.ENEMY_MAX_HEALTH)
     assert score == C.ENEMY_SCORE_VALUE
+    assert xp == C.ENEMY_XP_VALUE + C.ENEMY_NON_ELEMENTAL_BONUS_XP
+
+def test_damaged_elemental_enemy_returns_base_xp_without_bonus():
+    from entities.elementalessenceorb import ElementalEssenceOrb
+    from core.element import Element
+    EnemyKillExplosionVE.containers = ()
+    ElementalEssenceOrb.containers = ()
+    enemy, _ = make_enemy()
+    enemy.element = Element.SOLAR
+    score, xp = enemy.damaged(C.ENEMY_MAX_HEALTH)
+    assert score == C.ENEMY_SCORE_VALUE
     assert xp == C.ENEMY_XP_VALUE
+
+def test_damaged_elemental_enemy_drops_elemental_essence():
+    from entities.elementalessenceorb import ElementalEssenceOrb
+    from core.element import Element
+    from unittest.mock import patch as mpatch
+    EnemyKillExplosionVE.containers = ()
+    enemy, _ = make_enemy()
+    enemy.element = Element.SOLAR
+    with mpatch("entities.enemy.ElementalEssenceOrb") as MockOrb:
+        MockOrb.containers = True
+        enemy.damaged(C.ENEMY_MAX_HEALTH)
+    MockOrb.assert_called_once()
+    assert MockOrb.call_args[0][2] == C.ENEMY_ELEMENTAL_ESSENCE_DROP
+    assert MockOrb.call_args[0][3] == Element.SOLAR
+
+def test_damaged_non_elemental_enemy_does_not_drop_elemental_essence():
+    from unittest.mock import patch as mpatch
+    EnemyKillExplosionVE.containers = ()
+    enemy, _ = make_enemy()
+    with mpatch("entities.enemy.ElementalEssenceOrb") as MockOrb:
+        MockOrb.containers = True
+        enemy.damaged(C.ENEMY_MAX_HEALTH)
+    MockOrb.assert_not_called()
 
 def test_damaged_applies_elemental_multiplier_strong():
     enemy, _ = make_enemy()
@@ -322,7 +356,7 @@ def test_projectile_kill_enemy_awards_xp():
     projectile = FakeProjectile(damage=C.ENEMY_MAX_HEALTH)
     game, cs = make_cs_game(enemies=[enemy], projectiles=[projectile])
     cs.handle_enemy_collisions()
-    assert C.ENEMY_XP_VALUE in game.experience.xp_added
+    assert C.ENEMY_XP_VALUE + C.ENEMY_NON_ELEMENTAL_BONUS_XP in game.experience.xp_added
 
 def test_non_colliding_projectile_does_not_damage_enemy():
     Enemy.containers = ()
@@ -453,14 +487,14 @@ def test_same_airspace_enemies_not_wrapped_by_collision_system():
     assert enemy not in wrapped
 
 # --- stat_source team filtering ---
-def test_enemy_projectile_does_not_damage_enemy():
+def test_enemy_projectile_damages_other_enemy_friendly_fire():
     Enemy.containers = ()
     player = FakePlayer(x=9999, y=9999)
     enemy = Enemy(0, 0, player)
-    projectile = FakeProjectile(damage=C.ENEMY_MAX_HEALTH, stat_source=C.ENEMY)
+    projectile = FakeProjectile(damage=5, stat_source=C.ENEMY)
     game, cs = make_cs_game(enemies=[enemy], projectiles=[projectile])
     cs.handle_enemy_collisions()
-    assert enemy.health == C.ENEMY_MAX_HEALTH
+    assert enemy.health < C.ENEMY_MAX_HEALTH
 
 def test_enemy_projectile_damages_player_on_collision():
     Enemy.containers = ()
@@ -785,10 +819,15 @@ def test_enemy_onscreen_in_different_airspace_does_not_switch():
 
 
 class FakeAsteroid:
-    def __init__(self, x, y, radius=30):
+    def __init__(self, x, y, radius=30, health=50):
         self.position = pygame.Vector2(x, y)
         self.radius = radius
         self.velocity = pygame.Vector2(0, 0)
+        self.health = health
+
+    def damaged(self, amount):
+        self.health -= amount
+        return 10 if self.health <= 0 else 0
 
 
 def make_kinetic_enemy(px=0, py=0, ex=500, ey=500):
@@ -1093,7 +1132,11 @@ def make_laser_enemy(px=0, py=0, ex=500, ey=500):
     player = FakePlayer(px, py)
     game = SimpleNamespace(
         asteroids=[],
+        enemies=[],
         combat_stats=SimpleNamespace(record_damage_event=lambda **kw: None),
+        HUD=FakeHUD(),
+        experience=FakeExperience(),
+        on_game_over=MagicMock(),
     )
     LaserEnemy.containers = ()
     enemy = LaserEnemy(ex, ey, player, game)
@@ -1228,6 +1271,25 @@ def test_laser_enemy_clears_lock_when_timer_above_warn():
     enemy.update(0.0)
     assert enemy.locked_target_pos is None
 
+def test_laser_enemy_faces_locked_target_pos_when_locked():
+    # enemy at center-right, player directly to the right — lock snaps to that direction
+    enemy, player, _ = make_laser_enemy(px=700, py=500, ex=500, ey=500)
+    enemy.platform.weapons_free_timer = C.LASER_ENEMY_CROSSHAIR_WARN_TIME - 0.01
+    enemy.update(0.0)
+    locked_direction = enemy.locked_target_pos - enemy.position
+    expected_rotation = pygame.Vector2(0, -1).angle_to(locked_direction)
+    assert enemy.rotation == pytest.approx(expected_rotation, abs=0.1)
+
+def test_laser_enemy_faces_locked_pos_not_current_player_after_player_moves():
+    enemy, player, _ = make_laser_enemy(px=700, py=500, ex=500, ey=500)
+    enemy.platform.weapons_free_timer = C.LASER_ENEMY_CROSSHAIR_WARN_TIME - 0.01
+    enemy.update(0.0)  # locks to player at (700, 500)
+    player.position = pygame.Vector2(500, 700)  # player moves somewhere else
+    enemy.update(0.0)
+    locked_direction = enemy.locked_target_pos - enemy.position
+    expected_rotation = pygame.Vector2(0, -1).angle_to(locked_direction)
+    assert enemy.rotation == pytest.approx(expected_rotation, abs=0.1)
+
 
 # --- LaserEnemy.shoot ---
 def test_laser_enemy_shoot_returns_zero_without_lock():
@@ -1253,6 +1315,127 @@ def test_laser_enemy_shoot_not_fired_when_not_in_airspace():
     enemy.platform.weapons_free_timer = 0
     enemy.locked_target_pos = pygame.Vector2(0, 0)
     assert enemy.shoot() == 0
+
+
+# --- LaserEnemy._fire_laser_at ---
+def test_laser_fire_direction_toward_locked_not_ship_facing():
+    LaserBeamVE.containers = ()
+    enemy, player, game = make_laser_enemy(ex=0, ey=500)
+    enemy.rotation = 90  # ship faces right
+    player.position = pygame.Vector2(9999, 9999)
+    target_pos = pygame.Vector2(0, 0)  # directly above enemy
+    asteroid = FakeAsteroid(0, 250, radius=20)  # on the vertical ray, not on the rightward ray
+    game.asteroids = [asteroid]
+    enemy.asteroids = game.asteroids
+    enemy._fire_laser_at(target_pos)
+    assert asteroid.health < 50
+
+def test_laser_fire_hits_player_when_on_ray():
+    LaserBeamVE.containers = ()
+    enemy, player, game = make_laser_enemy(ex=0, ey=500)
+    player.position = pygame.Vector2(0, 200)
+    target_pos = pygame.Vector2(0, 50)
+    damaged_calls = []
+    player.damaged = lambda: (damaged_calls.append(1) or (C.LIFE_LOSS_SCORE, 2))
+    enemy._fire_laser_at(target_pos)
+    assert len(damaged_calls) == 1
+
+def test_laser_fire_does_not_damage_player_when_invincible():
+    LaserBeamVE.containers = ()
+    enemy, player, game = make_laser_enemy(ex=0, ey=500)
+    player.position = pygame.Vector2(0, 200)
+    player.can_be_damaged = False
+    target_pos = pygame.Vector2(0, 50)
+    damaged_calls = []
+    player.damaged = lambda: (damaged_calls.append(1) or (C.LIFE_LOSS_SCORE, 2))
+    enemy._fire_laser_at(target_pos)
+    assert damaged_calls == []
+
+def test_laser_fire_routes_player_lives_to_hud():
+    LaserBeamVE.containers = ()
+    enemy, player, game = make_laser_enemy(ex=0, ey=500)
+    player.position = pygame.Vector2(0, 200)
+    target_pos = pygame.Vector2(0, 50)
+    enemy._fire_laser_at(target_pos)
+    assert len(game.HUD.lives_updates) == 1
+
+def test_laser_fire_hits_enemy_when_on_ray():
+    LaserBeamVE.containers = ()
+    Enemy.containers = ()
+    EnemyKillExplosionVE.containers = ()
+    enemy, player, game = make_laser_enemy(ex=0, ey=500)
+    player.position = pygame.Vector2(9999, 9999)
+    enemy_group = pygame.sprite.Group()
+    other_enemy = Enemy(0, 200, player)
+    enemy_group.add(other_enemy)
+    game.enemies = [enemy, other_enemy]
+    target_pos = pygame.Vector2(0, 50)
+    enemy._fire_laser_at(target_pos)
+    assert other_enemy.health < C.ENEMY_MAX_HEALTH
+
+def test_laser_fire_does_not_damage_self():
+    LaserBeamVE.containers = ()
+    enemy, player, game = make_laser_enemy(ex=0, ey=500)
+    player.position = pygame.Vector2(9999, 9999)
+    game.enemies = [enemy]
+    target_pos = pygame.Vector2(0, 0)
+    health_before = enemy.health
+    enemy._fire_laser_at(target_pos)
+    assert enemy.health == health_before
+
+def test_laser_fire_extends_past_locked_position():
+    LaserBeamVE.containers = ()
+    enemy, player, game = make_laser_enemy(ex=0, ey=500)
+    player.position = pygame.Vector2(0, 0)  # 500 units above enemy
+    target_pos = pygame.Vector2(0, 300)  # locked 200 units away
+    damaged_calls = []
+    player.damaged = lambda: (damaged_calls.append(1) or (C.LIFE_LOSS_SCORE, 2))
+    enemy._fire_laser_at(target_pos)
+    assert len(damaged_calls) == 1
+
+def test_laser_fire_hits_closest_of_asteroid_and_player():
+    LaserBeamVE.containers = ()
+    enemy, player, game = make_laser_enemy(ex=0, ey=500)
+    player.position = pygame.Vector2(0, 100)  # 400 units above
+    asteroid = FakeAsteroid(0, 400, radius=20)  # 100 units above (closer)
+    game.asteroids = [asteroid]
+    enemy.asteroids = game.asteroids
+    target_pos = pygame.Vector2(0, 0)
+    damaged_calls = []
+    player.damaged = lambda: (damaged_calls.append(1) or (C.LIFE_LOSS_SCORE, 2))
+    enemy._fire_laser_at(target_pos)
+    assert asteroid.health < 50
+    assert damaged_calls == []
+
+def test_laser_fire_routes_enemy_kill_score_to_hud():
+    LaserBeamVE.containers = ()
+    Enemy.containers = ()
+    EnemyKillExplosionVE.containers = ()
+    enemy, player, game = make_laser_enemy(ex=0, ey=500)
+    player.position = pygame.Vector2(9999, 9999)
+    enemy_group = pygame.sprite.Group()
+    other_enemy = Enemy(0, 200, player)
+    enemy_group.add(other_enemy)
+    other_enemy.health = 1
+    game.enemies = [other_enemy]
+    target_pos = pygame.Vector2(0, 50)
+    enemy._fire_laser_at(target_pos)
+    assert C.ENEMY_SCORE_VALUE in game.HUD.score_updates
+
+def test_laser_fire_routes_enemy_kill_xp_to_experience():
+    LaserBeamVE.containers = ()
+    Enemy.containers = ()
+    EnemyKillExplosionVE.containers = ()
+    enemy, player, game = make_laser_enemy(ex=0, ey=500)
+    player.position = pygame.Vector2(9999, 9999)
+    enemy_group = pygame.sprite.Group()
+    other_enemy = Enemy(0, 200, player)
+    enemy_group.add(other_enemy)
+    other_enemy.health = 1
+    game.enemies = [other_enemy]
+    target_pos = pygame.Vector2(0, 50)
+    enemy._fire_laser_at(target_pos)
+    assert len(game.experience.xp_added) > 0
 
 
 # --- LaserEnemy.draw_body ---

@@ -24,6 +24,7 @@ class Projectile(CircleShape):
         self.combat_stats = None
         self.extra_abilities = set()
         self.asteroids = None
+        self.enemies = None
 
     def on_hit(self, asteroid):
         effective_damage = _elemental_damage(self.damage, self.element, asteroid)
@@ -38,9 +39,10 @@ class Projectile(CircleShape):
         if skip_abilities is None:
             skip_abilities = set()
         if "overkill" in self.extra_abilities and "overkill" not in skip_abilities:
-            if self.damage >= (asteroid.health + asteroid.full_health):
-                asteroid.add_gameplay_effect(OverkillSTE(
-                    child_size_reduction=1, child_count_reduction=1))
+            full_health = getattr(asteroid, 'full_health', 0)
+            if full_health > 0 and self.damage >= (asteroid.health + full_health):
+                tier = max(1, (self.damage - asteroid.health) // full_health)
+                asteroid.add_gameplay_effect(OverkillSTE(overkill_tier=tier))
 
     def post_hit_extras(self, asteroid, skip_abilities=None):
         if skip_abilities is None:
@@ -116,6 +118,7 @@ class LaserBeam(Projectile):
             self.extra_abilities = set(extra_abilities)
         if asteroids is not None:
             self.asteroids = asteroids
+        self.xp = 0
         self.score = self.fire()
 
     def fire(self):
@@ -129,13 +132,15 @@ class LaserBeam(Projectile):
             width=C.LASER_BEAM_WIDTH, duration=C.LASER_BEAM_DURATION)
         effective_damage = _elemental_damage(self.damage, self.element, self.target)
         target_health = self.target.health
-        full_health = self.target.full_health
-        overkill = effective_damage >= (target_health + full_health)
+        full_health = getattr(self.target, 'full_health', getattr(self.target, 'max_health', 0))
+        overkill = full_health > 0 and effective_damage >= (target_health + full_health)
         if overkill:
-            self.target.add_gameplay_effect(OverkillSTE(
-                child_size_reduction=1, child_count_reduction=1))
+            tier = max(1, (effective_damage - target_health) // full_health)
+            self.target.add_gameplay_effect(OverkillSTE(overkill_tier=tier))
         self.pre_hit_extras(self.target, skip_abilities={"overkill"})
-        score = self.target.damaged(effective_damage)
+        result = self.target.damaged(effective_damage)
+        score = result[0] if isinstance(result, tuple) else result
+        self.xp = result[1] if isinstance(result, tuple) else 0
         if self.combat_stats:
             self.combat_stats.record_damage_event(
                 source=self.stat_source, health_before=target_health,
@@ -174,30 +179,43 @@ class Plasma(Projectile):
         return score
 
 class Rocket(Projectile):
-    def __init__(self, x, y, asteroids):
+    def __init__(self, x, y, asteroids, enemies=None, player=None):
         super().__init__(x, y, C.ROCKET_PROJECTILE_RADIUS, C.ROCKET_PROJECTILE_COLOR,
             C.ROCKET_PROJECTILE_DAMAGE, weight=C.ROCKET_PROJECTILE_WEIGHT,
             bounciness=C.ROCKET_PROJECTILE_BOUNCINESS, drag=C.ROCKET_PROJECTILE_DRAG)
         self.asteroids = asteroids
+        self.enemies = enemies
+        self.player = player
 
-    def on_hit(self, asteroid):
-        effective_damage = _elemental_damage(self.damage, self.element, asteroid)
+    def on_hit(self, target):
+        effective_damage = _elemental_damage(self.damage, self.element, target)
         total_score = 0
-        health_before = asteroid.health
-        self.pre_hit_extras(asteroid)
-        score = asteroid.damaged(effective_damage)
+        total_xp = 0
+        health_before = target.health
+        self.pre_hit_extras(target)
+        result = target.damaged(effective_damage)
+        if isinstance(result, tuple):
+            score, xp = result
+            total_xp += xp or 0
+        else:
+            score = result
         total_score += score or 0
         if self.combat_stats:
             self.combat_stats.record_damage_event(source=self.stat_source,
                 health_before=health_before, attempted_damage=effective_damage)
-        aoe = RocketHitAOE(impact_position=asteroid.position, targets=self.asteroids,
+        all_aoe_targets = list(self.asteroids) if self.asteroids is not None else []
+        if self.enemies is not None:
+            all_aoe_targets.extend(self.enemies)
+        aoe = RocketHitAOE(impact_position=target.position, targets=all_aoe_targets,
             radius=C.ROCKET_HIT_RADIUS, damage=C.ROCKET_HIT_DAMAGE)
         aoe.stat_source = self.stat_source
         aoe.combat_stats = self.combat_stats
-        total_score += aoe.apply(ignored_targets=[asteroid])
-        self.post_hit_extras(asteroid, skip_abilities={"explosion"})
+        aoe_score, aoe_xp = aoe.apply(ignored_targets=[target])
+        total_score += aoe_score
+        total_xp += aoe_xp
+        self.post_hit_extras(target, skip_abilities={"explosion"})
         self.kill()
-        return total_score
+        return total_score, total_xp
     
     def update(self, dt):
         self.physics_move(dt)

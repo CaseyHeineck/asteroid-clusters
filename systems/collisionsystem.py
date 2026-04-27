@@ -1,7 +1,7 @@
 import random
 from core import constants as C
-from entities.projectile import Kinetic, Plasma
-from systems.gameplayeffect import PlasmaBurnSTE
+from entities.projectile import Kinetic, Plasma, Rocket
+from systems.gameplayeffect import PlasmaBurnSTE, RocketHitAOE
 
 class CollisionSystem:
     def __init__(self, game):
@@ -52,9 +52,25 @@ class CollisionSystem:
                         self.game.on_game_over()
             for projectile in self.game.projectiles:
                 if projectile.collides_with(asteroid):
-                    score = projectile.on_hit(asteroid)
+                    result = projectile.on_hit(asteroid)
+                    if isinstance(result, tuple):
+                        score, xp = result
+                    else:
+                        score, xp = result, 0
                     if score:
                         self.game.HUD.update_score(score)
+                    if xp and hasattr(self.game, 'experience'):
+                        self.game.experience.add_xp(xp)
+                    if (getattr(projectile, 'player', None) is not None
+                            and self.game.player.can_be_damaged
+                            and asteroid.position.distance_to(
+                                self.game.player.position) <= C.ROCKET_HIT_RADIUS):
+                        score_delta, lives = self.game.player.damaged()
+                        if score_delta:
+                            self.game.HUD.update_score(score_delta)
+                        self.game.HUD.update_player_lives(lives)
+                        if self.game.player.game_over:
+                            self.game.on_game_over()
 
     def _try_spread_burn(self, source, target):
         if not hasattr(source, 'gameplay_effects') or not hasattr(target, 'add_gameplay_effect'):
@@ -89,33 +105,52 @@ class CollisionSystem:
             )
             if same_airspace:
                 for projectile in list(self.game.projectiles):
-                    if projectile.stat_source == C.ENEMY:
-                        continue
                     if projectile.collides_with(enemy):
-                        score, xp = enemy.damaged(projectile.damage,
-                            getattr(projectile, "element", None))
-                        if score:
-                            self.game.HUD.update_score(score)
-                        if xp:
-                            self.game.experience.add_xp(xp)
-                        if getattr(projectile, 'weight', 0) > 0 and enemy.alive():
-                            projectile.separate_from(enemy)
-                            projectile.resolve_impact(enemy)
-                            enemy.impact_timer = C.ENEMY_IMPACT_STUN_DURATION
-                        elif "impact" in getattr(projectile, 'extra_abilities', set()) and enemy.alive():
-                            projectile.weight = (Kinetic.weight_override if Kinetic.weight_override is not None
-                                                 else C.KINETIC_PROJECTILE_WEIGHT_BASE)
-                            projectile.separate_from(enemy)
-                            projectile.resolve_impact(enemy)
-                            enemy.impact_timer = C.ENEMY_IMPACT_STUN_DURATION
-                        if enemy.health > 0 and (
-                                isinstance(projectile, Plasma)
-                                or "burn" in getattr(projectile, 'extra_abilities', set())):
-                            burn = PlasmaBurnSTE()
-                            burn.stat_source = projectile.stat_source
-                            burn.combat_stats = getattr(projectile, 'combat_stats', None)
-                            enemy.add_gameplay_effect(burn)
-                        projectile.kill()
+                        if isinstance(projectile, Rocket):
+                            result = projectile.on_hit(enemy)
+                            if isinstance(result, tuple):
+                                score, xp = result
+                            else:
+                                score, xp = result, 0
+                            if score:
+                                self.game.HUD.update_score(score)
+                            if xp:
+                                self.game.experience.add_xp(xp)
+                            if (getattr(projectile, 'player', None) is not None
+                                    and self.game.player.can_be_damaged
+                                    and enemy.position.distance_to(
+                                        self.game.player.position) <= C.ROCKET_HIT_RADIUS):
+                                score_delta, lives = self.game.player.damaged()
+                                if score_delta:
+                                    self.game.HUD.update_score(score_delta)
+                                self.game.HUD.update_player_lives(lives)
+                                if self.game.player.game_over:
+                                    self.game.on_game_over()
+                        else:
+                            score, xp = enemy.damaged(projectile.damage,
+                                getattr(projectile, "element", None))
+                            if score:
+                                self.game.HUD.update_score(score)
+                            if xp:
+                                self.game.experience.add_xp(xp)
+                            if getattr(projectile, 'weight', 0) > 0 and enemy.alive():
+                                projectile.separate_from(enemy)
+                                projectile.resolve_impact(enemy)
+                                enemy.impact_timer = C.ENEMY_IMPACT_STUN_DURATION
+                            elif "impact" in getattr(projectile, 'extra_abilities', set()) and enemy.alive():
+                                projectile.weight = (Kinetic.weight_override if Kinetic.weight_override is not None
+                                                     else C.KINETIC_PROJECTILE_WEIGHT_BASE)
+                                projectile.separate_from(enemy)
+                                projectile.resolve_impact(enemy)
+                                enemy.impact_timer = C.ENEMY_IMPACT_STUN_DURATION
+                            if enemy.health > 0 and (
+                                    isinstance(projectile, Plasma)
+                                    or "burn" in getattr(projectile, 'extra_abilities', set())):
+                                burn = PlasmaBurnSTE()
+                                burn.stat_source = projectile.stat_source
+                                burn.combat_stats = getattr(projectile, 'combat_stats', None)
+                                enemy.add_gameplay_effect(burn)
+                            projectile.kill()
                 if self.game.player.can_be_damaged and self.game.player.collides_with(enemy):
                     enemy.collide_and_impact(self.game.player)
                     self.game.player.sync_local_speeds_from_velocity()
@@ -163,7 +198,23 @@ class CollisionSystem:
             if projectile.stat_source != C.ENEMY:
                 continue
             if projectile.collides_with(self.game.player):
-                projectile.kill()
+                if isinstance(projectile, Rocket):
+                    all_aoe_targets = list(projectile.asteroids) if projectile.asteroids else []
+                    if projectile.enemies:
+                        all_aoe_targets.extend(projectile.enemies)
+                    aoe = RocketHitAOE(impact_position=projectile.position,
+                        targets=all_aoe_targets, radius=C.ROCKET_HIT_RADIUS,
+                        damage=C.ROCKET_HIT_DAMAGE)
+                    aoe.stat_source = projectile.stat_source
+                    aoe.combat_stats = getattr(projectile, 'combat_stats', None)
+                    aoe_score, aoe_xp = aoe.apply()
+                    if aoe_score:
+                        self.game.HUD.update_score(aoe_score)
+                    if aoe_xp:
+                        self.game.experience.add_xp(aoe_xp)
+                    projectile.kill()
+                else:
+                    projectile.kill()
                 score_delta, lives = self.game.player.damaged()
                 if score_delta:
                     self.game.HUD.update_score(score_delta)

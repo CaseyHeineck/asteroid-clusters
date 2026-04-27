@@ -2,7 +2,7 @@ import pygame
 import pytest
 from core import constants as C
 from ui.visualeffect import (BaseExplosion, LaserBeamVE, MuzzleFlareVE,
-    RocketExhaustVE, ShipExhaustVE, VisualEffect)
+    RocketExhaustVE, RocketHitExplosionVE, ShipExhaustVE, VisualEffect)
 
 # --- VisualEffect.update ---
 def test_visual_effect_timer_decrements_with_dt():
@@ -109,6 +109,46 @@ def test_base_explosion_duration_with_no_overlay_is_base_duration():
     explosion = BaseExplosion(0, 0, radius=10, base_duration=0.5)
     assert explosion.duration == pytest.approx(0.5, abs=0.001)
     BaseExplosion.containers = ()
+
+def test_base_explosion_duration_accounts_for_ring_duration():
+    group = pygame.sprite.Group()
+    BaseExplosion.containers = (group,)
+    explosion = BaseExplosion(0, 0, radius=10, base_duration=0.1, overlay_duration=0.2,
+        ring_color=C.ORANGE, ring_duration=0.5, ring_max_alpha=100, ring_line_width=3)
+    assert explosion.duration == pytest.approx(0.5, abs=0.001)
+    BaseExplosion.containers = ()
+
+def test_base_explosion_stores_ring_color():
+    group = pygame.sprite.Group()
+    BaseExplosion.containers = (group,)
+    explosion = BaseExplosion(0, 0, radius=10, base_duration=0.1,
+        ring_color=C.ORANGE, ring_duration=0.2, ring_max_alpha=150, ring_line_width=3)
+    assert explosion.ring_color == C.ORANGE
+    BaseExplosion.containers = ()
+
+# --- RocketHitExplosionVE ring ---
+def test_rocket_hit_explosion_has_ring_color():
+    group = pygame.sprite.Group()
+    RocketHitExplosionVE.containers = (group,)
+    ve = RocketHitExplosionVE(0, 0, 70)
+    assert ve.ring_color == C.ROCKET_HIT_RING_COLOR
+    RocketHitExplosionVE.containers = ()
+
+def test_rocket_hit_explosion_ring_duration_equals_constant():
+    group = pygame.sprite.Group()
+    RocketHitExplosionVE.containers = (group,)
+    ve = RocketHitExplosionVE(0, 0, 70)
+    assert ve.ring_duration == pytest.approx(C.ROCKET_HIT_RING_DURATION, abs=0.001)
+    RocketHitExplosionVE.containers = ()
+
+def test_rocket_hit_explosion_duration_is_max_including_ring():
+    group = pygame.sprite.Group()
+    RocketHitExplosionVE.containers = (group,)
+    ve = RocketHitExplosionVE(0, 0, 70)
+    assert ve.duration == pytest.approx(
+        max(C.BASE_EXPLOSION_DURATION, C.ROCKET_HIT_EXPLOSION_DURATION, C.ROCKET_HIT_RING_DURATION),
+        abs=0.001)
+    RocketHitExplosionVE.containers = ()
 
 # --- LaserBeamVE ---
 def test_laser_beam_ve_stores_start_position():

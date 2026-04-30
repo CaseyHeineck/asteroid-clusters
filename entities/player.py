@@ -1,3 +1,4 @@
+import os
 import pygame
 from core import constants as C
 from core.circleshape import CircleShape
@@ -5,7 +6,20 @@ from core.logger import log_event
 from ui.visualeffect import ShipExhaustVE
 
 class Player(CircleShape):
+    _sprite = None
+
+    @classmethod
+    def _load_sprite(cls):
+        if cls._sprite is not None:
+            return
+        path = os.path.join(os.path.dirname(os.path.abspath(__file__)),
+            "..", "assets", "images", "Player.png")
+        raw = pygame.image.load(path)
+        size = C.PLAYER_RADIUS * 2
+        cls._sprite = pygame.transform.scale(raw, (size, size))
+
     def __init__(self, x, y):
+        self._load_sprite()
         super().__init__(x, y, C.PLAYER_RADIUS, weight=C.PLAYER_WEIGHT,
             bounciness=C.PLAYER_BOUNCINESS, drag=C.PLAYER_DRAG,
             rotation=0, angular_velocity=0)
@@ -183,28 +197,12 @@ class Player(CircleShape):
         closest_point = start + segment * t
         return point.distance_to(closest_point)
     
-    def _draw_exhaust_ports(self, screen, color):
-        forward = pygame.Vector2(0, 1).rotate(self.rotation)
-        right = forward.rotate(90)
-        s = 3
-        for side in (-1, 1):
-            # Front face of each port sits flush with the triangle's back edge
-            center = self.position - forward * (self.radius + s) + right * (s * side)
-            corners = [
-                center + forward * s + right * s,
-                center + forward * s - right * s,
-                center - forward * s - right * s,
-                center - forward * s + right * s,
-            ]
-            pygame.draw.polygon(screen, C.SILVER, corners, 1)
-
     def draw(self, screen):
-        if self.damage_cooldown:
-            color = C.PLAYER_BODY_COLOR if self.flash_visible else C.WHITE
-        else:
-            color = C.PLAYER_BODY_COLOR
-        pygame.draw.polygon(screen, color, self.triangle(), C.LINE_WIDTH)
-        self._draw_exhaust_ports(screen, color)
+        if self.damage_cooldown and not self.flash_visible:
+            return
+        rotated = pygame.transform.rotate(self._sprite, -self.rotation + 180)
+        rect = rotated.get_rect(center=(int(self.position.x), int(self.position.y)))
+        screen.blit(rotated, rect)
 
     def _spawn_exhaust_effects(self, moving_forward, moving_backward,
             moving_left, moving_right, strafing, boosting, braking):

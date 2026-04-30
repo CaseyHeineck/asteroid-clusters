@@ -2,6 +2,21 @@
 
 ---
 
+## 2026-04-30
+
+### Pixel Art Sprite — Player Ship
+
+The player ship now renders using a pixel art sprite (`assets/images/Player.png`) instead of the hand-drawn triangle polygon.
+
+- **Sprite loaded once** — `Player._sprite` is a class variable; `_load_sprite()` fires on first `__init__` and is a no-op thereafter
+- **Scaled to collision size** — image is scaled to `PLAYER_RADIUS * 2` (52 × 52 px) so the visible ship matches the physics hitbox
+- **Rotation matched to heading** — each frame the sprite is rotated with `pygame.transform.rotate(sprite, -self.rotation + 180)` to align with the ship's forward direction
+- **Blink preserved** — during the damage invulnerability window the sprite is hidden on off-beats (same flash rhythm as the old polygon)
+- **Exhaust port detail removed** — the static silver port squares that flanked the triangle hull are gone; the sprite carries that visual detail; particle exhaust effects (`ShipExhaustVE`) are unchanged
+- Sets up the asset pipeline: future sprites for asteroids, enemies, and drones can follow the same load-once, scale-to-radius, blit-rotated pattern
+
+---
+
 ## 2026-04-27
 
 ### Enemy Combat Pass — Friendly Fire, Rocket Splash, Laser Lock-On Rewrite

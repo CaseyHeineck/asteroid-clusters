@@ -19,6 +19,7 @@ class FakePlayer:
         self.game_over = False
         self.collision_calls = []
         self.collision_damage = C.PLAYER_COLLISION_DAMAGE
+        self.uses_health = False
 
     def collides_with(self, other):
         return self.position.distance_to(other.position) <= self.radius + other.radius
@@ -189,6 +190,37 @@ def test_damaged_minimum_one_damage():
     enemy.element = Element.CRYO
     enemy.damaged(1, attacker_element=Element.FLUX)
     assert enemy.health == C.ENEMY_MAX_HEALTH - 1
+
+def test_damaged_applies_mark_multiplier():
+    enemy, _ = make_enemy()
+    enemy.mark_multiplier = 2.0
+    enemy.damaged(5)
+    assert enemy.health == C.ENEMY_MAX_HEALTH - 10
+
+def test_damaged_consumes_mark_multiplier_after_hit():
+    enemy, _ = make_enemy()
+    enemy.mark_multiplier = 2.0
+    enemy.damaged(5)
+    assert enemy.mark_multiplier == 1.0
+
+def test_damaged_applies_corrode_multiplier():
+    enemy, _ = make_enemy()
+    enemy.corrode_multiplier = 1.5
+    enemy.damaged(10)
+    assert enemy.health == C.ENEMY_MAX_HEALTH - 15
+
+def test_damaged_corrode_multiplier_persists_after_hit():
+    enemy, _ = make_enemy()
+    enemy.corrode_multiplier = 1.5
+    enemy.damaged(5)
+    assert enemy.corrode_multiplier == 1.5
+
+def test_damaged_applies_both_multipliers():
+    enemy, _ = make_enemy()
+    enemy.mark_multiplier = 2.0
+    enemy.corrode_multiplier = 1.5
+    enemy.damaged(4)
+    assert enemy.health == C.ENEMY_MAX_HEALTH - 12
 
 def test_damaged_logs_enemy_hit_when_alive():
     enemy, _ = make_enemy()
@@ -462,8 +494,8 @@ def test_plasma_hit_applies_burn_to_enemy():
     projectile.combat_stats = MagicMock()
     game, cs = make_cs_game(enemies=[enemy], projectiles=[projectile])
     cs.handle_enemy_collisions()
-    from systems.gameplayeffect import PlasmaBurnSTE
-    assert any(isinstance(e, PlasmaBurnSTE) for e in enemy.gameplay_effects)
+    from systems.gameplayeffect import BurnSTE
+    assert any(isinstance(e, BurnSTE) for e in enemy.gameplay_effects)
 
 def test_non_plasma_hit_does_not_apply_burn_to_enemy():
     Enemy.containers = ()
@@ -472,8 +504,8 @@ def test_non_plasma_hit_does_not_apply_burn_to_enemy():
     projectile = FakeProjectile(damage=5)
     game, cs = make_cs_game(enemies=[enemy], projectiles=[projectile])
     cs.handle_enemy_collisions()
-    from systems.gameplayeffect import PlasmaBurnSTE
-    assert not any(isinstance(e, PlasmaBurnSTE) for e in enemy.gameplay_effects)
+    from systems.gameplayeffect import BurnSTE
+    assert not any(isinstance(e, BurnSTE) for e in enemy.gameplay_effects)
 
 # --- enemy wrapping ---
 def test_same_airspace_enemies_not_wrapped_by_collision_system():

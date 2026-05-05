@@ -1,7 +1,7 @@
 import pygame
 import pytest
 from core.circleshape import CircleShape
-from systems.gameplayeffect import GameplayEffect, PlasmaBurnSTE, SingleTargetEffect
+from systems.gameplayeffect import GameplayEffect, BurnSTE, SingleTargetEffect
 
 class EffectTypeA(SingleTargetEffect): pass
 class EffectTypeB(SingleTargetEffect): pass
@@ -204,7 +204,7 @@ def test_add_gameplay_effect_respects_stack_limit_by_merging_oldest():
 def test_plasma_burn_stacks_without_limit_by_default():
     shape = CircleShape(0, 0, 10)
     for _ in range(5):
-        shape.add_gameplay_effect(PlasmaBurnSTE())
+        shape.add_gameplay_effect(BurnSTE())
     assert len(shape.gameplay_effects) == 5
 
 # --- update_gameplay_effects ---

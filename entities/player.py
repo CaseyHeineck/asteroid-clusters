@@ -1,4 +1,5 @@
 import os
+import random
 import pygame
 from core import constants as C
 from core.circleshape import CircleShape
@@ -25,6 +26,10 @@ class Player(CircleShape):
             rotation=0, angular_velocity=0)
         self.lives = 3
         self.max_lives = 3
+        self.uses_health = False
+        self.health = 0
+        self.max_health = 0
+        self.evasion_chance = 0.0
         self.life_regen = False
         self.life_regen_timer = 0
         self.damage_cooldown = False
@@ -83,7 +88,16 @@ class Player(CircleShape):
             self.flash_visible = False
 
     def damaged(self, damage=1):
+        if self.uses_health:
+            self.health -= damage
+            if self.health <= 0:
+                self.health = 0
+                log_event("game_over")
+                self.game_over = True
+            return 0, self.health
         if not self.can_be_damaged:
+            return 0, self.lives
+        if self.evasion_chance > 0 and random.random() < self.evasion_chance:
             return 0, self.lives
         log_event("player_hit")
         self.lives -= damage
@@ -142,8 +156,8 @@ class Player(CircleShape):
         c = self.position - forward * self.radius + right
         return [a, b, c]
 
-    def add_drone(self, drone_class, asteroids):
-        new_drone = drone_class(self, asteroids)
+    def add_drone(self, drone_class, asteroids, platform_class=None):
+        new_drone = drone_class(self, asteroids, platform_class=platform_class)
         self.drones.append(new_drone)
         self.rebalance_drones()
         return new_drone

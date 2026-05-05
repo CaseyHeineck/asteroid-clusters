@@ -5,7 +5,7 @@ from core.circleshape import CircleShape
 from core.element import draw_elemental_glow_poly, get_damage_multiplier
 from core.logger import log_event
 from entities.elementalessenceorb import ElementalEssenceOrb
-from entities.weaponsplatform import ExplosivePlatform, KineticPlatform, LaserPlatform, PlasmaPlatform
+from entities.weaponsplatform import ExplosivePlatform, KineticPlatform, LaserPlatform, BurnPlatform
 from ui.visualeffect import EnemyKillExplosionVE, LaserBeamVE
 
 class Enemy(CircleShape):
@@ -35,7 +35,11 @@ class Enemy(CircleShape):
 
     def damaged(self, amount, attacker_element=None):
         mult = get_damage_multiplier(attacker_element, self.element)
-        self.health -= max(1, int(amount * mult))
+        mark_mult = self.mark_multiplier
+        self.health -= max(1, int(amount * mult * mark_mult * self.corrode_multiplier))
+        if mark_mult != 1.0:
+            self.mark_multiplier = 1.0
+            self._on_mark_consumed()
         if self.health <= 0:
             log_event("enemy_destroyed")
             explosion_radius = max(12, int(self.radius * 1.5))
@@ -53,7 +57,9 @@ class Enemy(CircleShape):
         return 0, 0
 
     def acquire_target(self):
-        self.target = self.player
+        game = getattr(self, 'game', None)
+        decoy = getattr(game, 'decoy', None) if game else None
+        self.target = decoy if (decoy and decoy.alive()) else self.player
 
     def aim_at_target(self):
         if self.target is None:
@@ -159,7 +165,7 @@ class PlasmaEnemy(Enemy):
         self.body_color = C.PLASMA_ENEMY_BODY_COLOR
         self.speed = C.PLASMA_ENEMY_SPEED
         self.asteroids = game.asteroids
-        self.platform = PlasmaPlatform(base_damage=C.PLASMA_ENEMY_DAMAGE,
+        self.platform = BurnPlatform(base_damage=C.PLASMA_ENEMY_DAMAGE,
             projectile_color=C.PLASMA_ENEMY_PROJECTILE_COLOR)
         self.platform.weapons_free_timer_max = C.PLASMA_ENEMY_WEAPONS_FREE_TIMER
         self.platform.projectile_speed = C.PLASMA_ENEMY_PROJECTILE_SPEED
@@ -240,9 +246,12 @@ class KineticEnemy(Enemy):
         return avoidance
 
     def acquire_target(self):
+        game = getattr(self, 'game', None)
+        decoy = getattr(game, 'decoy', None) if game else None
+        effective_target = decoy if (decoy and decoy.alive()) else self.player
         player_dist = self.position.distance_to(self.player.position)
         if player_dist <= C.KINETIC_ENEMY_PLAYER_THREAT_RADIUS:
-            self.target = self.player
+            self.target = effective_target
             return
         largest = self._find_largest_asteroid()
         if largest is None:
@@ -368,7 +377,7 @@ class LaserEnemy(Enemy):
         if to_target.length_squared() == 0:
             return 0
         dir_norm = to_target.normalize()
-        spawn_pos = self.position + dir_norm * (self.radius + C.LASER_DRONE_WEAPONS_PLATFORM_OFFSET)
+        spawn_pos = self.position + dir_norm * (self.radius + C.LASER_BEAM_PLATFORM_OFFSET)
         closest_obj = None
         closest_dist = float('inf')
         if self.asteroids:
@@ -399,9 +408,12 @@ class LaserEnemy(Enemy):
                     width=C.LASER_BEAM_WIDTH, duration=C.LASER_BEAM_DURATION)
             if closest_obj is self.player:
                 if self.player.can_be_damaged:
-                    score_delta, lives = self.player.damaged()
+                    score_delta, hp = self.player.damaged()
                     if game and hasattr(game, 'HUD'):
-                        game.HUD.update_player_lives(lives)
+                        if self.player.uses_health:
+                            game.HUD.update_player_health(hp)
+                        else:
+                            game.HUD.update_player_lives(hp)
                         if score_delta:
                             game.HUD.update_score(score_delta)
                     if getattr(self.player, 'game_over', False) and game and hasattr(game, 'on_game_over'):

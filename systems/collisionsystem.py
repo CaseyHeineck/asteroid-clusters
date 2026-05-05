@@ -1,11 +1,17 @@
 import random
 from core import constants as C
 from entities.projectile import Kinetic, Plasma, Rocket
-from systems.gameplayeffect import PlasmaBurnSTE, RocketHitAOE
+from systems.gameplayeffect import BurnSTE, RocketHitAOE
 
 class CollisionSystem:
     def __init__(self, game):
         self.game = game
+
+    def _update_player_hp_hud(self, hp):
+        if self.game.player.uses_health:
+            self.game.HUD.update_player_health(hp)
+        else:
+            self.game.HUD.update_player_lives(hp)
 
     def handle(self):
         self.handle_asteroid_collisions()
@@ -44,10 +50,10 @@ class CollisionSystem:
                         source=self.game.player.stat_source,
                         health_before=health_before,
                         attempted_damage=self.game.player.collision_damage)
-                    score_delta, lives = self.game.player.damaged()
+                    score_delta, hp = self.game.player.damaged()
                     if score_delta:
                         self.game.HUD.update_score(score_delta)
-                    self.game.HUD.update_player_lives(lives)
+                    self._update_player_hp_hud(hp)
                     if self.game.player.game_over:
                         self.game.on_game_over()
             for projectile in self.game.projectiles:
@@ -65,10 +71,10 @@ class CollisionSystem:
                             and self.game.player.can_be_damaged
                             and asteroid.position.distance_to(
                                 self.game.player.position) <= C.ROCKET_HIT_RADIUS):
-                        score_delta, lives = self.game.player.damaged()
+                        score_delta, hp = self.game.player.damaged()
                         if score_delta:
                             self.game.HUD.update_score(score_delta)
-                        self.game.HUD.update_player_lives(lives)
+                        self._update_player_hp_hud(hp)
                         if self.game.player.game_over:
                             self.game.on_game_over()
 
@@ -76,9 +82,9 @@ class CollisionSystem:
         if not hasattr(source, 'gameplay_effects') or not hasattr(target, 'add_gameplay_effect'):
             return
         for effect in source.gameplay_effects:
-            if isinstance(effect, PlasmaBurnSTE) and not effect.expired:
+            if isinstance(effect, BurnSTE) and not effect.expired:
                 if random.random() < effect.spread_chance:
-                    new_burn = PlasmaBurnSTE(
+                    new_burn = BurnSTE(
                         damage_per_tick=effect.damage_per_tick,
                         tick_rate=effect.tick_rate,
                         duration=C.PLASMA_BURN_DURATION,
@@ -120,12 +126,22 @@ class CollisionSystem:
                                     and self.game.player.can_be_damaged
                                     and enemy.position.distance_to(
                                         self.game.player.position) <= C.ROCKET_HIT_RADIUS):
-                                score_delta, lives = self.game.player.damaged()
+                                score_delta, hp = self.game.player.damaged()
                                 if score_delta:
                                     self.game.HUD.update_score(score_delta)
-                                self.game.HUD.update_player_lives(lives)
+                                self._update_player_hp_hud(hp)
                                 if self.game.player.game_over:
                                     self.game.on_game_over()
+                        elif getattr(projectile, 'handles_own_kill', False):
+                            result = projectile.on_hit(enemy)
+                            if isinstance(result, tuple):
+                                score, xp = result
+                            else:
+                                score, xp = result, 0
+                            if score:
+                                self.game.HUD.update_score(score)
+                            if xp:
+                                self.game.experience.add_xp(xp)
                         else:
                             score, xp = enemy.damaged(projectile.damage,
                                 getattr(projectile, "element", None))
@@ -146,7 +162,7 @@ class CollisionSystem:
                             if enemy.health > 0 and (
                                     isinstance(projectile, Plasma)
                                     or "burn" in getattr(projectile, 'extra_abilities', set())):
-                                burn = PlasmaBurnSTE()
+                                burn = BurnSTE()
                                 burn.stat_source = projectile.stat_source
                                 burn.combat_stats = getattr(projectile, 'combat_stats', None)
                                 enemy.add_gameplay_effect(burn)
@@ -161,10 +177,10 @@ class CollisionSystem:
                     if xp:
                         self.game.experience.add_xp(xp)
                     if enemy.health > 0:
-                        score_delta, lives = self.game.player.damaged()
+                        score_delta, hp = self.game.player.damaged()
                         if score_delta:
                             self.game.HUD.update_score(score_delta)
-                        self.game.HUD.update_player_lives(lives)
+                        self._update_player_hp_hud(hp)
                         if self.game.player.game_over:
                             self.game.on_game_over()
                 for asteroid in list(self.game.asteroids):
@@ -215,10 +231,10 @@ class CollisionSystem:
                     projectile.kill()
                 else:
                     projectile.kill()
-                score_delta, lives = self.game.player.damaged()
+                score_delta, hp = self.game.player.damaged()
                 if score_delta:
                     self.game.HUD.update_score(score_delta)
-                self.game.HUD.update_player_lives(lives)
+                self._update_player_hp_hud(hp)
                 if self.game.player.game_over:
                     self.game.on_game_over()
 

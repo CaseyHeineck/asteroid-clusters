@@ -1,5 +1,5 @@
 from core import constants as C
-from systems.gameplayeffect import GameplayEffect, PlasmaBurnSTE, SingleTargetEffect
+from systems.gameplayeffect import GameplayEffect, BurnSTE, SingleTargetEffect
 
 class FakeCombatStats:
     def __init__(self):
@@ -36,44 +36,44 @@ def test_effect_ends_if_timer_is_zero():
     effect.update(1.0)
     assert effect.expired == True
 
-# --- PlasmaBurnSTE.update ---
+# --- BurnSTE.update ---
 def test_plasma_burn_does_not_tick_before_timer_expires():
-    effect = PlasmaBurnSTE(damage_per_tick=10, tick_rate=1.0, duration=5.0)
+    effect = BurnSTE(damage_per_tick=10, tick_rate=1.0, duration=5.0)
     target = FakeBurnTarget(health=100)
     effect.apply_to(target)
     effect.update(0.5)
     assert target.health == 100
 
 def test_plasma_burn_ticks_when_timer_expires():
-    effect = PlasmaBurnSTE(damage_per_tick=10, tick_rate=1.0, duration=5.0)
+    effect = BurnSTE(damage_per_tick=10, tick_rate=1.0, duration=5.0)
     target = FakeBurnTarget(health=100)
     effect.apply_to(target)
     effect.update(1.0)
     assert target.health == 90
 
 def test_plasma_burn_calls_pulse_outline_on_tick():
-    effect = PlasmaBurnSTE(damage_per_tick=5, tick_rate=1.0, duration=5.0)
+    effect = BurnSTE(damage_per_tick=5, tick_rate=1.0, duration=5.0)
     target = FakeBurnTarget(health=100)
     effect.apply_to(target)
     effect.update(1.0)
     assert target.pulsed
 
 def test_plasma_burn_tick_resets_timer():
-    effect = PlasmaBurnSTE(damage_per_tick=5, tick_rate=1.0, duration=5.0)
+    effect = BurnSTE(damage_per_tick=5, tick_rate=1.0, duration=5.0)
     target = FakeBurnTarget(health=100)
     effect.apply_to(target)
     effect.update(1.0)
     assert effect.tick_timer > 0
 
 def test_plasma_burn_expires_on_lethal_tick():
-    effect = PlasmaBurnSTE(damage_per_tick=50, tick_rate=1.0, duration=5.0)
+    effect = BurnSTE(damage_per_tick=50, tick_rate=1.0, duration=5.0)
     target = FakeBurnTarget(health=50)
     effect.apply_to(target)
     effect.update(1.0)
     assert effect.expired
 
 def test_plasma_burn_returns_score_on_lethal_tick():
-    effect = PlasmaBurnSTE(damage_per_tick=50, tick_rate=1.0, duration=5.0)
+    effect = BurnSTE(damage_per_tick=50, tick_rate=1.0, duration=5.0)
     target = FakeBurnTarget(health=50)
     effect.apply_to(target)
     score = effect.update(1.0)
@@ -90,27 +90,27 @@ def test_permanent_effect_zero_duration_does_not_decrement():
     effect.update(1.0)
     assert effect.duration == 0
 
-# --- PlasmaBurnSTE multiple ticks in one update ---
+# --- BurnSTE multiple ticks in one update ---
 def test_plasma_burn_applies_multiple_ticks_when_dt_exceeds_tick_rate():
-    effect = PlasmaBurnSTE(damage_per_tick=5, tick_rate=1.0, duration=10.0)
+    effect = BurnSTE(damage_per_tick=5, tick_rate=1.0, duration=10.0)
     target = FakeBurnTarget(health=100)
     effect.apply_to(target)
     effect.update(3.5)
     assert target.health == 85
 
-# --- PlasmaBurnSTE skips tick when target is dead ---
+# --- BurnSTE skips tick when target is dead ---
 def test_plasma_burn_does_not_tick_when_target_is_dead():
-    effect = PlasmaBurnSTE(damage_per_tick=10, tick_rate=1.0, duration=5.0)
+    effect = BurnSTE(damage_per_tick=10, tick_rate=1.0, duration=5.0)
     target = FakeBurnTarget(health=100)
     target.alive = lambda: False
     effect.apply_to(target)
     effect.update(2.0)
     assert target.health == 100
 
-# --- PlasmaBurnSTE records to combat_stats ---
+# --- BurnSTE records to combat_stats ---
 def test_plasma_burn_records_damage_event_to_combat_stats():
     stats = FakeCombatStats()
-    effect = PlasmaBurnSTE(damage_per_tick=10, tick_rate=1.0, duration=5.0)
+    effect = BurnSTE(damage_per_tick=10, tick_rate=1.0, duration=5.0)
     effect.combat_stats = stats
     target = FakeBurnTarget(health=100)
     effect.apply_to(target)
@@ -118,55 +118,55 @@ def test_plasma_burn_records_damage_event_to_combat_stats():
     assert len(stats.events) == 1
     assert stats.events[0] == 10
 
-# --- PlasmaBurnSTE class variable defaults ---
+# --- BurnSTE class variable defaults ---
 def test_plasma_burn_tick_rate_override_defaults_to_none():
-    PlasmaBurnSTE.tick_rate_override = None
-    assert PlasmaBurnSTE.tick_rate_override is None
+    BurnSTE.tick_rate_override = None
+    assert BurnSTE.tick_rate_override is None
 
 def test_plasma_burn_spread_chance_override_defaults_to_none():
-    assert PlasmaBurnSTE.spread_chance_override is None
+    assert BurnSTE.spread_chance_override is None
 
 def test_plasma_burn_default_tick_rate_equals_constant():
-    PlasmaBurnSTE.tick_rate_override = None
-    effect = PlasmaBurnSTE()
+    BurnSTE.tick_rate_override = None
+    effect = BurnSTE()
     assert effect.tick_rate == C.PLASMA_BURN_TICK_RATE
 
 def test_plasma_burn_default_spread_chance_equals_constant():
-    effect = PlasmaBurnSTE()
+    effect = BurnSTE()
     assert effect.spread_chance == C.PLASMA_BURN_SPREAD_CHANCE
 
 def test_plasma_burn_tick_rate_override_applied_on_construction():
-    PlasmaBurnSTE.tick_rate_override = 0.5
-    effect = PlasmaBurnSTE()
-    PlasmaBurnSTE.tick_rate_override = None
+    BurnSTE.tick_rate_override = 0.5
+    effect = BurnSTE()
+    BurnSTE.tick_rate_override = None
     assert effect.tick_rate == 0.5
 
 def test_plasma_burn_spread_chance_override_applied_on_construction():
-    PlasmaBurnSTE.spread_chance_override = 0.5
-    effect = PlasmaBurnSTE()
-    PlasmaBurnSTE.spread_chance_override = None
+    BurnSTE.spread_chance_override = 0.5
+    effect = BurnSTE()
+    BurnSTE.spread_chance_override = None
     assert effect.spread_chance == 0.5
 
 def test_plasma_burn_explicit_tick_rate_ignores_override():
-    PlasmaBurnSTE.tick_rate_override = 0.25
-    effect = PlasmaBurnSTE(tick_rate=2.0)
-    PlasmaBurnSTE.tick_rate_override = None
+    BurnSTE.tick_rate_override = 0.25
+    effect = BurnSTE(tick_rate=2.0)
+    BurnSTE.tick_rate_override = None
     assert effect.tick_rate == 2.0
 
-# --- PlasmaBurnSTE merge with spread_chance ---
+# --- BurnSTE merge with spread_chance ---
 def test_plasma_burn_merge_takes_max_spread_chance():
-    e1 = PlasmaBurnSTE(spread_chance=0.2, tick_rate=1.0, duration=5.0)
-    e2 = PlasmaBurnSTE(spread_chance=0.5, tick_rate=1.0, duration=5.0)
+    e1 = BurnSTE(spread_chance=0.2, tick_rate=1.0, duration=5.0)
+    e2 = BurnSTE(spread_chance=0.5, tick_rate=1.0, duration=5.0)
     e1.merge(e2)
     assert e1.spread_chance == 0.5
 
 def test_plasma_burn_merge_keeps_own_spread_chance_when_higher():
-    e1 = PlasmaBurnSTE(spread_chance=0.8, tick_rate=1.0, duration=5.0)
-    e2 = PlasmaBurnSTE(spread_chance=0.3, tick_rate=1.0, duration=5.0)
+    e1 = BurnSTE(spread_chance=0.8, tick_rate=1.0, duration=5.0)
+    e2 = BurnSTE(spread_chance=0.3, tick_rate=1.0, duration=5.0)
     e1.merge(e2)
     assert e1.spread_chance == 0.8
 
-# --- PlasmaBurnSTE handles tuple return from damaged (enemy-style) ---
+# --- BurnSTE handles tuple return from damaged (enemy-style) ---
 class FakeTupleTarget:
     def __init__(self, health=100):
         self.health = health
@@ -180,14 +180,14 @@ class FakeTupleTarget:
         self.pulsed = True
 
 def test_plasma_burn_handles_tuple_damaged_return_without_crash():
-    effect = PlasmaBurnSTE(damage_per_tick=50, tick_rate=1.0, duration=5.0)
+    effect = BurnSTE(damage_per_tick=50, tick_rate=1.0, duration=5.0)
     target = FakeTupleTarget(health=50)
     effect.apply_to(target)
     score = effect.update(1.0)
     assert score == 10
 
 def test_plasma_burn_expires_on_lethal_tick_with_tuple_target():
-    effect = PlasmaBurnSTE(damage_per_tick=50, tick_rate=1.0, duration=5.0)
+    effect = BurnSTE(damage_per_tick=50, tick_rate=1.0, duration=5.0)
     target = FakeTupleTarget(health=50)
     effect.apply_to(target)
     effect.update(1.0)
@@ -198,4 +198,4 @@ def test_single_target_effect_is_not_stackable():
     assert SingleTargetEffect.stackable is False
 
 def test_plasma_burn_is_stackable():
-    assert PlasmaBurnSTE.stackable is True
+    assert BurnSTE.stackable is True

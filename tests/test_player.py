@@ -2,7 +2,7 @@ import pygame
 import pytest
 from collections import defaultdict
 from core import constants as C
-from entities.drone import LaserDrone
+from entities.drone import SlayerDrone
 from entities.player import Player
 from unittest.mock import patch
 
@@ -360,18 +360,18 @@ def test_sync_local_speeds_zero_velocity_gives_zero_speeds():
 # --- add_drone ---
 def test_add_drone_appends_to_drones_list():
     p = Player(0, 0)
-    p.add_drone(LaserDrone, [])
+    p.add_drone(SlayerDrone, [])
     assert len(p.drones) == 1
 
 def test_add_drone_returns_new_drone_instance():
     p = Player(0, 0)
-    drone = p.add_drone(LaserDrone, [])
-    assert isinstance(drone, LaserDrone)
+    drone = p.add_drone(SlayerDrone, [])
+    assert isinstance(drone, SlayerDrone)
 
 def test_add_drone_rebalances_two_drones_180_apart():
     p = Player(0, 0)
-    d1 = p.add_drone(LaserDrone, [])
-    d2 = p.add_drone(LaserDrone, [])
+    d1 = p.add_drone(SlayerDrone, [])
+    d2 = p.add_drone(SlayerDrone, [])
     assert abs(d2.orbit_angle - d1.orbit_angle) == pytest.approx(180, abs=0.001)
 
 # --- apply_collision_to_asteroid ---

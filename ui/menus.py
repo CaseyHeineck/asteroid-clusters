@@ -2,7 +2,7 @@ import pygame
 import pygame_menu
 from core import constants as C
 from core.element import ELEMENT_COLORS, get_element_name
-from entities.drone import ExplosiveDrone, KineticDrone, LaserDrone, PlasmaDrone, SentinelDrone
+from entities.drone import ExplosiveDrone, KineticDrone, SlayerDrone, DebuffDrone, SentinelDrone
 
 def create_main_menu(on_new_game, on_exit):
     menu = pygame_menu.Menu(title="ASTEROID CLUSTER****S", width=C.SCREEN_WIDTH,
@@ -56,8 +56,8 @@ def build_offense_chart_surface(combat_stats, width, height):
     surface.blit(title, (16, 12))
     source_rows = [(C.PLAYER, "Player"),
         (C.KINETIC_DRONE, "Kinetic Drone"),
-        (C.PLASMA_DRONE, "Plasma Drone"),
-        (C.LASER_DRONE, "Laser Drone"),
+        (C.DEBUFF_DRONE, "Plasma Drone"),
+        (C.SLAYER_DRONE, "Laser Drone"),
         (C.EXPLOSIVE_DRONE, "Explosive Drone"),
         (C.SENTINEL_DRONE, "Sentinel Drone")]
     rows = []
@@ -161,41 +161,44 @@ def build_support_chart_surface(combat_stats, width, height):
     return surface
 
 def create_drone_select_menu(on_select_drone):
-    drone_info = [(PlasmaDrone, "PLASMA DRONE", "Medium range | Plasma bolts that burn asteroids over time"),
-        (KineticDrone, "KINETIC DRONE", "Short range | Rapid-fire kinetic rounds with high impact"),
-        (ExplosiveDrone, "EXPLOSIVE DRONE", "Medium range | Rockets with area-of-effect explosion"),
-        (LaserDrone, "LASER DRONE", "Long range | Instant hitscan laser, targets highest HP"),
-        (SentinelDrone, "SENTINEL DRONE", "Support | Generates a protective shield around you")]
+    drone_classes = [DebuffDrone, KineticDrone, ExplosiveDrone, SlayerDrone, SentinelDrone]
     menu = pygame_menu.Menu(title="CHOOSE YOUR STARTING DRONE", width=C.SCREEN_WIDTH,
         height=C.SCREEN_HEIGHT, theme=pygame_menu.themes.THEME_DARK)
-    menu.add.label("Select the drone that will orbit you from the start of the game.")
+    menu.add.label("Select the drone type that will orbit you from the start of the game.")
     menu.add.vertical_margin(20)
-    for drone_class, name, desc in drone_info:
+    for drone_class in drone_classes:
         def make_cb(cls):
             return lambda: on_select_drone(cls)
-        menu.add.button(f"{name}  —  {desc}", make_cb(drone_class))
+        menu.add.button(f"{drone_class.drone_name}  —  {drone_class.drone_description}", make_cb(drone_class))
+    return menu
+
+def create_variant_select_menu(drone_class, on_select, on_back):
+    menu = pygame_menu.Menu(title=f"{drone_class.drone_name} — CHOOSE VARIANT",
+        width=C.SCREEN_WIDTH, height=C.SCREEN_HEIGHT, theme=pygame_menu.themes.THEME_DARK)
+    menu.add.label("Select a weapon platform variant for this drone.")
+    menu.add.vertical_margin(20)
+    for platform_class in drone_class._platform_classes:
+        def make_cb(pc):
+            return lambda: on_select(pc)
+        menu.add.button(
+            f"{platform_class.variant_name}  —  {platform_class.variant_description}",
+            make_cb(platform_class))
+    menu.add.vertical_margin(20)
+    menu.add.button("BACK", on_back)
     return menu
 
 def create_drone_choice_menu(pending_drones, level, on_add_drone, on_banish_drone):
-    drone_names = {
-        PlasmaDrone: "PLASMA DRONE",
-        KineticDrone: "KINETIC DRONE",
-        ExplosiveDrone: "EXPLOSIVE DRONE",
-        LaserDrone: "LASER DRONE",
-        SentinelDrone: "SENTINEL DRONE",
-    }
     menu = pygame_menu.Menu(title=f"LEVEL {level} — DRONE CHOICE", width=C.SCREEN_WIDTH,
         height=C.SCREEN_HEIGHT, theme=pygame_menu.themes.THEME_DARK)
     menu.add.label("Choose one drone to ADD to your arsenal or BANISH permanently.")
     menu.add.vertical_margin(20)
     for drone_class in pending_drones:
-        name = drone_names.get(drone_class, str(drone_class.__name__))
         def make_add(cls):
             return lambda: on_add_drone(cls)
         def make_banish(cls):
             return lambda: on_banish_drone(cls)
-        menu.add.button(f"ADD  {name}", make_add(drone_class))
-        menu.add.button(f"BANISH  {name}", make_banish(drone_class))
+        menu.add.button(f"ADD  {drone_class.drone_name}", make_add(drone_class))
+        menu.add.button(f"BANISH  {drone_class.drone_name}", make_banish(drone_class))
         menu.add.vertical_margin(8)
     return menu
 
@@ -237,58 +240,22 @@ def create_mancer_hub_menu(essence, elemental_amount, wizards,
     return menu
 
 def _drone_keywords(drone):
-    base_keywords = {
-        "KineticDrone":   "impact",
-        "PlasmaDrone":    "burn",
-        "ExplosiveDrone": "explosion",
-        "LaserDrone":     "overkill",
-    }
-    base = base_keywords.get(type(drone).__name__)
+    base = drone.platform.banish_ability if drone.platform else None
     extras = sorted(drone.extra_abilities)
     all_kw = ([base] if base else []) + [kw for kw in extras if kw != base]
     if not all_kw:
         return ""
     return "  [" + ", ".join(kw.upper() for kw in all_kw) + "]"
 
-_ABILITY_UPGRADES = {
-    "impact": [("kinetic_mass",     "Kinetic Mass +60%"),
-               ("projectile_speed", "Projectile Speed +15%")],
-    "burn":   [("burn_tick_rate",   "Burn Ticks +"),
-               ("burn_spread",      "Spread Chance +10%")],
-}
-
-_NATIVE_ABILITY = {
-    "KineticDrone":   "impact",
-    "PlasmaDrone":    "burn",
-    "ExplosiveDrone": "explosion",
-    "LaserDrone":     "overkill",
-}
-
 def _drone_upgrades(drone):
-    cls = type(drone)
-    if cls is SentinelDrone:
-        return [("shield_health", "Shield Health +2"),
-                ("repair_rate",   "Repair Speed +15%")]
-    upgrades = [("damage", "Damage +15%"), ("fire_rate", "Fire Rate +12%")]
-    seen = {"damage", "fire_rate"}
-    native = _NATIVE_ABILITY.get(cls.__name__)
-    all_abilities = ([native] if native else []) + [a for a in sorted(drone.extra_abilities) if a != native]
-    for ability in all_abilities:
-        for upgrade_type, label in _ABILITY_UPGRADES.get(ability, []):
-            if upgrade_type in seen:
-                continue
-            if upgrade_type == "projectile_speed" and not hasattr(drone.platform, "projectile_speed"):
-                continue
-            upgrades.append((upgrade_type, label))
-            seen.add(upgrade_type)
-    return upgrades
+    return [(p["type"], p["label"]) for p in drone.platform.upgrade_paths]
 
 def create_technomancer_menu(player_drones, upgrade_counts, essence, on_buy, on_back):
     drone_display_names = {
         "ExplosiveDrone": "EXPLOSIVE DRONE",
         "KineticDrone":   "KINETIC DRONE",
-        "LaserDrone":     "LASER DRONE",
-        "PlasmaDrone":    "PLASMA DRONE",
+        "SlayerDrone":     "SLAYER DRONE",
+        "DebuffDrone":    "DEBUFF DRONE",
         "SentinelDrone":  "SENTINEL DRONE",
     }
     menu = pygame_menu.Menu(title="TECHNOMANCER", width=C.SCREEN_WIDTH,
@@ -325,8 +292,8 @@ def create_elementalmancer_menu(element, player_drones, elemental_amount, on_inf
     drone_display_names = {
         "ExplosiveDrone": "EXPLOSIVE DRONE",
         "KineticDrone":   "KINETIC DRONE",
-        "LaserDrone":     "LASER DRONE",
-        "PlasmaDrone":    "PLASMA DRONE",
+        "SlayerDrone":     "SLAYER DRONE",
+        "DebuffDrone":    "DEBUFF DRONE",
         "SentinelDrone":  "SENTINEL DRONE",
     }
     elem_name = get_element_name(element)
@@ -360,8 +327,8 @@ def get_source_color(source):
     return {
         C.PLAYER: C.RED,
         C.KINETIC_DRONE: C.SILVER,
-        C.PLASMA_DRONE: C.MAGENTA,
-        C.LASER_DRONE: C.LASER_RED,
+        C.DEBUFF_DRONE: C.MAGENTA,
+        C.SLAYER_DRONE: C.LASER_RED,
         C.EXPLOSIVE_DRONE: C.ORANGE,
         C.SENTINEL_DRONE: C.GOLD,
     }.get(source, C.CYAN)

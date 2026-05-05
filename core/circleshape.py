@@ -17,6 +17,8 @@ class CircleShape(pygame.sprite.Sprite):
         self.angular_velocity = angular_velocity
         self.gameplay_effects = []
         self.burn_stack_limit = None
+        self.corrode_multiplier = 1.0
+        self.mark_multiplier = 1.0
         self.outline_pulse_color = None
         self.outline_pulse_timer = 0
 
@@ -61,6 +63,12 @@ class CircleShape(pygame.sprite.Sprite):
                 return
         effect.apply_to(self)
         self.gameplay_effects.append(effect)
+
+    def _on_mark_consumed(self):
+        for effect in self.gameplay_effects:
+            if getattr(effect, 'is_mark_effect', False) and not effect.expired:
+                effect.on_expire()
+                effect.expired = True
 
     def update_gameplay_effects(self, dt):
         total_score = 0

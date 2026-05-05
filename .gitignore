@@ -13,5 +13,5 @@ wheels/
 game_state.jsonl
 game_events.jsonl
 
-# Claude instructions
-CLAUDE.md
+# Claude — track CLAUDE.md and .claude/ (commands, shared settings), not personal overrides
+.claude/settings.local.json

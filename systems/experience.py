@@ -1,5 +1,5 @@
 from core import constants as C
-from entities.drone import ExplosiveDrone, KineticDrone, LaserDrone, PlasmaDrone, SentinelDrone
+from entities.drone import ExplosiveDrone, KineticDrone, SlayerDrone, DebuffDrone, SentinelDrone
 
 class ExperienceSystem:
     def __init__(self, game):
@@ -7,8 +7,8 @@ class ExperienceSystem:
         self.total_xp = 0
         self.level = 1
         self.choices_pending = 0
-        self.all_drone_classes = [PlasmaDrone, KineticDrone, ExplosiveDrone,
-            LaserDrone, SentinelDrone]
+        self.all_drone_classes = [DebuffDrone, KineticDrone, ExplosiveDrone,
+            SlayerDrone, SentinelDrone]
         self.pending_drones = list(self.all_drone_classes)
         self.added_drones = []
         self.banished_drones = []

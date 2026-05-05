@@ -7,7 +7,8 @@ from core.element import ALL_ELEMENTS
 from core.logger import *
 from entities.asteroid import Asteroid
 from entities.asteroidfield import AsteroidField
-from entities.drone import Drone, ExplosiveDrone, KineticDrone, LaserDrone, PlasmaDrone, SentinelDrone
+from entities.decoy import Decoy
+from entities.drone import Drone, ExplosiveDrone, KineticDrone, SlayerDrone, DebuffDrone, SentinelDrone
 from entities.enemy import Enemy, ExplosiveEnemy, KineticEnemy, LaserEnemy, PlasmaEnemy
 from entities.enemyspawner import EnemySpawner
 from entities.elementalessenceorb import ElementalEssenceOrb
@@ -19,7 +20,7 @@ from systems.collisionsystem import CollisionSystem
 from systems.essence import EssenceSystem
 from systems.eventhandler import EventHandler
 from systems.experience import ExperienceSystem
-from systems.gameplayeffect import PlasmaBurnSTE
+from systems.gameplayeffect import BurnSTE
 from systems.mapsystem import MapSystem
 from ui.display import Display
 from ui.endgamereport import CombatStats
@@ -45,6 +46,8 @@ class Game:
         self.essence_orbs = None
         self.elemental_essence_orbs = None
         self.asteroid_field = None
+        self.decoy = None
+        self.decoys = None
         self.drones = None
         self.enemies = None
         self.enemy_spawner = None
@@ -63,6 +66,9 @@ class Game:
         self.shop_mode = "hub"
         self.drone_select_menu = None
         self.drone_choice_menu = None
+        self.variant_select_menu = None
+        self.pending_drone_class = None
+        self.pending_variant_action = None
         self.upgrade_counts = {}
         self.wizard_element_counts = {e: 0 for e in ALL_ELEMENTS}
 
@@ -87,6 +93,8 @@ class Game:
                 self.update_main_menu(events)
             elif self.current_state == C.DRONE_SELECT:
                 self.update_drone_select(events)
+            elif self.current_state == C.VARIANT_SELECT:
+                self.update_variant_select(events)
             elif self.current_state == C.GAME_RUNNING:
                 self.update_game_running()
             elif self.current_state == C.DRONE_CHOICE:
@@ -110,6 +118,15 @@ class Game:
         self.drone_select_menu.update(events)
         self.drone_select_menu.draw(self.screen)
 
+    def update_variant_select(self, events):
+        if self.pending_variant_action == "start":
+            self.screen.fill(C.BLACK)
+        else:
+            self.draw_game()
+            self.draw_overlay(140)
+        self.variant_select_menu.update(events)
+        self.variant_select_menu.draw(self.screen)
+
     def update_drone_choice(self, events):
         self.draw_game()
         self.draw_overlay(140)
@@ -127,44 +144,98 @@ class Game:
         self.current_state = C.DRONE_CHOICE
 
     def on_start_drone_selected(self, drone_class):
-        self.experience.add_starting_drone(drone_class)
-        self.current_state = C.GAME_RUNNING
+        self._enter_variant_select(drone_class, "start")
 
     def on_add_drone(self, drone_class):
-        self.experience.pending_drones.remove(drone_class)
-        self.experience.added_drones.append(drone_class)
-        self.player.add_drone(drone_class, self.asteroids)
-        self.experience.resolve_choice()
+        self._enter_variant_select(drone_class, "add")
 
     def on_banish_drone(self, drone_class):
-        self.experience.pending_drones.remove(drone_class)
-        self.experience.banished_drones.append(drone_class)
-        self._apply_banish_ability(drone_class)
-        self.experience.resolve_choice()
+        self._enter_variant_select(drone_class, "banish")
 
-    def _apply_banish_ability(self, drone_class):
-        drone_type_names = {
-            KineticDrone: "Kinetic",
-            PlasmaDrone: "Plasma",
-            ExplosiveDrone: "Explosive",
-            LaserDrone: "Laser",
-        }
-        if drone_class is SentinelDrone:
+    def _enter_variant_select(self, drone_class, action):
+        self.pending_drone_class = drone_class
+        self.pending_variant_action = action
+        if len(drone_class._platform_classes) == 1:
+            self.on_variant_selected(drone_class._platform_classes[0])
+            return
+        self.variant_select_menu = create_variant_select_menu(
+            drone_class, self.on_variant_selected, self._on_variant_back)
+        self.current_state = C.VARIANT_SELECT
+
+    def _on_variant_back(self):
+        if self.pending_variant_action == "start":
+            self.current_state = C.DRONE_SELECT
+        else:
+            self.current_state = C.DRONE_CHOICE
+
+    def on_variant_selected(self, platform_class):
+        drone_class = self.pending_drone_class
+        action = self.pending_variant_action
+        self.pending_drone_class = None
+        self.pending_variant_action = None
+        if action == "start":
+            self.experience.pending_drones.remove(drone_class)
+            self.experience.added_drones.append(drone_class)
+            self.player.add_drone(drone_class, self.asteroids, platform_class=platform_class)
+            self.current_state = C.GAME_RUNNING
+        elif action == "add":
+            self.experience.pending_drones.remove(drone_class)
+            self.experience.added_drones.append(drone_class)
+            self.player.add_drone(drone_class, self.asteroids, platform_class=platform_class)
+            self.experience.resolve_choice()
+        elif action == "banish":
+            self.experience.pending_drones.remove(drone_class)
+            self.experience.banished_drones.append(drone_class)
+            self._apply_banish_ability(platform_class)
+            self.experience.resolve_choice()
+
+    def _apply_banish_ability(self, platform_class):
+        ability = platform_class.banish_ability
+        if ability is None:
             self.player.life_regen = True
             self.HUD.show_banish_notify("Player gains life regen")
             return
-        ability_map = {
-            KineticDrone: "impact",
-            PlasmaDrone: "burn",
-            ExplosiveDrone: "explosion",
-            LaserDrone: "overkill",
-        }
-        ability = ability_map.get(drone_class)
-        if not ability or not self.player.drones:
+        if not self.player.drones:
             return
         target_drone = random.choice(self.player.drones)
         target_drone.extra_abilities.add(ability)
-        target_name = drone_type_names.get(type(target_drone), type(target_drone).__name__)
+        specific_paths = [p for p in platform_class().upgrade_paths if not p["is_generic"]]
+        existing_types = {p["type"] for p in target_drone.platform.upgrade_paths}
+        _variant_attr = {
+            "bounce_count":          "bounce_count",
+            "cascade_radius":        "cascade_radius",
+            "cone_tighten":          "cone_half_angle",
+            "contagion_duration":    "contagion_duration",
+            "contagion_spread":      "contagion_spread_radius",
+            "corrode_amplification": "corrode_amplification",
+            "corrode_duration":      "corrode_duration",
+            "decoy_duration":        "decoy_duration",
+            "evasion_chance":        "evasion_chance",
+            "finisher_amp":          "bonus_multiplier",
+            "fuse_radius":           "explosion_radius",
+            "fuse_timer":            "fuse_timer_max",
+            "grenade_fuse":          "fuse_timer_max",
+            "grenade_radius":        "explosion_radius",
+            "heal_rate":             "heal_interval",
+            "homing_turn_rate":      "turn_rate",
+            "mark_amplification":    "mark_amplification",
+            "mark_duration":         "mark_duration",
+            "mine_radius":           "explosion_radius",
+            "pellet_count":          "pellet_count",
+            "pierce_count":          "pierce_count",
+            "projectile_speed":      "projectile_speed",
+            "resource_yield":        "generation_amount",
+            "slow_duration":         "slow_duration",
+            "slow_potency":          "slow_factor",
+        }
+        for path in specific_paths:
+            if path["type"] in existing_types:
+                continue
+            attr = _variant_attr.get(path["type"])
+            if attr and not hasattr(target_drone.platform, attr):
+                continue
+            target_drone.platform.upgrade_paths.append(path)
+        target_name = getattr(type(target_drone), 'drone_name', type(target_drone).__name__)
         self.HUD.show_banish_notify(f"{target_name} gains {ability}")
 
     def update_game_running(self):
@@ -176,9 +247,12 @@ class Game:
                 self.HUD.update_score(score)
 
         self.HUD.update(self.dt)
-        self.HUD.update_player_lives(self.player.lives)
-        self.HUD.update_life_regen_state(
-            self.player.life_regen, self.player.life_regen_timer, self.player.max_lives)
+        if self.player.uses_health:
+            self.HUD.update_player_health(self.player.health)
+        else:
+            self.HUD.update_player_lives(self.player.lives)
+            self.HUD.update_life_regen_state(
+                self.player.life_regen, self.player.life_regen_timer, self.player.max_lives)
         self.wrap_object(self.player)
         self.collision_system.handle()
         self.starfield.update(self.player.velocity, self.dt)
@@ -229,6 +303,8 @@ class Game:
         self.updatable = pygame.sprite.Group()
         self.drawable = pygame.sprite.Group()
         self.asteroids = pygame.sprite.Group()
+        self.decoy = None
+        self.decoys = pygame.sprite.Group()
         self.essence_orbs = pygame.sprite.Group()
         self.elemental_essence_orbs = pygame.sprite.Group()
         self.projectiles = pygame.sprite.Group()
@@ -238,6 +314,7 @@ class Game:
         self.visual_effects = pygame.sprite.Group()
 
         Asteroid.containers = (self.asteroids, self.updatable, self.drawable)
+        Decoy.containers = (self.decoys, self.drawable, self.updatable)
         AsteroidField.containers = (self.updatable,)
         EssenceOrb.containers = (self.essence_orbs, self.drawable, self.updatable)
         Projectile.containers = (self.projectiles, self.drawable, self.updatable)
@@ -267,6 +344,9 @@ class Game:
         self.shop_hub_menu = None
         self.technomancer_menu = None
         self.elem_mancer_menus = {}
+        self.variant_select_menu = None
+        self.pending_drone_class = None
+        self.pending_variant_action = None
         self.map_system = MapSystem(self)
 
     def on_new_game(self):
@@ -421,40 +501,61 @@ class Game:
             return
         self.upgrade_counts[key] = count + 1
         if upgrade_type == "burn_tick_rate":
-            current = (PlasmaBurnSTE.tick_rate_override if PlasmaBurnSTE.tick_rate_override is not None
+            current = (BurnSTE.tick_rate_override if BurnSTE.tick_rate_override is not None
                        else C.PLASMA_BURN_TICK_RATE)
             decrease = max(C.SHOP_BURN_TICK_RATE_DECREASE_MIN,
                            C.SHOP_BURN_TICK_RATE_DECREASE_START - count * C.SHOP_BURN_TICK_RATE_DECREASE_TAPER)
-            PlasmaBurnSTE.tick_rate_override = max(0.01, current - decrease)
+            BurnSTE.tick_rate_override = max(0.01, current - decrease)
             return
         if upgrade_type == "burn_spread":
-            current = (PlasmaBurnSTE.spread_chance_override if PlasmaBurnSTE.spread_chance_override is not None
+            current = (BurnSTE.spread_chance_override if BurnSTE.spread_chance_override is not None
                        else C.PLASMA_BURN_SPREAD_CHANCE)
-            PlasmaBurnSTE.spread_chance_override = min(1.0, current + C.SHOP_BURN_SPREAD_INCREASE)
+            BurnSTE.spread_chance_override = min(1.0, current + C.SHOP_BURN_SPREAD_INCREASE)
             return
         if upgrade_type == "kinetic_mass":
             current = (Kinetic.weight_override if Kinetic.weight_override is not None
                        else C.KINETIC_PROJECTILE_WEIGHT_BASE)
             Kinetic.weight_override = current * C.SHOP_KINETIC_MASS_INCREASE
+            for drone in self.player.drones:
+                if isinstance(drone, drone_class):
+                    drone.platform.apply_upgrade(upgrade_type, count)
             return
         for drone in self.player.drones:
             if not isinstance(drone, drone_class):
                 continue
-            if upgrade_type == "damage":
-                if isinstance(drone, LaserDrone):
-                    drone.platform.damage = int(drone.platform.damage * (1 + C.SHOP_DAMAGE_INCREASE))
-                else:
-                    drone.platform.damage_multiplier *= (1 + C.SHOP_DAMAGE_INCREASE)
-            elif upgrade_type == "fire_rate":
-                drone.platform.weapons_free_timer_max *= (1 - C.SHOP_FIRE_RATE_INCREASE)
-            elif upgrade_type == "projectile_speed" and hasattr(drone.platform, "projectile_speed"):
-                drone.platform.projectile_speed *= (1 + C.SHOP_PROJECTILE_SPEED_INCREASE)
-            elif upgrade_type == "shield_health" and isinstance(drone, SentinelDrone):
-                drone.shield_max_health += C.SHOP_SHIELD_HEALTH_INCREASE
-                if drone.player_shield:
-                    drone.player_shield.max_health += C.SHOP_SHIELD_HEALTH_INCREASE
-            elif upgrade_type == "repair_rate" and isinstance(drone, SentinelDrone):
-                drone.shield_repair_timer_base *= (1 - C.SHOP_SHIELD_REPAIR_INCREASE)
+            if isinstance(drone, SentinelDrone):
+                p = drone.platform
+                pname = type(p).__name__
+                if pname == "SentinelPlatform":
+                    if upgrade_type in ("effect_strength", "shield_health"):
+                        drone.shield_max_health += C.SHOP_SHIELD_HEALTH_INCREASE
+                        if drone.player_shield:
+                            drone.player_shield.max_health += C.SHOP_SHIELD_HEALTH_INCREASE
+                    elif upgrade_type in ("cooldown_reduction", "repair_rate"):
+                        drone.shield_repair_timer_base *= (1 - C.SHOP_SHIELD_REPAIR_INCREASE)
+                elif pname == "HealPlatform":
+                    if upgrade_type == "heal_rate":
+                        p.heal_interval = max(3.0, p.heal_interval * (1 - C.SHOP_HEAL_RATE_INCREASE))
+                    elif upgrade_type == "effect_strength":
+                        drone.player.max_health += 1
+                        self.HUD.update_health_max(drone.player.max_health)
+                elif pname == "EvasionPlatform":
+                    if upgrade_type == "evasion_chance":
+                        p.evasion_chance += C.SHOP_EVASION_INCREASE
+                    elif upgrade_type == "effect_strength":
+                        drone.player.max_health += 1
+                elif pname == "ResourceBoostPlatform":
+                    if upgrade_type == "resource_yield":
+                        p.generation_amount += C.SHOP_RESOURCE_YIELD_INCREASE
+                    elif upgrade_type == "fire_rate":
+                        p.generation_interval *= (1 - C.SHOP_FIRE_RATE_INCREASE)
+                elif pname == "DecoyPlatform":
+                    if upgrade_type == "decoy_duration":
+                        p.decoy_duration += C.SHOP_DECOY_DURATION_INCREASE
+                    elif upgrade_type == "fire_rate":
+                        p.decoy_cooldown *= (1 - C.SHOP_FIRE_RATE_INCREASE)
+            else:
+                drone.platform.apply_upgrade(upgrade_type, count)
 
     def update_shop(self, events):
         self.draw_game()

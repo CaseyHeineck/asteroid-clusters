@@ -68,6 +68,37 @@ def test_damaged_health_decreases_by_exact_amount():
     a.damaged(7)
     assert a.health == 13
 
+def test_damaged_applies_mark_multiplier():
+    a = Asteroid(0, 0, 3)
+    a.mark_multiplier = 2.0
+    a.damaged(5)
+    assert a.health == a.full_health - 10
+
+def test_damaged_consumes_mark_multiplier_after_hit():
+    a = Asteroid(0, 0, 3)
+    a.mark_multiplier = 2.0
+    a.damaged(5)
+    assert a.mark_multiplier == 1.0
+
+def test_damaged_applies_corrode_multiplier():
+    a = Asteroid(0, 0, 3)
+    a.corrode_multiplier = 1.5
+    a.damaged(10)
+    assert a.health == a.full_health - 15
+
+def test_damaged_corrode_multiplier_persists_after_hit():
+    a = Asteroid(0, 0, 3)
+    a.corrode_multiplier = 1.5
+    a.damaged(5)
+    assert a.corrode_multiplier == 1.5
+
+def test_damaged_applies_both_multipliers():
+    a = Asteroid(0, 0, 3)
+    a.mark_multiplier = 2.0
+    a.corrode_multiplier = 1.5
+    a.damaged(4)
+    assert a.health == a.full_health - 12
+
 # --- spawn_children ---
 def test_spawn_children_returns_false_for_size_one():
     a = Asteroid(0, 0, 1)

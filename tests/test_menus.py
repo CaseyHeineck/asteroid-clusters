@@ -1,6 +1,6 @@
 import pygame
 from core import constants as C
-from entities.drone import ExplosiveDrone, KineticDrone, LaserDrone, PlasmaDrone, SentinelDrone
+from entities.drone import ExplosiveDrone, KineticDrone, SlayerDrone, DebuffDrone, SentinelDrone
 from ui.menus import _drone_keywords, _drone_upgrades, get_source_color
 
 class FakePlayer:
@@ -21,7 +21,7 @@ def test_drone_keywords_kinetic_with_no_extras_returns_impact():
     assert _drone_keywords(drone) == "  [IMPACT]"
 
 def test_drone_keywords_plasma_with_no_extras_returns_burn():
-    drone = make_drone(PlasmaDrone)
+    drone = make_drone(DebuffDrone)
     assert _drone_keywords(drone) == "  [BURN]"
 
 def test_drone_keywords_explosive_with_no_extras_returns_explosion():
@@ -29,7 +29,7 @@ def test_drone_keywords_explosive_with_no_extras_returns_explosion():
     assert _drone_keywords(drone) == "  [EXPLOSION]"
 
 def test_drone_keywords_laser_with_no_extras_returns_overkill():
-    drone = make_drone(LaserDrone)
+    drone = make_drone(SlayerDrone)
     assert _drone_keywords(drone) == "  [OVERKILL]"
 
 def test_drone_keywords_kinetic_with_extra_appends_after_base():
@@ -54,14 +54,14 @@ def test_drone_keywords_multiple_extras_are_sorted_after_base():
     assert result == "  [IMPACT, BURN, OVERKILL]"
 
 def test_drone_keywords_result_uses_uppercase():
-    drone = make_drone(PlasmaDrone)
+    drone = make_drone(DebuffDrone)
     assert _drone_keywords(drone) == _drone_keywords(drone).upper().rstrip()
 
 # --- _drone_upgrades ---
 def test_drone_upgrades_sentinel_returns_shield_options():
     drone = make_drone(SentinelDrone)
     types = [t for t, _ in _drone_upgrades(drone)]
-    assert types == ["shield_health", "repair_rate"]
+    assert types == ["effect_strength", "cooldown_reduction"]
 
 def test_drone_upgrades_kinetic_returns_all_four():
     drone = make_drone(KineticDrone)
@@ -74,26 +74,28 @@ def test_drone_upgrades_explosive_without_impact_returns_two():
     assert types == ["damage", "fire_rate"]
 
 def test_drone_upgrades_plasma_returns_four():
-    drone = make_drone(PlasmaDrone)
+    drone = make_drone(DebuffDrone)
     types = [t for t, _ in _drone_upgrades(drone)]
     assert types == ["damage", "fire_rate", "burn_tick_rate", "burn_spread"]
 
-def test_drone_upgrades_explosive_with_impact_returns_all_four():
+def test_drone_upgrades_explosive_with_banished_kinetic_paths_shows_all_four():
     drone = make_drone(ExplosiveDrone)
-    drone.extra_abilities = {"impact"}
+    drone.platform.upgrade_paths.append({"type": "kinetic_mass",     "label": "Kinetic Mass +60%",  "is_generic": False})
+    drone.platform.upgrade_paths.append({"type": "projectile_speed", "label": "Proj Speed +15%",    "is_generic": False})
     types = [t for t, _ in _drone_upgrades(drone)]
     assert types == ["damage", "fire_rate", "kinetic_mass", "projectile_speed"]
 
-def test_drone_upgrades_plasma_with_impact_returns_six():
-    drone = make_drone(PlasmaDrone)
-    drone.extra_abilities = {"impact"}
+def test_drone_upgrades_plasma_with_banished_kinetic_paths_shows_six():
+    drone = make_drone(DebuffDrone)
+    drone.platform.upgrade_paths.append({"type": "kinetic_mass",     "label": "Kinetic Mass +60%",  "is_generic": False})
+    drone.platform.upgrade_paths.append({"type": "projectile_speed", "label": "Proj Speed +15%",    "is_generic": False})
     types = [t for t, _ in _drone_upgrades(drone)]
     assert types == ["damage", "fire_rate", "burn_tick_rate", "burn_spread",
                      "kinetic_mass", "projectile_speed"]
 
-def test_drone_upgrades_laser_with_impact_includes_kinetic_mass_but_not_speed():
-    drone = make_drone(LaserDrone)
-    drone.extra_abilities = {"impact"}
+def test_drone_upgrades_laser_with_banished_kinetic_mass_but_not_speed():
+    drone = make_drone(SlayerDrone)
+    drone.platform.upgrade_paths.append({"type": "kinetic_mass", "label": "Kinetic Mass +60%", "is_generic": False})
     types = [t for t, _ in _drone_upgrades(drone)]
     assert types == ["damage", "fire_rate", "kinetic_mass"]
 
@@ -105,10 +107,10 @@ def test_get_source_color_kinetic_drone_returns_silver():
     assert get_source_color(C.KINETIC_DRONE) == C.SILVER
 
 def test_get_source_color_plasma_drone_returns_magenta():
-    assert get_source_color(C.PLASMA_DRONE) == C.MAGENTA
+    assert get_source_color(C.DEBUFF_DRONE) == C.MAGENTA
 
 def test_get_source_color_laser_drone_returns_laser_red():
-    assert get_source_color(C.LASER_DRONE) == C.LASER_RED
+    assert get_source_color(C.SLAYER_DRONE) == C.LASER_RED
 
 def test_get_source_color_explosive_drone_returns_orange():
     assert get_source_color(C.EXPLOSIVE_DRONE) == C.ORANGE

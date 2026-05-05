@@ -13,6 +13,9 @@ class Display:
         self.max_lives = 3
         self.life_regen = False
         self.life_regen_timer = 0.0
+        self.uses_health = False
+        self.player_health = 0
+        self.player_max_health = 0
         self.level = 1
         self.xp_current = 0
         self.xp_needed = int(C.EXP_LEVEL_BASE)
@@ -37,6 +40,17 @@ class Display:
 
     def update_player_lives(self, player_lives):
         self.player_lives = player_lives
+
+    def activate_health_mode(self, max_health):
+        self.uses_health = True
+        self.player_max_health = max_health
+        self.player_health = max_health
+
+    def update_health_max(self, max_health):
+        self.player_max_health = max_health
+
+    def update_player_health(self, health):
+        self.player_health = health
 
     def update_life_regen_state(self, life_regen, timer, max_lives):
         self.life_regen = life_regen
@@ -87,9 +101,10 @@ class Display:
         min_x, max_x = min(xs), max(xs)
         min_y, max_y = min(ys), max(ys)
         heart_h = max_y - min_y
-        regen_filling = self.life_regen and self.player_lives < self.max_lives
-        if regen_filling:
-            ratio = min(1.0, self.life_regen_timer / C.PLAYER_LIFE_REGEN_INTERVAL)
+        if self.uses_health:
+            ratio = (self.player_health / self.player_max_health
+                     if self.player_max_health > 0 else 0.0)
+            ratio = max(0.0, min(1.0, ratio))
             if ratio > 0:
                 fill_top = max_y - heart_h * ratio
                 clip = pygame.Rect(
@@ -99,12 +114,29 @@ class Display:
                 screen.set_clip(clip)
                 pygame.draw.polygon(screen, C.HEART_RUBY, pts)
                 screen.set_clip(old_clip)
+            pygame.draw.polygon(screen, C.WHITE, pts, 2)
+            label_surf = self.small_font.render(str(self.player_max_health), True, C.WHITE)
+            label_rect = label_surf.get_rect(center=(int(cx), int(cy + size * 0.18)))
+            screen.blit(label_surf, label_rect)
         else:
-            pygame.draw.polygon(screen, C.HEART_RUBY, pts)
-        pygame.draw.polygon(screen, C.WHITE, pts, 2)
-        lives_surf = self.small_font.render(str(self.player_lives), True, C.WHITE)
-        lives_rect = lives_surf.get_rect(center=(int(cx), int(cy + size * 0.18)))
-        screen.blit(lives_surf, lives_rect)
+            regen_filling = self.life_regen and self.player_lives < self.max_lives
+            if regen_filling:
+                ratio = min(1.0, self.life_regen_timer / C.PLAYER_LIFE_REGEN_INTERVAL)
+                if ratio > 0:
+                    fill_top = max_y - heart_h * ratio
+                    clip = pygame.Rect(
+                        int(min_x) - 1, int(fill_top),
+                        int(max_x - min_x) + 2, int(max_y - fill_top) + 2)
+                    old_clip = screen.get_clip()
+                    screen.set_clip(clip)
+                    pygame.draw.polygon(screen, C.HEART_RUBY, pts)
+                    screen.set_clip(old_clip)
+            else:
+                pygame.draw.polygon(screen, C.HEART_RUBY, pts)
+            pygame.draw.polygon(screen, C.WHITE, pts, 2)
+            lives_surf = self.small_font.render(str(self.player_lives), True, C.WHITE)
+            lives_rect = lives_surf.get_rect(center=(int(cx), int(cy + size * 0.18)))
+            screen.blit(lives_surf, lives_rect)
 
     def draw(self, screen):
         self.draw_heart(screen)

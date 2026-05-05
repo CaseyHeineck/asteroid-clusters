@@ -188,7 +188,12 @@ class Asteroid(CircleShape):
 
     def damaged(self, damage):
         log_event("asteroid_damaged")
-        self.health -= damage
+        mark_mult = self.mark_multiplier
+        effective = int(damage * mark_mult * self.corrode_multiplier)
+        if mark_mult != 1.0:
+            self.mark_multiplier = 1.0
+            self._on_mark_consumed()
+        self.health -= effective
         if self.health <= 0:
             return self.kill()
         return 0

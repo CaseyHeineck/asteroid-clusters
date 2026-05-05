@@ -2,8 +2,7 @@ import pygame
 from core import constants as C
 from core.circleshape import CircleShape
 from core.element import draw_elemental_glow
-from entities.shield import Shield
-from entities.weaponsplatform import ExplosivePlatform, KineticPlatform, LaserPlatform, PlasmaPlatform, SentinelPlatform
+from entities.weaponsplatform import BouncerPlatform, BreachPlatform, BuckshotPlatform, BurnPlatform, CannonballPlatform, CascadePlatform, ContagionPlatform, CorrodePlatform, DecoyPlatform, EvasionPlatform, ExplosivePlatform, FinisherPlatform, FuseBombPlatform, GrenadePlatform, HealPlatform, HomingMissilePlatform, KineticPlatform, LaserPlatform, MarkPlatform, NeedleSlugPlatform, OverchargePlatform, ProximityMinePlatform, ResourceBoostPlatform, SentinelPlatform, SlowPlatform
 
 class Drone(CircleShape):
     def __init__(self, player, asteroids):
@@ -98,30 +97,42 @@ class Drone(CircleShape):
 
 
 class ExplosiveDrone(Drone):
-    def __init__(self, player, asteroids):
+    drone_name = "EXPLOSIVE DRONE"
+    drone_description = "Medium range | Rockets with area-of-effect explosion"
+    _platform_classes = [ExplosivePlatform, FuseBombPlatform, GrenadePlatform, HomingMissilePlatform, ProximityMinePlatform]
+
+    def __init__(self, player, asteroids, platform_class=None):
         super().__init__(player, asteroids)
         self.body_color = C.EXPLOSIVE_DRONE_BODY_COLOR
         self.body_line_width = 0
-        self.platform = ExplosivePlatform()
+        self.platform = (platform_class or self._platform_classes[0])()
         self.stat_source = C.EXPLOSIVE_DRONE
 
 
 class KineticDrone(Drone):
-    def __init__(self, player, asteroids):
+    drone_name = "KINETIC DRONE"
+    drone_description = "Short range | Kinetic rounds with diverse fire modes"
+    _platform_classes = [KineticPlatform, BouncerPlatform, BuckshotPlatform, CannonballPlatform, NeedleSlugPlatform]
+
+    def __init__(self, player, asteroids, platform_class=None):
         super().__init__(player, asteroids)
         self.body_color = C.KINETIC_DRONE_BODY_COLOR
         self.body_line_width = 0
-        self.platform = KineticPlatform()
+        self.platform = (platform_class or self._platform_classes[0])()
         self.stat_source = C.KINETIC_DRONE
 
 
-class LaserDrone(Drone):
-    def __init__(self, player, asteroids):
+class SlayerDrone(Drone):
+    drone_name = "SLAYER DRONE"
+    drone_description = "Long range | Hitscan slayer: laser, breach, cascade, finisher, or overcharge"
+    _platform_classes = [LaserPlatform, BreachPlatform, CascadePlatform, FinisherPlatform, OverchargePlatform]
+
+    def __init__(self, player, asteroids, platform_class=None):
         super().__init__(player, asteroids)
-        self.body_color = C.LASER_DRONE_BODY_COLOR
+        self.body_color = C.SLAYER_DRONE_BODY_COLOR
         self.body_line_width = 4
-        self.platform = LaserPlatform()
-        self.stat_source = C.LASER_DRONE
+        self.platform = (platform_class or self._platform_classes[0])()
+        self.stat_source = C.SLAYER_DRONE
 
     def acquire_target(self):
         self.target = None
@@ -148,21 +159,29 @@ class LaserDrone(Drone):
             key=lambda a: self.player.position.distance_to(a.position))
 
 
-class PlasmaDrone(Drone):
-    def __init__(self, player, asteroids):
+class DebuffDrone(Drone):
+    drone_name = "DEBUFF DRONE"
+    drone_description = "Medium range | Debuff bolts: burn, contagion, corrode, mark, or slow"
+    _platform_classes = [BurnPlatform, ContagionPlatform, CorrodePlatform, MarkPlatform, SlowPlatform]
+
+    def __init__(self, player, asteroids, platform_class=None):
         super().__init__(player, asteroids)
-        self.body_color = C.PLASMA_DRONE_BODY_COLOR
-        self.platform = PlasmaPlatform()
-        self.stat_source = C.PLASMA_DRONE
+        self.body_color = C.DEBUFF_DRONE_BODY_COLOR
+        self.platform = (platform_class or self._platform_classes[0])()
+        self.stat_source = C.DEBUFF_DRONE
 
 
 class SentinelDrone(Drone):
-    def __init__(self, player, asteroids):
+    drone_name = "SENTINEL DRONE"
+    drone_description = "Support | Shield, heal, decoy, resource boost, or evasion"
+    _platform_classes = [SentinelPlatform, DecoyPlatform, EvasionPlatform, HealPlatform, ResourceBoostPlatform]
+
+    def __init__(self, player, asteroids, platform_class=None):
         super().__init__(player, asteroids)
         self.body_color = C.SENTINEL_DRONE_BODY_COLOR
         self.body_line_width = 0
         self.radius = int(C.DRONE_RADIUS * 0.65)
-        self.platform = SentinelPlatform()
+        self.platform = (platform_class or self._platform_classes[0])()
         self.player_shield = None
         self.shield_create_timer = 0
         self.shield_max_health = C.SHIELD_MAX_HEALTH
@@ -171,33 +190,6 @@ class SentinelDrone(Drone):
         self.stat_source = C.SENTINEL_DRONE
 
     def update(self, dt):
-        self.shield_sentinel(dt)
+        self.platform.sentinel_update(self, dt)
         self.orbit_player(dt)
         return 0
-
-    def shield_sentinel(self, dt):
-        self.shield_create_timer = max(0, self.shield_create_timer - dt)
-        self.shield_repair_timer = max(0, self.shield_repair_timer - dt)
-        if not self.player_shield:
-            self.player.shield = False
-            if self.shield_create_timer == 0:
-                self.player_shield = Shield(owner=self.player, source=self,
-                    max_health=self.shield_max_health)
-                self.player.shield = True
-                self.shield_create_timer = C.SENTINEL_DRONE_SHIELD_CREATE_TIMER
-        else:
-            self.player.shield = True
-            if self.player_shield and not self.player_shield.alive():
-                self.player_shield = None
-                self.player.shield = False
-        if self.player_shield:
-            if self.player_shield.health < self.player_shield.max_health:
-                if self.shield_repair_timer == 0:
-                    before = self.player_shield.health
-                    self.player_shield.health = min(self.player_shield.max_health,
-                        self.player_shield.health + 1)
-                    repaired = self.player_shield.health - before
-                    if repaired > 0:
-                        self.player.game.combat_stats.add_repaired(
-                            self.stat_source, repaired)
-                    self.shield_repair_timer = self.shield_repair_timer_base

@@ -2,8 +2,8 @@ import pygame
 import pytest
 from core import constants as C
 from core.element import Element
-from entities.projectile import Kinetic, LaserBeam, Plasma, Projectile, Rocket, _elemental_damage
-from systems.gameplayeffect import OverkillSTE, PlasmaBurnSTE
+from entities.projectile import Bouncer, Cannonball, ContagionPlasma, CorrodePlasma, Kinetic, LaserBeam, MarkPlasma, NeedleSlug, Plasma, Projectile, Rocket, SlowPlasma, _elemental_damage
+from systems.gameplayeffect import ContagionSTE, CorrodeSTE, MarkedSTE, OverkillSTE, BurnSTE, SlowSTE
 from ui.visualeffect import LaserBeamVE, RocketHitExplosionVE
 
 class FakeCombatStats:
@@ -265,27 +265,27 @@ def test_burn_applies_plasma_burn_ste_when_alive():
     asteroid = FakeAsteroid()
     asteroid._alive = True
     p.post_hit_extras(asteroid)
-    assert any(isinstance(e, PlasmaBurnSTE) for e in asteroid.applied_effects)
+    assert any(isinstance(e, BurnSTE) for e in asteroid.applied_effects)
 
 def test_burn_does_not_apply_when_asteroid_dead():
     p = make_projectile(["burn"])
     asteroid = FakeAsteroid()
     asteroid._alive = False
     p.post_hit_extras(asteroid)
-    assert not any(isinstance(e, PlasmaBurnSTE) for e in asteroid.applied_effects)
+    assert not any(isinstance(e, BurnSTE) for e in asteroid.applied_effects)
 
 def test_burn_does_not_apply_without_ability():
     p = make_projectile([])
     asteroid = FakeAsteroid()
     p.post_hit_extras(asteroid)
-    assert not any(isinstance(e, PlasmaBurnSTE) for e in asteroid.applied_effects)
+    assert not any(isinstance(e, BurnSTE) for e in asteroid.applied_effects)
 
 def test_burn_skipped_when_in_skip_abilities():
     p = make_projectile(["burn"])
     asteroid = FakeAsteroid()
     asteroid._alive = True
     p.post_hit_extras(asteroid, skip_abilities={"burn"})
-    assert not any(isinstance(e, PlasmaBurnSTE) for e in asteroid.applied_effects)
+    assert not any(isinstance(e, BurnSTE) for e in asteroid.applied_effects)
 
 # --- post_hit_extras: impact ---
 def test_impact_adds_velocity_to_asteroid():
@@ -476,13 +476,13 @@ def test_plasma_on_hit_applies_burn_to_asteroid():
     p, _ = make_plasma()
     asteroid = FakeHitAsteroid(x=10, y=0)
     p.on_hit(asteroid)
-    assert any(isinstance(e, PlasmaBurnSTE) for e in asteroid.applied_effects)
+    assert any(isinstance(e, BurnSTE) for e in asteroid.applied_effects)
 
 def test_plasma_on_hit_applies_burn_even_when_asteroid_killed():
     p, _ = make_plasma()
     asteroid = FakeHitAsteroid(x=10, y=0, health=1)
     p.on_hit(asteroid)
-    assert any(isinstance(e, PlasmaBurnSTE) for e in asteroid.applied_effects)
+    assert any(isinstance(e, BurnSTE) for e in asteroid.applied_effects)
 
 def test_plasma_on_hit_kills_projectile():
     p, _ = make_plasma()
@@ -779,7 +779,7 @@ def test_elemental_projectile_draws_base_color_and_element_ring():
     from core.element import get_element_primary_color
     Projectile.containers = ()
     p = Projectile(0, 0, color=C.MAGENTA)
-    p.stat_source = C.PLASMA_DRONE
+    p.stat_source = C.DEBUFF_DRONE
     p.element = Element.SOLAR
     draw_calls = []
     original_draw = pg.draw.circle
@@ -790,3 +790,386 @@ def test_elemental_projectile_draws_base_color_and_element_ring():
         pg.draw.circle = original_draw
     assert C.MAGENTA in draw_calls
     assert get_element_primary_color(Element.SOLAR) in draw_calls
+
+# --- handles_own_kill ---
+def test_projectile_base_handles_own_kill_is_false():
+    Projectile.containers = ()
+    p = Projectile(0, 0)
+    assert p.handles_own_kill is False
+
+def test_needle_slug_handles_own_kill_is_true():
+    NeedleSlug.containers = ()
+    n = NeedleSlug(0, 0)
+    assert n.handles_own_kill is True
+
+def test_bouncer_handles_own_kill_is_true():
+    Bouncer.containers = ()
+    b = Bouncer(0, 0)
+    assert b.handles_own_kill is True
+
+def test_cannonball_handles_own_kill_is_false():
+    Cannonball.containers = ()
+    c = Cannonball(0, 0)
+    assert c.handles_own_kill is False
+
+# --- NeedleSlug.on_hit ---
+def make_needle_slug():
+    NeedleSlug.containers = ()
+    n = NeedleSlug(0, 0)
+    n.velocity = pygame.Vector2(200, 0)
+    n.stat_source = "test"
+    n.combat_stats = FakeCombatStats()
+    n.extra_abilities = set()
+    n.asteroids = None
+    n.element = None
+    group = pygame.sprite.Group()
+    group.add(n)
+    return n, group
+
+def test_needle_slug_on_hit_damages_target():
+    n, _ = make_needle_slug()
+    asteroid = FakeHitAsteroid(x=10, y=0, health=100)
+    n.on_hit(asteroid)
+    assert asteroid.health < 100
+
+def test_needle_slug_on_hit_decrements_pierce_count():
+    n, _ = make_needle_slug()
+    n.pierce_count = 3
+    asteroid = FakeHitAsteroid(x=10, y=0, health=100)
+    n.on_hit(asteroid)
+    assert n.pierce_count == 2
+
+def test_needle_slug_survives_hit_when_pierces_remain():
+    n, _ = make_needle_slug()
+    n.pierce_count = 3
+    asteroid = FakeHitAsteroid(x=10, y=0, health=100)
+    n.on_hit(asteroid)
+    assert n.alive()
+
+def test_needle_slug_killed_when_last_pierce_consumed():
+    n, _ = make_needle_slug()
+    n.pierce_count = 1
+    asteroid = FakeHitAsteroid(x=10, y=0, health=100)
+    n.on_hit(asteroid)
+    assert not n.alive()
+
+def test_needle_slug_on_hit_returns_score_xp_tuple():
+    n, _ = make_needle_slug()
+    asteroid = FakeHitAsteroid(x=10, y=0, health=1)
+    result = n.on_hit(asteroid)
+    assert isinstance(result, tuple) and len(result) == 2
+
+def test_needle_slug_can_pierce_multiple_targets_sequentially():
+    n, _ = make_needle_slug()
+    n.pierce_count = 2
+    first = FakeHitAsteroid(x=10, y=0, health=100)
+    second = FakeHitAsteroid(x=20, y=0, health=100)
+    n.on_hit(first)
+    n.on_hit(second)
+    assert not n.alive()
+    assert first.health < 100
+    assert second.health < 100
+
+# --- Cannonball.on_hit ---
+def make_cannonball():
+    Cannonball.containers = ()
+    c = Cannonball(0, 0)
+    c.velocity = pygame.Vector2(200, 0)
+    c.stat_source = "test"
+    c.combat_stats = FakeCombatStats()
+    c.extra_abilities = set()
+    c.asteroids = None
+    c.element = None
+    group = pygame.sprite.Group()
+    group.add(c)
+    return c, group
+
+def test_cannonball_on_hit_damages_asteroid():
+    c, _ = make_cannonball()
+    asteroid = FakeHitAsteroid(x=10, y=0, health=100)
+    c.on_hit(asteroid)
+    assert asteroid.health < 100
+
+def test_cannonball_on_hit_applies_knockback_to_asteroid():
+    c, _ = make_cannonball()
+    asteroid = FakeHitAsteroid(x=10, y=0)
+    asteroid.velocity = pygame.Vector2(0, 0)
+    c.on_hit(asteroid)
+    assert asteroid.velocity.length() > 0
+
+def test_cannonball_on_hit_kills_self():
+    c, _ = make_cannonball()
+    asteroid = FakeHitAsteroid(x=10, y=0)
+    c.on_hit(asteroid)
+    assert not c.alive()
+
+def test_cannonball_has_higher_weight_than_kinetic():
+    Cannonball.containers = ()
+    c = Cannonball(0, 0)
+    Kinetic.containers = ()
+    Kinetic.weight_override = None
+    k = Kinetic(0, 0)
+    assert c.weight > k.weight
+
+# --- Bouncer.on_hit ---
+def make_bouncer():
+    Bouncer.containers = ()
+    b = Bouncer(0, 0)
+    b.velocity = pygame.Vector2(200, 0)
+    b.stat_source = "test"
+    b.combat_stats = FakeCombatStats()
+    b.extra_abilities = set()
+    b.asteroids = None
+    b.element = None
+    group = pygame.sprite.Group()
+    group.add(b)
+    return b, group
+
+def test_bouncer_on_hit_damages_target():
+    b, _ = make_bouncer()
+    asteroid = FakeHitAsteroid(x=10, y=0, health=100)
+    b.on_hit(asteroid)
+    assert asteroid.health < 100
+
+def test_bouncer_on_hit_decrements_bounce_count():
+    b, _ = make_bouncer()
+    b.bounce_count = 2
+    asteroid = FakeHitAsteroid(x=10, y=0, health=100)
+    b.on_hit(asteroid)
+    assert b.bounce_count == 1
+
+def test_bouncer_survives_hit_when_bounces_remain():
+    b, _ = make_bouncer()
+    b.bounce_count = 2
+    asteroid = FakeHitAsteroid(x=10, y=0, health=100)
+    b.on_hit(asteroid)
+    assert b.alive()
+
+def test_bouncer_killed_when_last_bounce_consumed():
+    b, _ = make_bouncer()
+    b.bounce_count = 1
+    asteroid = FakeHitAsteroid(x=10, y=0, health=100)
+    b.on_hit(asteroid)
+    assert not b.alive()
+
+def test_bouncer_on_hit_reflects_velocity():
+    b, _ = make_bouncer()
+    b.bounce_count = 2
+    b.position = pygame.Vector2(20, 0)
+    b.velocity = pygame.Vector2(-200, 0)
+    asteroid = FakeHitAsteroid(x=10, y=0, health=100)
+    v_before = pygame.Vector2(b.velocity)
+    b.on_hit(asteroid)
+    assert b.velocity != v_before
+
+def test_bouncer_on_hit_returns_score_xp_tuple():
+    b, _ = make_bouncer()
+    asteroid = FakeHitAsteroid(x=10, y=0, health=1)
+    result = b.on_hit(asteroid)
+    assert isinstance(result, tuple) and len(result) == 2
+
+
+# --- handles_own_kill for debuff projectiles ---
+def test_slow_plasma_handles_own_kill_is_true():
+    SlowPlasma.containers = ()
+    p = SlowPlasma(0, 0)
+    assert p.handles_own_kill is True
+
+def test_mark_plasma_handles_own_kill_is_true():
+    MarkPlasma.containers = ()
+    p = MarkPlasma(0, 0)
+    assert p.handles_own_kill is True
+
+def test_corrode_plasma_handles_own_kill_is_true():
+    CorrodePlasma.containers = ()
+    p = CorrodePlasma(0, 0)
+    assert p.handles_own_kill is True
+
+def test_contagion_plasma_handles_own_kill_is_true():
+    ContagionPlasma.containers = ()
+    p = ContagionPlasma(0, 0)
+    assert p.handles_own_kill is True
+
+
+# --- SlowPlasma.on_hit ---
+def make_slow_plasma():
+    SlowPlasma.containers = ()
+    p = SlowPlasma(0, 0)
+    p.velocity = pygame.Vector2(200, 0)
+    p.stat_source = "test"
+    p.combat_stats = FakeCombatStats()
+    p.extra_abilities = set()
+    p.asteroids = None
+    p.enemies = None
+    p.element = None
+    group = pygame.sprite.Group()
+    group.add(p)
+    return p, group
+
+def test_slow_plasma_applies_slow_ste_to_surviving_target():
+    p, _ = make_slow_plasma()
+    asteroid = FakeHitAsteroid(x=10, y=0, health=100)
+    p.on_hit(asteroid)
+    assert any(isinstance(e, SlowSTE) for e in asteroid.applied_effects)
+
+def test_slow_plasma_does_not_apply_slow_ste_when_target_dies():
+    p, _ = make_slow_plasma()
+    asteroid = FakeHitAsteroid(x=10, y=0, health=1)
+    p.on_hit(asteroid)
+    assert not any(isinstance(e, SlowSTE) for e in asteroid.applied_effects)
+
+def test_slow_plasma_kills_self_after_hit():
+    p, group = make_slow_plasma()
+    asteroid = FakeHitAsteroid(x=10, y=0, health=100)
+    p.on_hit(asteroid)
+    assert not p.alive()
+
+def test_slow_plasma_on_hit_returns_score_xp_tuple():
+    p, _ = make_slow_plasma()
+    asteroid = FakeHitAsteroid(x=10, y=0, health=1)
+    result = p.on_hit(asteroid)
+    assert isinstance(result, tuple) and len(result) == 2
+
+def test_slow_plasma_sets_slow_factor_on_ste():
+    p, _ = make_slow_plasma()
+    p.slow_factor = 0.75
+    asteroid = FakeHitAsteroid(x=10, y=0, health=100)
+    p.on_hit(asteroid)
+    slow = next(e for e in asteroid.applied_effects if isinstance(e, SlowSTE))
+    assert slow.slow_factor == 0.75
+
+
+# --- MarkPlasma.on_hit ---
+def make_mark_plasma():
+    MarkPlasma.containers = ()
+    p = MarkPlasma(0, 0)
+    p.velocity = pygame.Vector2(200, 0)
+    p.stat_source = "test"
+    p.combat_stats = FakeCombatStats()
+    p.extra_abilities = set()
+    p.asteroids = None
+    p.enemies = None
+    p.element = None
+    group = pygame.sprite.Group()
+    group.add(p)
+    return p, group
+
+def test_mark_plasma_applies_marked_ste_to_surviving_target():
+    p, _ = make_mark_plasma()
+    asteroid = FakeHitAsteroid(x=10, y=0, health=100)
+    p.on_hit(asteroid)
+    assert any(isinstance(e, MarkedSTE) for e in asteroid.applied_effects)
+
+def test_mark_plasma_does_not_apply_marked_ste_when_target_dies():
+    p, _ = make_mark_plasma()
+    asteroid = FakeHitAsteroid(x=10, y=0, health=1)
+    p.on_hit(asteroid)
+    assert not any(isinstance(e, MarkedSTE) for e in asteroid.applied_effects)
+
+def test_mark_plasma_kills_self_after_hit():
+    p, group = make_mark_plasma()
+    asteroid = FakeHitAsteroid(x=10, y=0, health=100)
+    p.on_hit(asteroid)
+    assert not p.alive()
+
+def test_mark_plasma_on_hit_returns_score_xp_tuple():
+    p, _ = make_mark_plasma()
+    asteroid = FakeHitAsteroid(x=10, y=0, health=1)
+    result = p.on_hit(asteroid)
+    assert isinstance(result, tuple) and len(result) == 2
+
+def test_mark_plasma_sets_amplification_on_ste():
+    p, _ = make_mark_plasma()
+    p.mark_amplification = 3.0
+    asteroid = FakeHitAsteroid(x=10, y=0, health=100)
+    p.on_hit(asteroid)
+    mark = next(e for e in asteroid.applied_effects if isinstance(e, MarkedSTE))
+    assert mark.amplification == 3.0
+
+
+# --- CorrodePlasma.on_hit ---
+def make_corrode_plasma():
+    CorrodePlasma.containers = ()
+    p = CorrodePlasma(0, 0)
+    p.velocity = pygame.Vector2(200, 0)
+    p.stat_source = "test"
+    p.combat_stats = FakeCombatStats()
+    p.extra_abilities = set()
+    p.asteroids = None
+    p.enemies = None
+    p.element = None
+    group = pygame.sprite.Group()
+    group.add(p)
+    return p, group
+
+def test_corrode_plasma_applies_corrode_ste_to_surviving_target():
+    p, _ = make_corrode_plasma()
+    asteroid = FakeHitAsteroid(x=10, y=0, health=100)
+    p.on_hit(asteroid)
+    assert any(isinstance(e, CorrodeSTE) for e in asteroid.applied_effects)
+
+def test_corrode_plasma_does_not_apply_corrode_ste_when_target_dies():
+    p, _ = make_corrode_plasma()
+    asteroid = FakeHitAsteroid(x=10, y=0, health=1)
+    p.on_hit(asteroid)
+    assert not any(isinstance(e, CorrodeSTE) for e in asteroid.applied_effects)
+
+def test_corrode_plasma_kills_self_after_hit():
+    p, group = make_corrode_plasma()
+    asteroid = FakeHitAsteroid(x=10, y=0, health=100)
+    p.on_hit(asteroid)
+    assert not p.alive()
+
+def test_corrode_plasma_on_hit_returns_score_xp_tuple():
+    p, _ = make_corrode_plasma()
+    asteroid = FakeHitAsteroid(x=10, y=0, health=1)
+    result = p.on_hit(asteroid)
+    assert isinstance(result, tuple) and len(result) == 2
+
+def test_corrode_plasma_sets_amplification_on_ste():
+    p, _ = make_corrode_plasma()
+    p.corrode_amplification = 0.5
+    asteroid = FakeHitAsteroid(x=10, y=0, health=100)
+    p.on_hit(asteroid)
+    corrode = next(e for e in asteroid.applied_effects if isinstance(e, CorrodeSTE))
+    assert corrode.amplification == 0.5
+
+
+# --- ContagionPlasma.on_hit ---
+def make_contagion_plasma():
+    ContagionPlasma.containers = ()
+    p = ContagionPlasma(0, 0)
+    p.velocity = pygame.Vector2(200, 0)
+    p.stat_source = "test"
+    p.combat_stats = FakeCombatStats()
+    p.extra_abilities = set()
+    p.asteroids = None
+    p.enemies = None
+    p.element = None
+    group = pygame.sprite.Group()
+    group.add(p)
+    return p, group
+
+def test_contagion_plasma_applies_contagion_ste_to_surviving_target():
+    p, _ = make_contagion_plasma()
+    asteroid = FakeHitAsteroid(x=10, y=0, health=100)
+    p.on_hit(asteroid)
+    assert any(isinstance(e, ContagionSTE) for e in asteroid.applied_effects)
+
+def test_contagion_plasma_does_not_apply_contagion_ste_when_target_dies():
+    p, _ = make_contagion_plasma()
+    asteroid = FakeHitAsteroid(x=10, y=0, health=1)
+    p.on_hit(asteroid)
+    assert not any(isinstance(e, ContagionSTE) for e in asteroid.applied_effects)
+
+def test_contagion_plasma_kills_self_after_hit():
+    p, group = make_contagion_plasma()
+    asteroid = FakeHitAsteroid(x=10, y=0, health=100)
+    p.on_hit(asteroid)
+    assert not p.alive()
+
+def test_contagion_plasma_on_hit_returns_score_xp_tuple():
+    p, _ = make_contagion_plasma()
+    asteroid = FakeHitAsteroid(x=10, y=0, health=1)
+    result = p.on_hit(asteroid)
+    assert isinstance(result, tuple) and len(result) == 2

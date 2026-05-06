@@ -2,6 +2,99 @@
 
 ---
 
+## 2026-05-05
+
+### Drone Variant System — All Five Drone Types Now Have Five Variants
+
+Every drone type now presents a variant selection screen when added. The player chooses one of five platform types per drone; the choice is permanent for that drone's lifetime.
+
+#### Variant selection flow
+
+- When a drone is earned at a level milestone the player sees a variant select screen before the drone is added
+- If the drone type has only one platform class the screen is bypassed (the single variant is applied automatically)
+- On banishment, variant selection still appears — the chosen platform's keyword and specific upgrade paths determine what transfers
+
+#### Explosive drone variants (4 new)
+
+All fire from the drone and deal AoE blast damage through `RocketHitAOE`. Each uses a `_detonated` flag (not `alive()`) to guard re-entry across the update cycle.
+
+| Variant | Platform | Behavior |
+|---------|----------|----------|
+| Rocket | `ExplosivePlatform` | Self-propelled; explodes on impact (unchanged) |
+| Fuse bomb | `FuseBombPlatform` | Placed at player position; countdown timer; large blast radius; never collides until it detonates |
+| Grenade | `GrenadePlatform` | Lobbed toward target with arc; timer-based detonation |
+| Homing missile | `HomingMissilePlatform` | Rotates velocity toward target up to `turn_rate` deg/s each frame |
+| Proximity mine | `ProximityMinePlatform` | Placed at player position; stationary; detonates when any object enters `trigger_radius` |
+
+#### Kinetic drone variants (4 new)
+
+| Variant | Platform | Behavior |
+|---------|----------|----------|
+| Kinetic | `KineticPlatform` | Single fast round with knockback (unchanged) |
+| Bouncer | `BouncerPlatform` | Deflects off targets; upgradeable bounce count |
+| Buckshot | `BuckshotPlatform` | Wide cone of pellets; upgradeable pellet count |
+| Cannonball | `CannonballPlatform` | Heavy, slow, high-damage; no pierce |
+| Needle slug | `NeedleSlugPlatform` | High-velocity piercing round; upgradeable pierce count |
+
+#### Slayer drone variants (4 new; drone renamed from LaserDrone)
+
+`LaserDrone` → `SlayerDrone`. Design identity: the boss killer — sustained single-target damage plus overkill.
+
+| Variant | Platform | Behavior |
+|---------|----------|----------|
+| Laser | `LaserPlatform` | Hitscan beam; overkill on elimination (unchanged) |
+| Breach | `BreachPlatform` | Ignores a portion of target defense |
+| Cascade | `CascadePlatform` | Amplifies overkill burst radius |
+| Finisher | `FinisherPlatform` | Bonus damage proportional to target's missing HP |
+| Overcharge | `OverchargePlatform` | Charges over time; releases devastating burst |
+
+#### Debuff drone variants (4 new; drone renamed from PlasmaDrone)
+
+`PlasmaDrone` → `DebuffDrone`. Design identity: the force multiplier — applies mechanical states that make everything else hit harder.
+
+| Variant | Platform | Behavior |
+|---------|----------|----------|
+| Burn | `BurnPlatform` | Plasma bolt; stacking DoT (unchanged, was `PlasmaPlatform`) |
+| Contagion | `ContagionPlatform` | DoT that spreads to nearby enemies on target death |
+| Corrode | `CorrodePlatform` | Reduces target defense; all incoming damage hits harder |
+| Mark | `MarkPlatform` | Tags target; next hit from any source deals amplified damage |
+| Slow | `SlowPlatform` | Reduces target move speed and fire rate for a duration |
+
+#### Sentinel drone variants (4 new)
+
+`SentinelDrone` previously had one variant (Shield). It now has five. All sentinel variants bypass the standard `fire()` / targeting loop — they use `sentinel_update(drone, dt)` instead, a per-frame callback on the platform that receives the drone as an argument.
+
+| Variant | Platform | Behavior |
+|---------|----------|----------|
+| Shield | `SentinelPlatform` | Creates and repairs a damage-absorbing shield (unchanged) |
+| Decoy | `DecoyPlatform` | Deploys a `Decoy` entity at the player's position; enemies retarget it while active (6 s on, 8 s cooldown) |
+| Evasion | `EvasionPlatform` | Sets `player.evasion_chance` each frame; `player.damaged()` rolls this chance to negate a hit entirely |
+| Heal | `HealPlatform` | On activation converts lives to a health bar (`max_health = max_lives × 10`); heals +1 HP every 15 s |
+| Resource boost | `ResourceBoostPlatform` | Generates 2 essence every 8 s passively |
+
+#### Player health mode
+
+Normally the player operates on a lives system (3 lives, invulnerability window after each hit). Choosing the Heal sentinel activates health mode:
+
+- `player.uses_health = True`; `player.max_health = max_lives × 10`; `player.health = max_health`
+- In health mode `player.damaged()` decrements `health` by the damage value directly — no invulnerability window, no blink
+- Heart HUD switches: fill ratio = `current_health / max_health`; center label = `max_health` (not current count)
+- All other sentinel variants, and the default game, use the lives system unchanged
+
+#### Evasion dodge
+
+`player.evasion_chance` (default 0.0) checked in `player.damaged()` before the lives-mode damage path. `EvasionPlatform.sentinel_update()` sets this to `C.EVASION_CHANCE` (0.20) each frame. The chance stacks with shop upgrades (`+0.05` per buy).
+
+#### Decoy entity (`entities/decoy.py`)
+
+New `CircleShape` subclass. Drawn as a plum-colored circle. Does not collide with anything. Base `Enemy.acquire_target()` and `KineticEnemy.acquire_target()` check `game.decoy` and retarget the decoy when one is active and alive. `DecoyPlatform` manages the decoy's lifecycle directly via `kill()`; `game.decoy` is set to `None` on expiry or cooldown.
+
+#### Sentinel platform refactor
+
+`WeaponsPlatform` base now has `sentinel_update(drone, dt)` — default no-op. `SentinelPlatform`'s shield logic moved from `SentinelDrone.shield_sentinel()` into `SentinelPlatform.sentinel_update(drone, dt)`. `SentinelDrone.update()` calls `self.platform.sentinel_update(self, dt)`. The drone still holds the shield state attributes (`player_shield`, `shield_max_health`, `shield_repair_timer_base`, etc.) so `game.py apply_upgrade` and the platform can read them via the drone arg.
+
+---
+
 ## 2026-04-30
 
 ### Pixel Art Sprite — Player Ship

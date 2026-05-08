@@ -128,13 +128,14 @@ class Kinetic(Projectile):
 class LaserBeam(Projectile):
     def __init__(self, x, y, target, damage=C.LASER_BEAM_DAMAGE,
             stat_source=None, combat_stats=None, extra_abilities=None, asteroids=None,
-            element=None):
+            element=None, overkill_amp=1.0):
         super().__init__(x, y, radius=0, color=C.LASER_BEAM_COLOR, damage=damage,
             weight=0, bounciness=0, drag=0)
         self.target = target
         self.stat_source = stat_source
         self.combat_stats = combat_stats
         self.element = element
+        self.overkill_amp = overkill_amp
         if extra_abilities:
             self.extra_abilities = set(extra_abilities)
         if asteroids is not None:
@@ -156,7 +157,7 @@ class LaserBeam(Projectile):
         full_health = getattr(self.target, 'full_health', getattr(self.target, 'max_health', 0))
         overkill = full_health > 0 and effective_damage >= (target_health + full_health)
         if overkill:
-            tier = max(1, (effective_damage - target_health) // full_health)
+            tier = max(1, int((effective_damage - target_health) * self.overkill_amp) // full_health)
             self.target.add_gameplay_effect(OverkillSTE(overkill_tier=tier))
         self.pre_hit_extras(self.target, skip_abilities={"overkill"})
         result = self.target.damaged(effective_damage)

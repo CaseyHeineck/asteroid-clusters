@@ -97,7 +97,7 @@ def test_drone_upgrades_laser_with_banished_kinetic_mass_but_not_speed():
     drone = make_drone(SlayerDrone)
     drone.platform.upgrade_paths.append({"type": "kinetic_mass", "label": "Kinetic Mass +60%", "is_generic": False})
     types = [t for t, _ in _drone_upgrades(drone)]
-    assert types == ["damage", "fire_rate", "kinetic_mass"]
+    assert types == ["damage", "fire_rate", "overkill_intensity", "rapid_retarget", "kinetic_mass"]
 
 # --- get_source_color ---
 def test_get_source_color_player_returns_red():

@@ -1,11 +1,9 @@
 import math
 import pygame
 from core import constants as C
-from core.element import get_damage_multiplier
 from entities.decoy import Decoy
 from entities.projectile import Bouncer, Cannonball, ContagionPlasma, CorrodePlasma, FuseBomb, Grenade, HomingMissile, Kinetic, LaserBeam, MarkPlasma, NeedleSlug, Plasma, ProximityMine, Rocket, SlowPlasma
 from entities.shield import Shield
-from systems.gameplayeffect import RocketHitAOE
 from ui.visualeffect import MuzzleFlareVE
 
 class WeaponsPlatform:
@@ -176,30 +174,43 @@ class LaserPlatform(WeaponsPlatform):
         self.weapons_free_timer_max = C.LASER_BEAM_WEAPONS_FREE_TIMER
         self.range = C.LASER_BEAM_WEAPONS_RANGE
         self.damage = C.LASER_BEAM_DAMAGE
+        self.overkill_amp = 1.0
+        self.rapid_retarget = False
         self.upgrade_paths = [
-            {"type": "damage",    "label": "Damage +15%",    "is_generic": True},
-            {"type": "fire_rate", "label": "Fire Rate +12%", "is_generic": True},
+            {"type": "damage",            "label": "Damage +15%",           "is_generic": True},
+            {"type": "fire_rate",         "label": "Fire Rate +12%",        "is_generic": True},
+            {"type": "overkill_intensity","label": "Overkill Intensity +25%","is_generic": False},
+            {"type": "rapid_retarget",    "label": "Rapid Retarget",        "is_generic": False},
         ]
 
     def apply_upgrade(self, upgrade_type, tier):
         if upgrade_type == "damage":
             self.damage = int(self.damage * (1 + C.SHOP_DAMAGE_INCREASE))
+        elif upgrade_type == "overkill_intensity":
+            self.overkill_amp *= (1 + C.SHOP_OVERKILL_INTENSITY_INCREASE)
+        elif upgrade_type == "rapid_retarget":
+            self.rapid_retarget = True
         else:
             super().apply_upgrade(upgrade_type, tier)
 
     def fire(self, owner):
         if owner.target is None:
             return 0
+        target = owner.target
+        was_alive = target.alive()
         forward = owner.get_forward_vector()
         spawn_pos = owner.position + forward * (owner.radius + C.LASER_BEAM_PLATFORM_OFFSET)
-        projectile = LaserBeam(spawn_pos.x, spawn_pos.y, owner.target,
+        projectile = LaserBeam(spawn_pos.x, spawn_pos.y, target,
             self.damage, stat_source=owner.stat_source,
             combat_stats=owner.game.combat_stats,
             extra_abilities=owner.extra_abilities,
-            asteroids=owner.asteroids, element=owner.element)
+            asteroids=owner.asteroids, element=owner.element,
+            overkill_amp=self.overkill_amp)
         if projectile.xp and owner.game and hasattr(owner.game, 'experience'):
             owner.game.experience.add_xp(projectile.xp)
         self.weapons_free_timer = self.weapons_free_timer_max
+        if self.rapid_retarget and was_alive and not target.alive():
+            self.weapons_free_timer = 0.0
         return projectile.score
 
     def get_charge_ratio(self):
@@ -240,41 +251,47 @@ class LaserPlatform(WeaponsPlatform):
         screen.blit(rotated, rotated.get_rect(center=(owner.position.x, owner.position.y)))
 
 
-class BreachPlatform(WeaponsPlatform):
-    variant_name = "Breach"
-    variant_description = "Laser that ignores elemental resistance. Always hits for full damage."
+class LongShotPlatform(WeaponsPlatform):
+    variant_name = "Long Shot"
+    variant_description = "Damage scales with distance to target. Fight from range for maximum output."
     banish_ability = "overkill"
 
     def __init__(self):
         super().__init__()
-        self.weapons_free_timer_max = C.BREACH_WEAPONS_FREE_TIMER
-        self.range = C.BREACH_WEAPONS_RANGE
-        self.damage = C.BREACH_BASE_DAMAGE
+        self.weapons_free_timer_max = C.LONG_SHOT_WEAPONS_FREE_TIMER
+        self.range = C.LONG_SHOT_WEAPONS_RANGE
+        self.base_damage = C.LONG_SHOT_BASE_DAMAGE
+        self.min_multiplier = C.LONG_SHOT_MIN_MULTIPLIER
+        self.max_multiplier = C.LONG_SHOT_MAX_MULTIPLIER
         self.upgrade_paths = [
-            {"type": "damage",    "label": "Damage +15%",    "is_generic": True},
-            {"type": "fire_rate", "label": "Fire Rate +12%", "is_generic": True},
+            {"type": "damage",           "label": "Damage +15%",          "is_generic": True},
+            {"type": "fire_rate",        "label": "Fire Rate +12%",       "is_generic": True},
+            {"type": "range_multiplier", "label": "Range Multiplier +20%","is_generic": False},
+            {"type": "extended_range",   "label": "Extended Range +15%",  "is_generic": False},
         ]
 
     def apply_upgrade(self, upgrade_type, tier):
-        if upgrade_type == "damage":
-            self.damage = int(self.damage * (1 + C.SHOP_DAMAGE_INCREASE))
+        if upgrade_type == "range_multiplier":
+            self.max_multiplier *= (1 + C.SHOP_RANGE_MULTIPLIER_INCREASE)
+        elif upgrade_type == "extended_range":
+            self.range *= (1 + C.SHOP_EXTENDED_RANGE_INCREASE)
         else:
             super().apply_upgrade(upgrade_type, tier)
 
     def fire(self, owner):
         if owner.target is None:
             return 0
-        target = owner.target
-        target_element = getattr(target, 'element', None)
-        elemental_mult = max(1.0, get_damage_multiplier(owner.element, target_element))
-        effective_damage = int(self.damage * elemental_mult)
+        distance = owner.position.distance_to(owner.target.position)
+        range_ratio = max(0.0, min(1.0, distance / self.range))
+        damage = int(self.base_damage * self.damage_multiplier *
+                     (self.min_multiplier + (self.max_multiplier - self.min_multiplier) * range_ratio))
         forward = owner.get_forward_vector()
         spawn_pos = owner.position + forward * (owner.radius + C.LASER_BEAM_PLATFORM_OFFSET)
-        projectile = LaserBeam(spawn_pos.x, spawn_pos.y, target,
-            effective_damage, stat_source=owner.stat_source,
+        projectile = LaserBeam(spawn_pos.x, spawn_pos.y, owner.target,
+            damage, stat_source=owner.stat_source,
             combat_stats=owner.game.combat_stats,
             extra_abilities=owner.extra_abilities,
-            asteroids=owner.asteroids, element=None)
+            asteroids=owner.asteroids, element=owner.element)
         if projectile.xp and owner.game and hasattr(owner.game, 'experience'):
             owner.game.experience.add_xp(projectile.xp)
         self.weapons_free_timer = self.weapons_free_timer_max
@@ -286,7 +303,7 @@ class BreachPlatform(WeaponsPlatform):
         return 1 - (self.weapons_free_timer / self.weapons_free_timer_max)
 
     def get_platform_color(self):
-        charge_colors = [C.STEEL_GRAY, C.SILVER, C.WHITE, C.LIGHT_BLUE, C.ELECTRIC_BLUE]
+        charge_colors = [C.DARK_ORANGE, C.ORANGE, C.GOLD, C.YELLOW, C.WHITE]
         ratio = self.get_charge_ratio()
         if ratio >= 1:
             return charge_colors[-1]
@@ -296,103 +313,9 @@ class BreachPlatform(WeaponsPlatform):
         c1, c2 = charge_colors[index], charge_colors[min(index + 1, len(charge_colors) - 1)]
         return tuple(int(s + (e - s) * local_t) for s, e in zip(c1, c2))
 
-    def draw(self, screen, owner):
-        platform_color = self.get_platform_color()
-        offset = C.LASER_BEAM_PLATFORM_OFFSET
-        length = C.LASER_BEAM_PLATFORM_LENGTH
-        width = C.LASER_BEAM_PLATFORM_WIDTH
-        surface_size = (owner.radius + offset + length) * 2
-        surf = pygame.Surface((surface_size, surface_size), pygame.SRCALPHA)
-        cx = surface_size // 2
-        cy = surface_size // 2
-        emitter_y = cy - (owner.radius + offset)
-        points = [(cx, emitter_y - length),
-            (cx - width // 2, emitter_y),
-            (cx + width // 2, emitter_y)]
-        pygame.draw.polygon(surf, platform_color, points)
-        rotated = pygame.transform.rotate(surf, -owner.rotation)
-        screen.blit(rotated, rotated.get_rect(center=(owner.position.x, owner.position.y)))
-
-
-class CascadePlatform(WeaponsPlatform):
-    variant_name = "Cascade"
-    variant_description = "Laser that spreads overkill damage to nearby enemies on kill."
-    banish_ability = "overkill"
-
-    def __init__(self):
-        super().__init__()
-        self.weapons_free_timer_max = C.CASCADE_WEAPONS_FREE_TIMER
-        self.range = C.LASER_BEAM_WEAPONS_RANGE
-        self.damage = C.LASER_BEAM_DAMAGE
-        self.cascade_radius = C.CASCADE_RADIUS
-        self.cascade_multiplier = C.CASCADE_MULTIPLIER
-        self.upgrade_paths = [
-            {"type": "damage",         "label": "Damage +15%",         "is_generic": True},
-            {"type": "fire_rate",      "label": "Fire Rate +12%",      "is_generic": True},
-            {"type": "cascade_radius", "label": "Cascade Radius +20%", "is_generic": False},
-        ]
-
-    def apply_upgrade(self, upgrade_type, tier):
-        if upgrade_type == "damage":
-            self.damage = int(self.damage * (1 + C.SHOP_DAMAGE_INCREASE))
-        elif upgrade_type == "cascade_radius":
-            self.cascade_radius *= (1 + C.SHOP_CASCADE_RADIUS_INCREASE)
-        else:
-            super().apply_upgrade(upgrade_type, tier)
-
-    def fire(self, owner):
-        if owner.target is None:
-            return 0
-        target = owner.target
-        target_pos = pygame.Vector2(target.position)
-        overkill_damage = 0
-        target_element = getattr(target, 'element', None)
-        mult = get_damage_multiplier(owner.element, target_element)
-        effective_damage = max(1, int(self.damage * mult))
-        if effective_damage > target.health:
-            overkill_damage = effective_damage - target.health
-        forward = owner.get_forward_vector()
-        spawn_pos = owner.position + forward * (owner.radius + C.LASER_BEAM_PLATFORM_OFFSET)
-        projectile = LaserBeam(spawn_pos.x, spawn_pos.y, target,
-            self.damage, stat_source=owner.stat_source,
-            combat_stats=owner.game.combat_stats,
-            extra_abilities=owner.extra_abilities,
-            asteroids=owner.asteroids, element=owner.element)
-        if projectile.xp and owner.game and hasattr(owner.game, 'experience'):
-            owner.game.experience.add_xp(projectile.xp)
-        score = projectile.score
-        if overkill_damage > 0 and not target.alive():
-            cascade_damage = int(overkill_damage * self.cascade_multiplier)
-            game = getattr(owner, 'game', None)
-            all_targets = list(owner.asteroids) if owner.asteroids else []
-            if game and hasattr(game, 'enemies'):
-                all_targets.extend(game.enemies)
-            aoe = RocketHitAOE(impact_position=target_pos, targets=all_targets,
-                radius=self.cascade_radius, damage=cascade_damage)
-            aoe.stat_source = owner.stat_source
-            aoe.combat_stats = owner.game.combat_stats
-            aoe_score, aoe_xp = aoe.apply()
-            if aoe_xp and hasattr(owner.game, 'experience'):
-                owner.game.experience.add_xp(aoe_xp)
-            score += aoe_score
-        self.weapons_free_timer = self.weapons_free_timer_max
-        return score
-
-    def get_charge_ratio(self):
-        if self.weapons_free_timer_max <= 0:
-            return 1
-        return 1 - (self.weapons_free_timer / self.weapons_free_timer_max)
-
-    def get_platform_color(self):
-        charge_colors = [C.DARK_RED, C.RED, C.ORANGE, C.GOLD, C.YELLOW]
-        ratio = self.get_charge_ratio()
-        if ratio >= 1:
-            return charge_colors[-1]
-        scaled = ratio * (len(charge_colors) - 1)
-        index = int(scaled)
-        local_t = scaled - index
-        c1, c2 = charge_colors[index], charge_colors[min(index + 1, len(charge_colors) - 1)]
-        return tuple(int(s + (e - s) * local_t) for s, e in zip(c1, c2))
+    def lerp_color(self, start_color, end_color, t):
+        t = max(0, min(1, t))
+        return tuple(int(s + (e - s) * t) for s, e in zip(start_color, end_color))
 
     def draw(self, screen, owner):
         platform_color = self.get_platform_color()
@@ -423,10 +346,12 @@ class FinisherPlatform(WeaponsPlatform):
         self.range = C.FINISHER_WEAPONS_RANGE
         self.damage = C.FINISHER_BASE_DAMAGE
         self.bonus_multiplier = C.FINISHER_BONUS_MULTIPLIER
+        self.kill_momentum = False
         self.upgrade_paths = [
-            {"type": "damage",       "label": "Damage +15%",   "is_generic": True},
-            {"type": "fire_rate",    "label": "Fire Rate +12%", "is_generic": True},
-            {"type": "finisher_amp", "label": "Finisher Amp +25%", "is_generic": False},
+            {"type": "damage",        "label": "Damage +15%",      "is_generic": True},
+            {"type": "fire_rate",     "label": "Fire Rate +12%",   "is_generic": True},
+            {"type": "finisher_amp",  "label": "Finisher Amp +25%","is_generic": False},
+            {"type": "kill_momentum", "label": "Kill Momentum",    "is_generic": False},
         ]
 
     def apply_upgrade(self, upgrade_type, tier):
@@ -434,6 +359,8 @@ class FinisherPlatform(WeaponsPlatform):
             self.damage = int(self.damage * (1 + C.SHOP_DAMAGE_INCREASE))
         elif upgrade_type == "finisher_amp":
             self.bonus_multiplier += C.SHOP_FINISHER_AMP_INCREASE
+        elif upgrade_type == "kill_momentum":
+            self.kill_momentum = True
         else:
             super().apply_upgrade(upgrade_type, tier)
 
@@ -441,6 +368,7 @@ class FinisherPlatform(WeaponsPlatform):
         if owner.target is None:
             return 0
         target = owner.target
+        was_alive = target.alive()
         max_health = getattr(target, 'max_health', getattr(target, 'full_health', 0))
         missing_ratio = 0.0
         if max_health > 0:
@@ -456,6 +384,8 @@ class FinisherPlatform(WeaponsPlatform):
         if projectile.xp and owner.game and hasattr(owner.game, 'experience'):
             owner.game.experience.add_xp(projectile.xp)
         self.weapons_free_timer = self.weapons_free_timer_max
+        if self.kill_momentum and was_alive and not target.alive():
+            self.weapons_free_timer = 0.0
         return projectile.score
 
     def get_charge_ratio(self):
@@ -492,39 +422,57 @@ class FinisherPlatform(WeaponsPlatform):
         screen.blit(rotated, rotated.get_rect(center=(owner.position.x, owner.position.y)))
 
 
-class OverchargePlatform(WeaponsPlatform):
-    variant_name = "Overcharge"
-    variant_description = "Charges slowly, then fires a single devastating burst. Patience is the mechanic."
+class ResonantBeamPlatform(WeaponsPlatform):
+    variant_name = "Resonant Beam"
+    variant_description = "Consecutive hits on the same target ramp damage up. Resets on target switch."
     banish_ability = "overkill"
 
     def __init__(self):
         super().__init__()
-        self.weapons_free_timer_max = C.OVERCHARGE_WEAPONS_FREE_TIMER
-        self.range = C.OVERCHARGE_WEAPONS_RANGE
-        self.damage = C.OVERCHARGE_DAMAGE
+        self.weapons_free_timer_max = C.RESONANT_BEAM_WEAPONS_FREE_TIMER
+        self.range = C.RESONANT_BEAM_WEAPONS_RANGE
+        self.base_damage = C.RESONANT_BEAM_BASE_DAMAGE
+        self.resonance_tier = 0
+        self.resonance_target = None
+        self.max_tier = C.RESONANT_BEAM_MAX_TIER
+        self.tier_multiplier = C.RESONANT_BEAM_TIER_MULTIPLIER
         self.upgrade_paths = [
-            {"type": "damage",    "label": "Damage +15%",    "is_generic": True},
-            {"type": "fire_rate", "label": "Fire Rate +12%", "is_generic": True},
+            {"type": "damage",            "label": "Damage +15%",        "is_generic": True},
+            {"type": "fire_rate",         "label": "Fire Rate +12%",     "is_generic": True},
+            {"type": "resonance_buildup", "label": "Resonance Buildup",  "is_generic": False},
+            {"type": "resonance_cap",     "label": "Resonance Cap +20%", "is_generic": False},
         ]
 
     def apply_upgrade(self, upgrade_type, tier):
-        if upgrade_type == "damage":
-            self.damage = int(self.damage * (1 + C.SHOP_DAMAGE_INCREASE))
+        if upgrade_type == "resonance_buildup":
+            self.max_tier = max(1, self.max_tier - C.SHOP_RESONANCE_BUILDUP_DECREASE)
+        elif upgrade_type == "resonance_cap":
+            self.tier_multiplier *= (1 + C.SHOP_RESONANCE_CAP_INCREASE)
         else:
             super().apply_upgrade(upgrade_type, tier)
 
     def fire(self, owner):
         if owner.target is None:
             return 0
+        current_target = owner.target
+        if current_target is self.resonance_target:
+            self.resonance_tier = min(self.resonance_tier + 1, self.max_tier)
+        else:
+            self.resonance_tier = 0
+            self.resonance_target = current_target
+        damage = int(self.base_damage * self.damage_multiplier *
+                     (1.0 + self.resonance_tier * self.tier_multiplier))
         forward = owner.get_forward_vector()
         spawn_pos = owner.position + forward * (owner.radius + C.LASER_BEAM_PLATFORM_OFFSET)
-        projectile = LaserBeam(spawn_pos.x, spawn_pos.y, owner.target,
-            self.damage, stat_source=owner.stat_source,
+        projectile = LaserBeam(spawn_pos.x, spawn_pos.y, current_target,
+            damage, stat_source=owner.stat_source,
             combat_stats=owner.game.combat_stats,
             extra_abilities=owner.extra_abilities,
             asteroids=owner.asteroids, element=owner.element)
         if projectile.xp and owner.game and hasattr(owner.game, 'experience'):
             owner.game.experience.add_xp(projectile.xp)
+        if not current_target.alive():
+            self.resonance_target = None
         self.weapons_free_timer = self.weapons_free_timer_max
         return projectile.score
 
@@ -534,7 +482,7 @@ class OverchargePlatform(WeaponsPlatform):
         return 1 - (self.weapons_free_timer / self.weapons_free_timer_max)
 
     def get_platform_color(self):
-        charge_colors = [C.MIDNIGHT_BLUE, C.INDIGO, C.PURPLE, C.MAGENTA, C.HOT_PINK, C.DEEP_PINK]
+        charge_colors = [C.TEAL, C.AQUA, C.TURQUOISE, C.CYAN, C.ELECTRIC_BLUE]
         ratio = self.get_charge_ratio()
         if ratio >= 1:
             return charge_colors[-1]
@@ -544,11 +492,112 @@ class OverchargePlatform(WeaponsPlatform):
         c1, c2 = charge_colors[index], charge_colors[min(index + 1, len(charge_colors) - 1)]
         return tuple(int(s + (e - s) * local_t) for s, e in zip(c1, c2))
 
+    def lerp_color(self, start_color, end_color, t):
+        t = max(0, min(1, t))
+        return tuple(int(s + (e - s) * t) for s, e in zip(start_color, end_color))
+
     def draw(self, screen, owner):
         platform_color = self.get_platform_color()
         offset = C.LASER_BEAM_PLATFORM_OFFSET
-        length = C.LASER_BEAM_PLATFORM_LENGTH + 6
-        width = C.LASER_BEAM_PLATFORM_WIDTH + 4
+        length = C.LASER_BEAM_PLATFORM_LENGTH
+        width = C.LASER_BEAM_PLATFORM_WIDTH
+        surface_size = (owner.radius + offset + length) * 2
+        surf = pygame.Surface((surface_size, surface_size), pygame.SRCALPHA)
+        cx = surface_size // 2
+        cy = surface_size // 2
+        emitter_y = cy - (owner.radius + offset)
+        points = [(cx, emitter_y - length),
+            (cx - width // 2, emitter_y),
+            (cx + width // 2, emitter_y)]
+        pygame.draw.polygon(surf, platform_color, points)
+        rotated = pygame.transform.rotate(surf, -owner.rotation)
+        screen.blit(rotated, rotated.get_rect(center=(owner.position.x, owner.position.y)))
+
+
+class LifeSiphonPlatform(WeaponsPlatform):
+    variant_name = "Life Siphon"
+    variant_description = "Shots heal HP in health mode, or bank life essence toward a free life in lives mode."
+    banish_ability = "overkill"
+
+    def __init__(self):
+        super().__init__()
+        self.weapons_free_timer_max = C.LIFE_SIPHON_WEAPONS_FREE_TIMER
+        self.range = C.LIFE_SIPHON_WEAPONS_RANGE
+        self.base_damage = C.LIFE_SIPHON_BASE_DAMAGE
+        self.drain_rate = C.LIFE_SIPHON_DRAIN_RATE
+        self.kill_drain_rate = C.LIFE_SIPHON_KILL_DRAIN_RATE
+        self.life_essence_pool = 0
+        self.upgrade_paths = [
+            {"type": "damage",      "label": "Damage +15%",    "is_generic": True},
+            {"type": "fire_rate",   "label": "Fire Rate +12%", "is_generic": True},
+            {"type": "drain_rate",  "label": "Drain Rate +5%", "is_generic": False},
+            {"type": "kill_drain",  "label": "Kill Drain +5%", "is_generic": False},
+        ]
+
+    def apply_upgrade(self, upgrade_type, tier):
+        if upgrade_type == "drain_rate":
+            self.drain_rate += C.SHOP_DRAIN_RATE_INCREASE
+        elif upgrade_type == "kill_drain":
+            self.kill_drain_rate += C.SHOP_KILL_DRAIN_INCREASE
+        else:
+            super().apply_upgrade(upgrade_type, tier)
+
+    def fire(self, owner):
+        if owner.target is None:
+            return 0
+        target = owner.target
+        was_alive = target.alive()
+        target_max_health = getattr(target, 'max_health', getattr(target, 'full_health', 0))
+        damage = int(self.base_damage * self.damage_multiplier)
+        forward = owner.get_forward_vector()
+        spawn_pos = owner.position + forward * (owner.radius + C.LASER_BEAM_PLATFORM_OFFSET)
+        projectile = LaserBeam(spawn_pos.x, spawn_pos.y, target,
+            damage, stat_source=owner.stat_source,
+            combat_stats=owner.game.combat_stats,
+            extra_abilities=owner.extra_abilities,
+            asteroids=owner.asteroids, element=owner.element)
+        if projectile.xp and owner.game and hasattr(owner.game, 'experience'):
+            owner.game.experience.add_xp(projectile.xp)
+        drain_amount = max(1, int(damage * self.drain_rate))
+        killed = was_alive and not target.alive()
+        kill_drain = max(1, int(target_max_health * self.kill_drain_rate)) if killed else 0
+        player = owner.player
+        if player.uses_health:
+            player.health = min(player.max_health, player.health + drain_amount + kill_drain)
+        else:
+            self.life_essence_pool += drain_amount + kill_drain
+            if self.life_essence_pool >= C.LIFE_SIPHON_LIFE_THRESHOLD:
+                if player.lives < player.max_lives:
+                    player.lives += 1
+                self.life_essence_pool = 0
+        self.weapons_free_timer = self.weapons_free_timer_max
+        return projectile.score
+
+    def get_charge_ratio(self):
+        if self.weapons_free_timer_max <= 0:
+            return 1
+        return 1 - (self.weapons_free_timer / self.weapons_free_timer_max)
+
+    def get_platform_color(self):
+        charge_colors = [C.HEART_RUBY, C.DARK_RED, C.RED, C.HOT_PINK, C.DEEP_PINK]
+        ratio = self.get_charge_ratio()
+        if ratio >= 1:
+            return charge_colors[-1]
+        scaled = ratio * (len(charge_colors) - 1)
+        index = int(scaled)
+        local_t = scaled - index
+        c1, c2 = charge_colors[index], charge_colors[min(index + 1, len(charge_colors) - 1)]
+        return tuple(int(s + (e - s) * local_t) for s, e in zip(c1, c2))
+
+    def lerp_color(self, start_color, end_color, t):
+        t = max(0, min(1, t))
+        return tuple(int(s + (e - s) * t) for s, e in zip(start_color, end_color))
+
+    def draw(self, screen, owner):
+        platform_color = self.get_platform_color()
+        offset = C.LASER_BEAM_PLATFORM_OFFSET
+        length = C.LASER_BEAM_PLATFORM_LENGTH
+        width = C.LASER_BEAM_PLATFORM_WIDTH
         surface_size = (owner.radius + offset + length) * 2
         surf = pygame.Surface((surface_size, surface_size), pygame.SRCALPHA)
         cx = surface_size // 2

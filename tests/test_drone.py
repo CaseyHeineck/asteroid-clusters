@@ -5,7 +5,7 @@ from core.element import Element
 from entities.decoy import Decoy
 from entities.drone import Drone, ExplosiveDrone, KineticDrone, SlayerDrone, DebuffDrone, SentinelDrone
 from entities.projectile import FuseBomb, Grenade, HomingMissile, Kinetic, Plasma, ProximityMine, Rocket
-from entities.weaponsplatform import BreachPlatform, CascadePlatform, DecoyPlatform, EvasionPlatform, FinisherPlatform, FuseBombPlatform, GrenadePlatform, HealPlatform, HomingMissilePlatform, OverchargePlatform, ProximityMinePlatform, ResourceBoostPlatform
+from entities.weaponsplatform import DecoyPlatform, EvasionPlatform, FinisherPlatform, FuseBombPlatform, GrenadePlatform, HealPlatform, HomingMissilePlatform, LaserPlatform, ProximityMinePlatform, ResourceBoostPlatform
 from ui.visualeffect import LaserBeamVE, MuzzleFlareVE, RocketHitExplosionVE
 
 class FakePlayer:
@@ -585,82 +585,6 @@ def test_finisher_returns_zero_when_target_is_none():
     assert p.fire(owner) == 0
 
 
-# --- BreachPlatform ---
-def test_breach_damage_against_resistant_target_equals_base_damage():
-    setup_laser_containers()
-    target = FakePlatformTarget(health=500, max_health=500, element=Element.SOLAR)
-    owner = FakePlatformOwner(target=target, element=Element.CRYO)
-    p = BreachPlatform()
-    p.fire(owner)
-    damage_dealt = 500 - target.health
-    assert damage_dealt == C.BREACH_BASE_DAMAGE
-
-def test_breach_damage_preserves_elemental_bonus():
-    setup_laser_containers()
-    target = FakePlatformTarget(health=500, max_health=500, element=Element.FLUX)
-    owner = FakePlatformOwner(target=target, element=Element.CRYO)
-    p = BreachPlatform()
-    p.fire(owner)
-    damage_dealt = 500 - target.health
-    assert damage_dealt > C.BREACH_BASE_DAMAGE
-
-def test_breach_returns_zero_when_target_is_none():
-    p = BreachPlatform()
-    owner = FakePlatformOwner(target=None)
-    assert p.fire(owner) == 0
-
-
-# --- CascadePlatform ---
-def test_cascade_fires_aoe_when_target_dies_with_overkill():
-    setup_laser_containers()
-    nearby = FakePlatformTarget(health=500, max_health=500)
-    nearby.position = pygame.Vector2(0, 50)
-    target = FakePlatformTarget(health=10, max_health=100)
-    owner = FakePlatformOwner(target=target, enemies=[nearby])
-    p = CascadePlatform()
-    p.cascade_radius = 1000
-    p.fire(owner)
-    assert nearby.health < 500
-
-def test_cascade_no_aoe_when_target_survives():
-    setup_laser_containers()
-    nearby = FakePlatformTarget(health=500, max_health=500)
-    nearby.position = pygame.Vector2(0, 50)
-    target = FakePlatformTarget(health=500, max_health=500)
-    owner = FakePlatformOwner(target=target, enemies=[nearby])
-    p = CascadePlatform()
-    p.fire(owner)
-    assert nearby.health == 500
-
-def test_cascade_apply_upgrade_increases_radius():
-    p = CascadePlatform()
-    before = p.cascade_radius
-    p.apply_upgrade("cascade_radius", 0)
-    assert p.cascade_radius > before
-
-def test_cascade_returns_zero_when_target_is_none():
-    p = CascadePlatform()
-    owner = FakePlatformOwner(target=None)
-    assert p.fire(owner) == 0
-
-
-# --- OverchargePlatform ---
-def test_overcharge_has_higher_damage_than_laser():
-    assert C.OVERCHARGE_DAMAGE > C.LASER_BEAM_DAMAGE
-
-def test_overcharge_has_longer_timer_than_laser():
-    assert C.OVERCHARGE_WEAPONS_FREE_TIMER > C.LASER_BEAM_WEAPONS_FREE_TIMER
-
-def test_overcharge_returns_zero_when_target_is_none():
-    p = OverchargePlatform()
-    owner = FakePlatformOwner(target=None)
-    assert p.fire(owner) == 0
-
-def test_overcharge_apply_upgrade_increases_damage():
-    p = OverchargePlatform()
-    before = p.damage
-    p.apply_upgrade("damage", 0)
-    assert p.damage > before
 
 
 def setup_explosive_containers():
@@ -1262,3 +1186,361 @@ def test_decoy_platform_redeploys_after_cooldown_expires():
     drone.platform._cooldown_timer = 0.0
     drone.platform.sentinel_update(drone, 0.0)
     assert player.game.decoy is not None
+
+
+# --- LaserPlatform new upgrades ---
+def test_laser_overkill_amp_starts_at_one():
+    p = LaserPlatform()
+    assert p.overkill_amp == pytest.approx(1.0)
+
+def test_laser_overkill_intensity_upgrade_increases_overkill_amp():
+    p = LaserPlatform()
+    before = p.overkill_amp
+    p.apply_upgrade("overkill_intensity", 0)
+    assert p.overkill_amp > before
+
+def test_laser_rapid_retarget_upgrade_sets_flag():
+    p = LaserPlatform()
+    p.apply_upgrade("rapid_retarget", 0)
+    assert p.rapid_retarget is True
+
+def test_laser_rapid_retarget_reduces_timer_on_kill():
+    setup_laser_containers()
+    target = FakePlatformTarget(health=1, max_health=100)
+    owner = FakePlatformOwner(target=target)
+    p = LaserPlatform()
+    p.apply_upgrade("rapid_retarget", 0)
+    p.fire(owner)
+    assert p.weapons_free_timer < p.weapons_free_timer_max
+
+def test_laser_rapid_retarget_does_not_reduce_timer_on_nonfatal_hit():
+    setup_laser_containers()
+    target = FakePlatformTarget(health=1000, max_health=1000)
+    owner = FakePlatformOwner(target=target)
+    p = LaserPlatform()
+    p.apply_upgrade("rapid_retarget", 0)
+    p.fire(owner)
+    assert p.weapons_free_timer == p.weapons_free_timer_max
+
+
+# --- FinisherPlatform Kill Momentum ---
+def test_finisher_kill_momentum_upgrade_sets_flag():
+    p = FinisherPlatform()
+    p.apply_upgrade("kill_momentum", 0)
+    assert p.kill_momentum is True
+
+def test_finisher_kill_momentum_resets_timer_to_zero_on_kill():
+    setup_laser_containers()
+    target = FakePlatformTarget(health=1, max_health=100)
+    owner = FakePlatformOwner(target=target)
+    p = FinisherPlatform()
+    p.apply_upgrade("kill_momentum", 0)
+    p.fire(owner)
+    assert p.weapons_free_timer == pytest.approx(0.0, abs=0.001)
+
+def test_finisher_kill_momentum_does_not_reset_timer_on_nonfatal_hit():
+    setup_laser_containers()
+    target = FakePlatformTarget(health=1000, max_health=1000)
+    owner = FakePlatformOwner(target=target)
+    p = FinisherPlatform()
+    p.apply_upgrade("kill_momentum", 0)
+    p.fire(owner)
+    assert p.weapons_free_timer == p.weapons_free_timer_max
+
+
+# --- LongShotPlatform ---
+def test_long_shot_platform_exists():
+    from entities.weaponsplatform import LongShotPlatform
+    p = LongShotPlatform()
+    assert p is not None
+
+def test_long_shot_default_range_from_constants():
+    from entities.weaponsplatform import LongShotPlatform
+    p = LongShotPlatform()
+    assert p.range == C.LONG_SHOT_WEAPONS_RANGE
+
+def test_long_shot_default_base_damage_from_constants():
+    from entities.weaponsplatform import LongShotPlatform
+    p = LongShotPlatform()
+    assert p.base_damage == C.LONG_SHOT_BASE_DAMAGE
+
+def test_long_shot_returns_zero_when_target_is_none():
+    setup_laser_containers()
+    from entities.weaponsplatform import LongShotPlatform
+    p = LongShotPlatform()
+    owner = FakePlatformOwner(target=None)
+    assert p.fire(owner) == 0
+
+def test_long_shot_deals_more_damage_at_full_range_than_point_blank():
+    setup_laser_containers()
+    from entities.weaponsplatform import LongShotPlatform
+    far_target = FakePlatformTarget(health=5000, max_health=5000)
+    far_target.position = pygame.Vector2(0, C.LONG_SHOT_WEAPONS_RANGE * 0.95)
+    far_owner = FakePlatformOwner(target=far_target)
+    far_owner.position = pygame.Vector2(0, 0)
+    close_target = FakePlatformTarget(health=5000, max_health=5000)
+    close_target.position = pygame.Vector2(0, 5)
+    close_owner = FakePlatformOwner(target=close_target)
+    close_owner.position = pygame.Vector2(0, 0)
+    LongShotPlatform().fire(far_owner)
+    LongShotPlatform().fire(close_owner)
+    assert (5000 - far_target.health) > (5000 - close_target.health)
+
+def test_long_shot_damage_at_full_range_uses_max_multiplier():
+    setup_laser_containers()
+    from entities.weaponsplatform import LongShotPlatform
+    target = FakePlatformTarget(health=5000, max_health=5000)
+    target.position = pygame.Vector2(0, C.LONG_SHOT_WEAPONS_RANGE)
+    owner = FakePlatformOwner(target=target)
+    owner.position = pygame.Vector2(0, 0)
+    LongShotPlatform().fire(owner)
+    assert (5000 - target.health) == int(C.LONG_SHOT_BASE_DAMAGE * C.LONG_SHOT_MAX_MULTIPLIER)
+
+def test_long_shot_damage_at_zero_distance_uses_min_multiplier():
+    setup_laser_containers()
+    from entities.weaponsplatform import LongShotPlatform
+    target = FakePlatformTarget(health=5000, max_health=5000)
+    target.position = pygame.Vector2(0, 0)
+    owner = FakePlatformOwner(target=target)
+    owner.position = pygame.Vector2(0, 0)
+    LongShotPlatform().fire(owner)
+    assert (5000 - target.health) == int(C.LONG_SHOT_BASE_DAMAGE * C.LONG_SHOT_MIN_MULTIPLIER)
+
+def test_long_shot_range_multiplier_upgrade_increases_max_multiplier():
+    from entities.weaponsplatform import LongShotPlatform
+    p = LongShotPlatform()
+    before = p.max_multiplier
+    p.apply_upgrade("range_multiplier", 0)
+    assert p.max_multiplier > before
+
+def test_long_shot_extended_range_upgrade_increases_range():
+    from entities.weaponsplatform import LongShotPlatform
+    p = LongShotPlatform()
+    before = p.range
+    p.apply_upgrade("extended_range", 0)
+    assert p.range > before
+
+def test_long_shot_banish_ability_is_overkill():
+    from entities.weaponsplatform import LongShotPlatform
+    assert LongShotPlatform.banish_ability == "overkill"
+
+
+# --- ResonantBeamPlatform ---
+def test_resonant_beam_platform_exists():
+    from entities.weaponsplatform import ResonantBeamPlatform
+    p = ResonantBeamPlatform()
+    assert p is not None
+
+def test_resonant_beam_starts_at_zero_tier():
+    from entities.weaponsplatform import ResonantBeamPlatform
+    p = ResonantBeamPlatform()
+    assert p.resonance_tier == 0
+
+def test_resonant_beam_returns_zero_when_target_is_none():
+    setup_laser_containers()
+    from entities.weaponsplatform import ResonantBeamPlatform
+    p = ResonantBeamPlatform()
+    owner = FakePlatformOwner(target=None)
+    assert p.fire(owner) == 0
+
+def test_resonant_beam_first_hit_fires_at_base_damage():
+    setup_laser_containers()
+    from entities.weaponsplatform import ResonantBeamPlatform
+    target = FakePlatformTarget(health=5000, max_health=5000)
+    owner = FakePlatformOwner(target=target)
+    ResonantBeamPlatform().fire(owner)
+    assert (5000 - target.health) == C.RESONANT_BEAM_BASE_DAMAGE
+
+def test_resonant_beam_second_hit_on_same_target_deals_more_damage():
+    setup_laser_containers()
+    from entities.weaponsplatform import ResonantBeamPlatform
+    target = FakePlatformTarget(health=5000, max_health=5000)
+    owner = FakePlatformOwner(target=target)
+    p = ResonantBeamPlatform()
+    p.fire(owner)
+    health_after_1 = target.health
+    p.weapons_free_timer = 0
+    p.fire(owner)
+    assert (health_after_1 - target.health) > (5000 - health_after_1)
+
+def test_resonant_beam_resets_tier_on_target_switch():
+    setup_laser_containers()
+    from entities.weaponsplatform import ResonantBeamPlatform
+    target1 = FakePlatformTarget(health=5000, max_health=5000)
+    target2 = FakePlatformTarget(health=5000, max_health=5000)
+    owner = FakePlatformOwner(target=target1)
+    p = ResonantBeamPlatform()
+    p.fire(owner)
+    p.weapons_free_timer = 0
+    p.fire(owner)
+    assert p.resonance_tier == 1
+    owner.target = target2
+    p.weapons_free_timer = 0
+    p.fire(owner)
+    assert p.resonance_tier == 0
+
+def test_resonant_beam_tier_caps_at_max():
+    setup_laser_containers()
+    from entities.weaponsplatform import ResonantBeamPlatform
+    target = FakePlatformTarget(health=50000, max_health=50000)
+    owner = FakePlatformOwner(target=target)
+    p = ResonantBeamPlatform()
+    for _ in range(20):
+        p.weapons_free_timer = 0
+        p.fire(owner)
+    assert p.resonance_tier == C.RESONANT_BEAM_MAX_TIER
+
+def test_resonant_beam_buildup_upgrade_reduces_max_tier():
+    from entities.weaponsplatform import ResonantBeamPlatform
+    p = ResonantBeamPlatform()
+    before = p.max_tier
+    p.apply_upgrade("resonance_buildup", 0)
+    assert p.max_tier < before
+
+def test_resonant_beam_cap_upgrade_increases_tier_multiplier():
+    from entities.weaponsplatform import ResonantBeamPlatform
+    p = ResonantBeamPlatform()
+    before = p.tier_multiplier
+    p.apply_upgrade("resonance_cap", 0)
+    assert p.tier_multiplier > before
+
+
+# --- LifeSiphonPlatform fakes ---
+class FakeSiphonPlayer:
+    def __init__(self):
+        self.position = pygame.Vector2(0, 0)
+        self.uses_health = False
+        self.health = 10
+        self.max_health = 100
+        self.lives = 2
+        self.max_lives = 3
+
+class FakeSiphonOwner:
+    def __init__(self, target=None):
+        self.position = pygame.Vector2(0, 0)
+        self.radius = 18
+        self.rotation = 0
+        self.target = target
+        self.element = None
+        self.stat_source = "test"
+        self.extra_abilities = set()
+        self.asteroids = []
+        self.game = FakePlatformGame()
+        self.player = FakeSiphonPlayer()
+    def get_forward_vector(self):
+        return pygame.Vector2(0, -1)
+
+
+# --- LifeSiphonPlatform ---
+def test_life_siphon_platform_exists():
+    from entities.weaponsplatform import LifeSiphonPlatform
+    p = LifeSiphonPlatform()
+    assert p is not None
+
+def test_life_siphon_starts_with_zero_pool():
+    from entities.weaponsplatform import LifeSiphonPlatform
+    p = LifeSiphonPlatform()
+    assert p.life_essence_pool == 0
+
+def test_life_siphon_returns_zero_when_target_is_none():
+    from entities.weaponsplatform import LifeSiphonPlatform
+    p = LifeSiphonPlatform()
+    owner = FakeSiphonOwner(target=None)
+    assert p.fire(owner) == 0
+
+def test_life_siphon_heals_hp_in_health_mode():
+    setup_laser_containers()
+    from entities.weaponsplatform import LifeSiphonPlatform
+    target = FakePlatformTarget(health=5000, max_health=5000)
+    owner = FakeSiphonOwner(target=target)
+    owner.player.uses_health = True
+    owner.player.health = 10
+    LifeSiphonPlatform().fire(owner)
+    assert owner.player.health > 10
+
+def test_life_siphon_does_not_overheal():
+    setup_laser_containers()
+    from entities.weaponsplatform import LifeSiphonPlatform
+    target = FakePlatformTarget(health=5000, max_health=5000)
+    owner = FakeSiphonOwner(target=target)
+    owner.player.uses_health = True
+    owner.player.health = owner.player.max_health
+    LifeSiphonPlatform().fire(owner)
+    assert owner.player.health == owner.player.max_health
+
+def test_life_siphon_adds_to_pool_in_lives_mode():
+    setup_laser_containers()
+    from entities.weaponsplatform import LifeSiphonPlatform
+    target = FakePlatformTarget(health=5000, max_health=5000)
+    owner = FakeSiphonOwner(target=target)
+    owner.player.uses_health = False
+    p = LifeSiphonPlatform()
+    p.fire(owner)
+    assert p.life_essence_pool > 0
+
+def test_life_siphon_grants_life_when_pool_fills():
+    setup_laser_containers()
+    from entities.weaponsplatform import LifeSiphonPlatform
+    target = FakePlatformTarget(health=5000, max_health=5000)
+    owner = FakeSiphonOwner(target=target)
+    owner.player.uses_health = False
+    p = LifeSiphonPlatform()
+    drain_per_shot = max(1, int(C.LIFE_SIPHON_BASE_DAMAGE * C.LIFE_SIPHON_DRAIN_RATE))
+    p.life_essence_pool = C.LIFE_SIPHON_LIFE_THRESHOLD - drain_per_shot + 1
+    p.fire(owner)
+    assert owner.player.lives == 3
+
+def test_life_siphon_does_not_grant_life_above_max_lives():
+    setup_laser_containers()
+    from entities.weaponsplatform import LifeSiphonPlatform
+    target = FakePlatformTarget(health=5000, max_health=5000)
+    owner = FakeSiphonOwner(target=target)
+    owner.player.uses_health = False
+    owner.player.lives = 3
+    p = LifeSiphonPlatform()
+    drain_per_shot = max(1, int(C.LIFE_SIPHON_BASE_DAMAGE * C.LIFE_SIPHON_DRAIN_RATE))
+    p.life_essence_pool = C.LIFE_SIPHON_LIFE_THRESHOLD - drain_per_shot + 1
+    p.fire(owner)
+    assert owner.player.lives == 3
+
+def test_life_siphon_resets_pool_after_granting_life():
+    setup_laser_containers()
+    from entities.weaponsplatform import LifeSiphonPlatform
+    target = FakePlatformTarget(health=5000, max_health=5000)
+    owner = FakeSiphonOwner(target=target)
+    owner.player.uses_health = False
+    p = LifeSiphonPlatform()
+    drain_per_shot = max(1, int(C.LIFE_SIPHON_BASE_DAMAGE * C.LIFE_SIPHON_DRAIN_RATE))
+    p.life_essence_pool = C.LIFE_SIPHON_LIFE_THRESHOLD - drain_per_shot + 1
+    p.fire(owner)
+    assert p.life_essence_pool < C.LIFE_SIPHON_LIFE_THRESHOLD
+
+def test_life_siphon_kill_drain_adds_to_pool_in_lives_mode():
+    setup_laser_containers()
+    from entities.weaponsplatform import LifeSiphonPlatform
+    target = FakePlatformTarget(health=1, max_health=100)
+    owner = FakeSiphonOwner(target=target)
+    owner.player.uses_health = False
+    p = LifeSiphonPlatform()
+    p.fire(owner)
+    base_drain = max(1, int(C.LIFE_SIPHON_BASE_DAMAGE * C.LIFE_SIPHON_DRAIN_RATE))
+    kill_drain = max(1, int(100 * C.LIFE_SIPHON_KILL_DRAIN_RATE))
+    assert p.life_essence_pool >= base_drain + kill_drain
+
+def test_life_siphon_drain_rate_upgrade_increases_drain_rate():
+    from entities.weaponsplatform import LifeSiphonPlatform
+    p = LifeSiphonPlatform()
+    before = p.drain_rate
+    p.apply_upgrade("drain_rate", 0)
+    assert p.drain_rate > before
+
+def test_life_siphon_kill_drain_upgrade_increases_kill_drain_rate():
+    from entities.weaponsplatform import LifeSiphonPlatform
+    p = LifeSiphonPlatform()
+    before = p.kill_drain_rate
+    p.apply_upgrade("kill_drain", 0)
+    assert p.kill_drain_rate > before
+
+def test_life_siphon_banish_ability_is_overkill():
+    from entities.weaponsplatform import LifeSiphonPlatform
+    assert LifeSiphonPlatform.banish_ability == "overkill"

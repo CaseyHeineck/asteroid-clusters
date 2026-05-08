@@ -2,7 +2,7 @@ import pygame
 from core import constants as C
 from core.circleshape import CircleShape
 from core.element import draw_elemental_glow
-from entities.weaponsplatform import BouncerPlatform, BreachPlatform, BuckshotPlatform, BurnPlatform, CannonballPlatform, CascadePlatform, ContagionPlatform, CorrodePlatform, DecoyPlatform, EvasionPlatform, ExplosivePlatform, FinisherPlatform, FuseBombPlatform, GrenadePlatform, HealPlatform, HomingMissilePlatform, KineticPlatform, LaserPlatform, MarkPlatform, NeedleSlugPlatform, OverchargePlatform, ProximityMinePlatform, ResourceBoostPlatform, SentinelPlatform, SlowPlatform
+from entities.weaponsplatform import BouncerPlatform, BuckshotPlatform, BurnPlatform, CannonballPlatform, ContagionPlatform, CorrodePlatform, DecoyPlatform, EvasionPlatform, ExplosivePlatform, FinisherPlatform, FuseBombPlatform, GrenadePlatform, HealPlatform, HomingMissilePlatform, KineticPlatform, LaserPlatform, LifeSiphonPlatform, LongShotPlatform, MarkPlatform, NeedleSlugPlatform, ProximityMinePlatform, ResonantBeamPlatform, ResourceBoostPlatform, SentinelPlatform, SlowPlatform
 
 class Drone(CircleShape):
     def __init__(self, player, asteroids):
@@ -124,8 +124,8 @@ class KineticDrone(Drone):
 
 class SlayerDrone(Drone):
     drone_name = "SLAYER DRONE"
-    drone_description = "Long range | Hitscan slayer: laser, breach, cascade, finisher, or overcharge"
-    _platform_classes = [LaserPlatform, BreachPlatform, CascadePlatform, FinisherPlatform, OverchargePlatform]
+    drone_description = "Long range | Hitscan slayer: laser, finisher, long shot, resonant beam, or life siphon"
+    _platform_classes = [LaserPlatform, FinisherPlatform, LongShotPlatform, ResonantBeamPlatform, LifeSiphonPlatform]
 
     def __init__(self, player, asteroids, platform_class=None):
         super().__init__(player, asteroids)

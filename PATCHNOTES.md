@@ -2,6 +2,67 @@
 
 ---
 
+## 2026-05-08
+
+### Slayer Drone — Variant Redesign
+
+Three Slayer variants violated core design constraints and have been retired. The class has been rebuilt around five mechanically distinct identities.
+
+**Retired:**
+- `BreachPlatform` — bypassed the elemental system, which is a game-wide mechanic no single variant should touch
+- `CascadePlatform` — used area-of-effect damage, the Explosive drone's exclusive mechanical identity
+- `OverchargePlatform` — was functionally just a slower Laser Beam with higher numbers; no meaningful differentiation
+
+**Replacement variants:**
+
+| Variant | Platform | Identity |
+|---------|----------|----------|
+| Laser Beam | `LaserPlatform` | Baseline hitscan; overkill on kill reduces child asteroid spawn count and size |
+| Finisher | `FinisherPlatform` | Scales damage with target's missing HP; weak opener, devastating closer |
+| Long Shot | `LongShotPlatform` | Damage scales linearly with distance; rewards kiting and fighting from max range |
+| Resonant Beam | `ResonantBeamPlatform` | Consecutive hits on the same target ramp damage up tier by tier; resets on target switch |
+| Life Siphon | `LifeSiphonPlatform` | Shots heal HP (health mode) or bank life essence toward a free life (lives mode); kill bonus on each kill |
+
+#### New upgrade paths
+
+**Laser Beam** — two new variant-specific paths added:
+- **Overkill Intensity** (`overkill_intensity`): increases `overkill_amp`; amplifies the overkill tier calculation so excess damage counts for more when splitting asteroids
+- **Rapid Retarget** (`rapid_retarget`): one-time upgrade; on a killing shot the cooldown resets to zero so the drone can immediately lock onto the next target
+
+**Finisher** — one new variant-specific path added:
+- **Kill Momentum** (`kill_momentum`): one-time upgrade; on a killing shot the cooldown resets to zero
+
+#### Long Shot mechanics
+
+`range_ratio = clamp(distance / platform.range, 0.0, 1.0)`
+`effective_damage = int(base_damage × lerp(MIN_MULT, MAX_MULT, range_ratio))`
+
+Default `MIN_MULT = 0.5`, `MAX_MULT = 2.5`. Point-blank fires at half base damage; at full range fires at 2.5× base. Range is 480 px (wider than baseline) to give room to work.
+
+Upgrade paths: **Range Multiplier** (+20% to `MAX_MULT`), **Extended Range** (+15% to `range`).
+
+#### Resonant Beam mechanics
+
+Tracks `resonance_target` and `resonance_tier` (0–`max_tier`). On each shot: hitting the same target increments tier, hitting a different target resets it to 0. Damage multiplier: `1.0 + tier × tier_multiplier`. Default `max_tier = 4`, `tier_multiplier = 0.5`; at peak `base × 3.0`. On target death tier resets.
+
+Upgrade paths: **Resonance Buildup** (reduces hits needed to reach peak), **Resonance Cap** (+20% to `tier_multiplier`).
+
+#### Life Siphon mechanics
+
+After each shot: `drain_amount = max(1, floor(damage × drain_rate))` (default `drain_rate = 0.10`).
+
+- **Health mode** (`player.uses_health`): adds drain directly to `player.health`, capped at `max_health`. Kill bonus adds `floor(target.max_health × kill_drain_rate)` to the same heal.
+- **Lives mode** (default): accumulates a hidden `life_essence_pool`. When `pool >= LIFE_SIPHON_LIFE_THRESHOLD`, player gains one life and pool resets to zero (capped at `max_lives`). Kill bonus adds to pool the same way.
+
+Default `kill_drain_rate = 0.05` (5% of target max HP on kill). Upgrade paths: **Drain Rate** (+5%), **Kill Drain** (+5%).
+
+#### LaserBeam projectile — overkill_amp parameter
+
+`LaserBeam.__init__` now accepts `overkill_amp=1.0`. The overkill tier calculation is updated to:
+`tier = max(1, int((effective_damage - target_health) × overkill_amp) // full_health)`
+
+---
+
 ## 2026-05-05
 
 ### Drone Variant System — All Five Drone Types Now Have Five Variants
